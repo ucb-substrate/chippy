@@ -89,3 +89,5 @@ build/
 target/
 project/metals.sbt
 project/project/
+out/
+.scala-build/
