@@ -1,19 +1,17 @@
 package build.cde
 
 import mill._
-import mill.scalalib._
+import scalalib._
 
-object `package` extends build.ChippyModule {
+object `package` extends build.ChippyPublishModule {
   def publishVersion = "0.0.1"
 
-  object test extends ScalaTests {
+  def pomSettings = makePomSettings("A Scala library for Context-Dependent Environments.")
+
+  object test extends ScalaTests, TestModule.Utest {
     def mvnDeps = Seq(
       mvn"com.lihaoyi::utest:0.10.0-RC1"
     )
-
-    def testFramework = "utest.runner.Framework"
   }
-
-  def pomSettings = makePomSettings("A Scala library for Context-Dependent Environments.")
 }
 

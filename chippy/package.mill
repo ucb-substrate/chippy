@@ -1,18 +1,18 @@
 package build.chippy
 
 import mill._
-import mill.scalalib._
+import scalalib._
 
-object `package` extends build.ChippyModule {
+object `package` extends build.ChippyPublishModule {
   def publishVersion = "0.0.1"
 
-  def moduleDeps = Seq(build.cde)
+  def moduleDeps = Seq(build.cde, build.diplomacy, build.rocketchip)
 
   def mvnDeps = Seq(
-    mvn"org.chipsalliance::chisel:7.8.0",
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
   )
   def scalacPluginMvnDeps = Seq(
-    mvn"org.chipsalliance:::chisel-plugin:7.8.0"
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
   )
 
   def pomSettings = makePomSettings("An SoC design framework for integrating cores, accelerators, and other peripherals. ")

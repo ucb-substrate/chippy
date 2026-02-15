@@ -1,20 +1,26 @@
+//| mill-version: 1.1.2
+//| mill-allow-nested-build-mill: true
+
 package build
 
 import mill._
 import scalalib._
 import publish._
 
-trait ChippyModule extends ScalaModule, PublishModule {
+trait ChippyModule extends ScalaModule {
   def scalaVersion = "2.13.18"
+  def chiselVersion = "7.8.0"
+}
 
+trait ChippyPublishModule extends ChippyModule, PublishModule {
   def makePomSettings(description: String) = PomSettings(
     description = description,
     organization = "edu.berkeley.cs",
     url = "https://github.com/ucb-substrate/chippy",
     licenses = Seq(License.MIT),
-    versionControl = VersionControl.github("ucb-substrate", "cde"),
+    versionControl = VersionControl.github("ucb-substrate", "chippy"),
     developers = Seq(
-      Developer("terpstra", "Wesley W. Terpstra", "https://github.com/terpstra")
+      Developer("rohanku", "Rohan Kumar", "https://github.com/rohanku")
     )
   )
 }
