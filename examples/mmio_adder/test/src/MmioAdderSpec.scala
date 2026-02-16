@@ -22,6 +22,7 @@ import svsim.verilator.Backend.CompilationSettings
 class TestHarness(implicit p: Parameters) extends LazyModule {
   val tltParams = TLTesterParams()
   val mmioAdderParams = MmioAdderParams()
+  // TODO: Currently only addresses that are aligned with beatBytes are addressable.
   val beatBytes = 8;
 
   val tlt = LazyModule(new TLTester(tltParams, beatBytes))
