@@ -65,33 +65,10 @@ class MmioAdderSpec extends AnyFunSpec with ChiselSim {
           )
       )
       simulate(LazyModule(dut).module, additionalResetCycles = 5) { c =>
-        // TODO: Improve MMIO read/write API
         enableWaves()
-        c.io.resp.ready.poke(true.B)
-        c.clock.stepUntil(c.io.req.ready, 1, 5)
-        c.io.req.valid.poke(true.B)
-
-        c.io.req.bits.addr.poke("h4000".U)
-        c.io.req.bits.data.poke(1.U)
-        c.io.req.bits.is_write.poke(true.B)
-        c.clock.stepUntil(c.io.req.ready, 1, 5)
-        c.clock.stepUntil(c.io.resp.valid, 1, 5)
-        c.clock.step()
-
-        c.io.req.bits.addr.poke("h4008".U)
-        c.io.req.bits.data.poke(2.U)
-        c.io.req.bits.is_write.poke(true.B)
-        c.clock.stepUntil(c.io.req.ready, 1, 5)
-        c.clock.stepUntil(c.io.resp.valid, 1, 5)
-        c.clock.step()
-
-        c.io.req.bits.addr.poke("h4010".U)
-        c.io.req.bits.is_write.poke(false.B)
-        c.clock.stepUntil(c.io.req.ready, 1, 5)
-        c.clock.stepUntil(c.io.resp.valid, 1, 5)
-        c.io.resp.bits.data.expect(3.U)
-
-        c.clock.step(cycles = 5)
+        c.io.write(c.clock, "h4000".U, 1.U)
+        c.io.write(c.clock, "h4008".U, 2.U)
+        c.io.expect(c.clock, "h4010".U, 3.U)
         println("[TEST] Success")
       }
     }
