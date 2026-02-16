@@ -15,7 +15,7 @@ cd chippy
 ./mill __.publishLocal
 ```
 
-To include a package in a new project, simply add it to your list of dependencies. If you are using Mill 1.1.2, for example, add the following to your `build.mill`:
+To include a package in a new project, simply add it to your list of dependencies. If you are using Mill 1.1.2, for example, add the following to your `build.mill` to use the `diplomacy` package:
 
 ```scala
 val mvnDeps = Seq(

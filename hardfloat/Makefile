@@ -21,7 +21,7 @@ TESTFLOAT_GEN: berkeley-testfloat-3/build/Linux-x86_64-GCC/testfloat_gen
 endif
 
 test: TESTFLOAT_GEN
-	mill test
+	(cd ..; ./mill hardfloat.test)
 
 clean:
 	git clean -fdx
