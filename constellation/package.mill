@@ -1,0 +1,26 @@
+package build.constellation
+
+import mill._
+import scalalib._
+
+object `package` extends build.ChippyPublishModule {
+  def publishVersion = "0.0.1"
+
+  def moduleDeps = Seq(build.cde, build.rocketchip, build.rocketchip.macros)
+
+  def mvnDeps = Seq(
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+  )
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = makePomSettings("A Chisel NoC RTL generator framework designed to provide the core interconnect fabric for heterogeneous many-core, many-accelerator SoCs.")
+
+  object test extends ScalaTests, TestModule.ScalaTest {
+    def mvnDeps = Seq(
+      mvn"org.scalatest::scalatest:3.2.19",
+    )
+  }
+}
+

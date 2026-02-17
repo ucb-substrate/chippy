@@ -6,10 +6,11 @@ import scalalib._
 object `package` extends build.ChippyPublishModule {
   def publishVersion = "0.0.1"
 
-  def moduleDeps = Seq(build.cde, build.diplomacy, build.rocketchip)
+  def moduleDeps = Seq(build.cde, build.diplomacy, build.rocketchip, build.testchipip)
 
   def mvnDeps = Seq(
     mvn"org.chipsalliance::chisel:${chiselVersion}",
+    mvn"org.reflections:reflections:0.10.2",
   )
   def scalacPluginMvnDeps = Seq(
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"

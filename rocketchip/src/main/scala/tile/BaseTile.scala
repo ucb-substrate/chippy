@@ -9,19 +9,50 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.bundlebridge._
 
-
-import freechips.rocketchip.resources.{PropertyMap, PropertyOption, ResourceReference, DTSTimebase}
-import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
-import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, ASIdBits, VMIdBits, TraceAux, BPWatch}
-import freechips.rocketchip.subsystem.{
-  HierarchicalElementParams, InstantiableHierarchicalElementParams, HierarchicalElementCrossingParamsLike,
-  CacheBlockBytes, SystemBusKey, BaseHierarchicalElement, InsertTimingClosureRegistersOnHartIds, BaseHierarchicalElementModuleImp
+import freechips.rocketchip.resources.{
+  PropertyMap,
+  PropertyOption,
+  ResourceReference,
+  DTSTimebase
 }
-import freechips.rocketchip.tilelink.{TLEphemeralNode, TLOutwardNode, TLNode, TLFragmenter, EarlyAck, TLWidthWidget, TLManagerParameters, ManagerUnification}
+import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
+import freechips.rocketchip.rocket.{
+  ICacheParams,
+  DCacheParams,
+  BTBParams,
+  ASIdBits,
+  VMIdBits,
+  TraceAux,
+  BPWatch
+}
+import freechips.rocketchip.subsystem.{
+  HierarchicalElementParams,
+  InstantiableHierarchicalElementParams,
+  HierarchicalElementCrossingParamsLike,
+  CacheBlockBytes,
+  SystemBusKey,
+  BaseHierarchicalElement,
+  InsertTimingClosureRegistersOnHartIds,
+  BaseHierarchicalElementModuleImp
+}
+import freechips.rocketchip.tilelink.{
+  TLEphemeralNode,
+  TLOutwardNode,
+  TLNode,
+  TLFragmenter,
+  EarlyAck,
+  TLWidthWidget,
+  TLManagerParameters,
+  ManagerUnification
+}
 import freechips.rocketchip.prci.{ClockCrossingType, ClockSinkParameters}
 import freechips.rocketchip.trace.{TraceCoreParams, TraceCoreInterface}
 
-import freechips.rocketchip.resources.{BigIntToProperty, IntToProperty, StringToProperty}
+import freechips.rocketchip.resources.{
+  BigIntToProperty,
+  IntToProperty,
+  StringToProperty
+}
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 import freechips.rocketchip.tilelink.TLIdentityNode
@@ -42,12 +73,14 @@ trait TileParams extends HierarchicalElementParams {
 abstract class InstantiableTileParams[TileType <: BaseTile]
     extends InstantiableHierarchicalElementParams[TileType]
     with TileParams {
-  def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)
-                 (implicit p: Parameters): TileType
+  def instantiate(
+      crossing: HierarchicalElementCrossingParamsLike,
+      lookup: LookupByHartIdImpl
+  )(implicit p: Parameters): TileType
 }
 
-/** These parameters values are not computed based on diplomacy negotiation
-  * and so are safe to use while diplomacy itself is running.
+/** These parameters values are not computed based on diplomacy negotiation and
+  * so are safe to use while diplomacy itself is running.
   */
 trait HasNonDiplomaticTileParameters {
   implicit val p: Parameters
@@ -59,9 +92,11 @@ trait HasNonDiplomaticTileParameters {
   def usingHypervisor: Boolean = usingVM && tileParams.core.useHypervisor
   def usingDebug: Boolean = tileParams.core.useDebug
   def usingRoCC: Boolean = !p(BuildRoCC).isEmpty
-  def usingBTB: Boolean = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
+  def usingBTB: Boolean =
+    tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
   def usingPTW: Boolean = usingVM
-  def usingDataScratchpad: Boolean = tileParams.dcache.flatMap(_.scratch).isDefined
+  def usingDataScratchpad: Boolean =
+    tileParams.dcache.flatMap(_.scratch).isDefined
 
   def xLen: Int = tileParams.core.xLen
   def xBytes: Int = xLen / 8
@@ -84,7 +119,10 @@ trait HasNonDiplomaticTileParameters {
   def asIdBits: Int = p(ASIdBits)
   def vmIdBits: Int = p(VMIdBits)
   lazy val maxPAddrBits: Int = {
-    require(xLen == 32 || xLen == 64, s"Only XLENs of 32 or 64 are supported, but got $xLen")
+    require(
+      xLen == 32 || xLen == 64,
+      s"Only XLENs of 32 or 64 are supported, but got $xLen"
+    )
     ((xLen, usingVM): @unchecked) match {
       case (_, false) => xLen
       case (32, true) => 34
@@ -99,8 +137,10 @@ trait HasNonDiplomaticTileParameters {
   def masterPortBeatBytes = p(SystemBusKey).beatBytes
 
   // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
-  //                  Core   PTW                DTIM                    coprocessors           
-  def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size + (tileParams.core.useVector && tileParams.core.vectorUseDCache).toInt
+  //                  Core   PTW                DTIM                    coprocessors
+  def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(
+    BuildRoCC
+  ).size + (tileParams.core.useVector && tileParams.core.vectorUseDCache).toInt
 
   // TODO merge with isaString in CSR.scala
   def isaDTS: String = {
@@ -108,10 +148,16 @@ trait HasNonDiplomaticTileParameters {
     val m = if (tileParams.core.mulDiv.nonEmpty) "m" else ""
     val a = if (tileParams.core.useAtomics) "a" else ""
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
-    val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
+    val d =
+      if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d"
+      else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
     val b = if (tileParams.core.useBitmanip) "b" else ""
-    val v = if (tileParams.core.useVector && tileParams.core.vLen >= 128 && tileParams.core.eLen == 64 && tileParams.core.vfLen == 64) "v" else ""
+    val v =
+      if (
+        tileParams.core.useVector && tileParams.core.vLen >= 128 && tileParams.core.eLen == 64 && tileParams.core.vfLen == 64
+      ) "v"
+      else ""
     val h = if (usingHypervisor) "h" else ""
 
     val ext_strs = Seq(
@@ -120,12 +166,14 @@ trait HasNonDiplomaticTileParameters {
         val c = tileParams.core.vfLen match {
           case 64 => "d"
           case 32 => "f"
-          case 0 => "x"
+          case 0  => "x"
         }
         s"zve${tileParams.core.eLen}$c"
       },
       (tileParams.core.useVector && tileParams.core.vfh) -> "zvfh",
-      (tileParams.core.fpu.map(_.fLen >= 16).getOrElse(false) && tileParams.core.minFLen <= 16) -> "zfh",
+      (tileParams.core.fpu
+        .map(_.fLen >= 16)
+        .getOrElse(false) && tileParams.core.minFLen <= 16) -> "zfh",
       (tileParams.core.useZba) -> "zba",
       (tileParams.core.useZbb) -> "zbb",
       (tileParams.core.useZbs) -> "zbs",
@@ -136,68 +184,103 @@ trait HasNonDiplomaticTileParameters {
       // rdcycle[h], rdinstret[h] is implemented
       // rdtime[h] is not implemented, and could be provided by software emulation
       // see https://github.com/chipsalliance/rocket-chip/issues/3207
-      //Some(Seq("zicntr")) ++
+      // Some(Seq("zicntr")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
-      Some(ext_strs) ++ Some(tileParams.core.vExts) ++
-      tileParams.core.customIsaExt.map(Seq(_))
+        Some(ext_strs) ++ Some(tileParams.core.vExts) ++
+        tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
     s"rv$xLen$ie$m$a$f$d$c$b$v$h$multiLetterString"
   }
 
   def tileProperties: PropertyMap = {
-    val dcache = tileParams.dcache.filter(!_.scratch.isDefined).map(d => Map(
-      "d-cache-block-size"   -> cacheBlockBytes.asProperty,
-      "d-cache-sets"         -> d.nSets.asProperty,
-      "d-cache-size"         -> (d.nSets * d.nWays * cacheBlockBytes).asProperty)
-    ).getOrElse(Nil)
+    val dcache = tileParams.dcache
+      .filter(!_.scratch.isDefined)
+      .map(d =>
+        Map(
+          "d-cache-block-size" -> cacheBlockBytes.asProperty,
+          "d-cache-sets" -> d.nSets.asProperty,
+          "d-cache-size" -> (d.nSets * d.nWays * cacheBlockBytes).asProperty
+        )
+      )
+      .getOrElse(Nil)
 
-    val incoherent = if (!tileParams.core.useAtomicsOnlyForIO) Nil else Map(
-      "sifive,d-cache-incoherent" -> Nil)
+    val incoherent =
+      if (!tileParams.core.useAtomicsOnlyForIO) Nil
+      else Map("sifive,d-cache-incoherent" -> Nil)
 
-    val icache = tileParams.icache.map(i => Map(
-      "i-cache-block-size"   -> cacheBlockBytes.asProperty,
-      "i-cache-sets"         -> i.nSets.asProperty,
-      "i-cache-size"         -> (i.nSets * i.nWays * cacheBlockBytes).asProperty)
-    ).getOrElse(Nil)
+    val icache = tileParams.icache
+      .map(i =>
+        Map(
+          "i-cache-block-size" -> cacheBlockBytes.asProperty,
+          "i-cache-sets" -> i.nSets.asProperty,
+          "i-cache-size" -> (i.nSets * i.nWays * cacheBlockBytes).asProperty
+        )
+      )
+      .getOrElse(Nil)
 
-    val dtlb = tileParams.dcache.filter(_ => tileParams.core.useVM).map(d => Map(
-      "d-tlb-size"           -> (d.nTLBWays * d.nTLBSets).asProperty,
-      "d-tlb-sets"           -> d.nTLBSets.asProperty)).getOrElse(Nil)
+    val dtlb = tileParams.dcache
+      .filter(_ => tileParams.core.useVM)
+      .map(d =>
+        Map(
+          "d-tlb-size" -> (d.nTLBWays * d.nTLBSets).asProperty,
+          "d-tlb-sets" -> d.nTLBSets.asProperty
+        )
+      )
+      .getOrElse(Nil)
 
-    val itlb = tileParams.icache.filter(_ => tileParams.core.useVM).map(i => Map(
-      "i-tlb-size"           -> (i.nTLBWays * i.nTLBSets).asProperty,
-      "i-tlb-sets"           -> i.nTLBSets.asProperty)).getOrElse(Nil)
+    val itlb = tileParams.icache
+      .filter(_ => tileParams.core.useVM)
+      .map(i =>
+        Map(
+          "i-tlb-size" -> (i.nTLBWays * i.nTLBSets).asProperty,
+          "i-tlb-sets" -> i.nTLBSets.asProperty
+        )
+      )
+      .getOrElse(Nil)
 
     val mmu =
       if (tileParams.core.useVM) {
         if (tileParams.core.useHypervisor) {
-          Map("tlb-split" -> Nil, "mmu-type" -> s"riscv,sv${maxSVAddrBits},sv${maxSVAddrBits}x4".asProperty)
+          Map(
+            "tlb-split" -> Nil,
+            "mmu-type" -> s"riscv,sv${maxSVAddrBits},sv${maxSVAddrBits}x4".asProperty
+          )
         } else {
-          Map("tlb-split" -> Nil, "mmu-type" -> s"riscv,sv$maxSVAddrBits".asProperty)
+          Map(
+            "tlb-split" -> Nil,
+            "mmu-type" -> s"riscv,sv$maxSVAddrBits".asProperty
+          )
         }
       } else {
         Nil
       }
 
-    val pmp = if (tileParams.core.nPMPs > 0) Map(
-      "riscv,pmpregions" -> tileParams.core.nPMPs.asProperty,
-      "riscv,pmpgranularity" -> tileParams.core.pmpGranularity.asProperty) else Nil
+    val pmp =
+      if (tileParams.core.nPMPs > 0)
+        Map(
+          "riscv,pmpregions" -> tileParams.core.nPMPs.asProperty,
+          "riscv,pmpgranularity" -> tileParams.core.pmpGranularity.asProperty
+        )
+      else Nil
 
     dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ pmp ++ incoherent
   }
 
 }
 
-/** These parameters values are computed based on diplomacy negotiations
-  * and so are NOT safe to use while diplomacy itself is running.
-  * Only mix this trait into LazyModuleImps, Modules, Bundles, Data, etc.
+/** These parameters values are computed based on diplomacy negotiations and so
+  * are NOT safe to use while diplomacy itself is running. Only mix this trait
+  * into LazyModuleImps, Modules, Bundles, Data, etc.
   */
 trait HasTileParameters extends HasNonDiplomaticTileParameters {
   protected def tlBundleParams = p(TileVisibilityNodeKey).edges.out.head.bundle
   lazy val paddrBits: Int = {
     val bits = tlBundleParams.addressBits
-    require(bits <= maxPAddrBits, s"Requested $bits paddr bits, but since xLen is $xLen only $maxPAddrBits will fit")
+    require(
+      bits <= maxPAddrBits,
+      s"Requested $bits paddr bits, but since xLen is $xLen only $maxPAddrBits will fit"
+    )
     bits
   }
   def vaddrBits: Int =
@@ -212,71 +295,98 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
     }
   def vpnBits: Int = vaddrBits - pgIdxBits
   def ppnBits: Int = paddrBits - pgIdxBits
-  def vpnBitsExtended: Int = vpnBits + (if (vaddrBits < xLen) 1 + usingHypervisor.toInt else 0)
+  def vpnBitsExtended: Int =
+    vpnBits + (if (vaddrBits < xLen) 1 + usingHypervisor.toInt else 0)
   def vaddrBitsExtended: Int = vpnBitsExtended + pgIdxBits
 }
 
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
     extends BaseHierarchicalElement(crossing)(q)
-    with HasNonDiplomaticTileParameters
-{
+    with HasNonDiplomaticTileParameters {
   // Public constructor alters Parameters to supply some legacy compatibility keys
-  def this(tileParams: TileParams, crossing: ClockCrossingType, lookup: LookupByHartIdImpl, p: Parameters) = {
-    this(crossing, p.alterMap(Map(
-      TileKey -> tileParams,
-      TileVisibilityNodeKey -> TLEphemeralNode()(ValName("tile_master")),
-      LookupByHartId -> lookup
-    )))
+  def this(
+      tileParams: TileParams,
+      crossing: ClockCrossingType,
+      lookup: LookupByHartIdImpl,
+      p: Parameters
+  ) = {
+    this(
+      crossing,
+      p.alterMap(
+        Map(
+          TileKey -> tileParams,
+          TileVisibilityNodeKey -> TLEphemeralNode()(ValName("tile_master")),
+          LookupByHartId -> lookup
+        )
+      )
+    )
   }
 
-  def intInwardNode: IntInwardNode            // Interrupts to the core from external devices
-  def intOutwardNode: Option[IntOutwardNode]  // Interrupts from tile-internal devices (e.g. BEU)
-  def haltNode: IntOutwardNode                // Unrecoverable error has occurred; suggest reset
-  def ceaseNode: IntOutwardNode               // Tile has ceased to retire instructions
-  def wfiNode: IntOutwardNode                 // Tile is waiting for an interrupt
+  def intInwardNode
+      : IntInwardNode // Interrupts to the core from external devices
+  def intOutwardNode: Option[
+    IntOutwardNode
+  ] // Interrupts from tile-internal devices (e.g. BEU)
+  def haltNode
+      : IntOutwardNode // Unrecoverable error has occurred; suggest reset
+  def ceaseNode: IntOutwardNode // Tile has ceased to retire instructions
+  def wfiNode: IntOutwardNode // Tile is waiting for an interrupt
   def module: BaseTileModuleImp[BaseTile]
 
-  /** Node for broadcasting a hart id to diplomatic consumers within the tile. */
-  val hartIdNexusNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(InsertTimingClosureRegistersOnHartIds))
+  /** Node for broadcasting a hart id to diplomatic consumers within the tile.
+    */
+  val hartIdNexusNode: BundleBridgeNode[UInt] =
+    BundleBroadcast[UInt](registered = p(InsertTimingClosureRegistersOnHartIds))
 
   /** Node for consuming the hart id input in tile-layer Chisel logic. */
   val hartIdSinkNode = BundleBridgeSink[UInt]()
 
-  /** Node for driving a hart id input, which is to be broadcast to units within the tile.
+  /** Node for driving a hart id input, which is to be broadcast to units within
+    * the tile.
     *
     * Making this id value an IO and then using it to do lookups of information
-    * that would make otherwise-homogeneous tiles heterogeneous is a useful trick
-    * to enable deduplication of tiles for hierarchical P&R flows.
+    * that would make otherwise-homogeneous tiles heterogeneous is a useful
+    * trick to enable deduplication of tiles for hierarchical P&R flows.
     */
   val hartIdNode: BundleBridgeInwardNode[UInt] =
     hartIdSinkNode := hartIdNexusNode := BundleBridgeNameNode("hartid")
 
-  /** Node for broadcasting a reset vector to diplomatic consumers within the tile. */
+  /** Node for broadcasting a reset vector to diplomatic consumers within the
+    * tile.
+    */
   val resetVectorNexusNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt]()
 
   /** Node for consuming the reset vector input in tile-layer Chisel logic.
     *
-    * Its width is sized by looking at the size of the address space visible
-    * on the tile's master ports, but this lookup is not evaluated until
-    * diplomacy has completed and Chisel elaboration has begun.
+    * Its width is sized by looking at the size of the address space visible on
+    * the tile's master ports, but this lookup is not evaluated until diplomacy
+    * has completed and Chisel elaboration has begun.
     */
-  val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(visiblePhysAddrBits.W)))
+  val resetVectorSinkNode =
+    BundleBridgeSink[UInt](Some(() => UInt(visiblePhysAddrBits.W)))
 
-  /** Node for supplying a reset vector that processors in this tile might begin fetching instructions from as they come out of reset. */
+  /** Node for supplying a reset vector that processors in this tile might begin
+    * fetching instructions from as they come out of reset.
+    */
   val resetVectorNode: BundleBridgeInwardNode[UInt] =
-    resetVectorSinkNode := resetVectorNexusNode := BundleBridgeNameNode("reset_vector")
+    resetVectorSinkNode := resetVectorNexusNode := BundleBridgeNameNode(
+      "reset_vector"
+    )
 
   /** Nodes for connecting NMI interrupt sources and vectors into the tile */
   val nmiSinkNode = Option.when(tileParams.core.useNMI) {
     BundleBridgeSink[NMI](Some(() => new NMI(visiblePhysAddrBits)))
   }
-  val nmiNode: Option[BundleBridgeInwardNode[NMI]] = nmiSinkNode.map(_ := BundleBridgeNameNode("nmi"))
+  val nmiNode: Option[BundleBridgeInwardNode[NMI]] =
+    nmiSinkNode.map(_ := BundleBridgeNameNode("nmi"))
 
-  /** Node for broadcasting an address prefix to diplomatic consumers within the tile.
+  /** Node for broadcasting an address prefix to diplomatic consumers within the
+    * tile.
     *
     * The prefix should be applied by consumers by or-ing ouputs of this node
-    * with a static base address (which is looked up based on the driven hartid value).
+    * with a static base address (which is looked up based on the driven hartid
+    * value).
     */
   val mmioAddressPrefixNexusNode = BundleBridgeNexus[UInt](
     inputFn = BundleBridgeNexus.orReduction[UInt](registered = false) _,
@@ -284,7 +394,9 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
     default = Some(() => 0.U(1.W))
   )
 
-  /** Node for external drivers to prefix base addresses of MMIO devices to which the core has a direct access path. */
+  /** Node for external drivers to prefix base addresses of MMIO devices to
+    * which the core has a direct access path.
+    */
   val mmioAddressPrefixNode: BundleBridgeInwardNode[UInt] =
     mmioAddressPrefixNexusNode :=* BundleBridgeNameNode("mmio_address_prefix")
 
@@ -295,53 +407,88 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
   //       Then these nodes should just become IdentityNodes of their respective type
 
   protected def traceRetireWidth = tileParams.core.retireWidth
+
   /** Node for the core to drive legacy "raw" instruction trace. */
   val traceSourceNode = BundleBridgeSource(() => new TraceBundle)
-  /** Node for external consumers to source a legacy instruction trace from the core. */
+
+  /** Node for external consumers to source a legacy instruction trace from the
+    * core.
+    */
   val traceNode = traceSourceNode
 
   def traceCoreParams = new TraceCoreParams()
-  /** Node for core to drive instruction trace conforming to RISC-V Processor Trace spec V1.0 */
-  val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(traceCoreParams))
-  /** Node for external consumers to source  a V1.0 instruction trace from the core. */
+
+  /** Node for core to drive instruction trace conforming to RISC-V Processor
+    * Trace spec V1.0
+    */
+  val traceCoreSourceNode =
+    BundleBridgeSource(() => new TraceCoreInterface(traceCoreParams))
+
+  /** Node for external consumers to source a V1.0 instruction trace from the
+    * core.
+    */
   val traceCoreNode = traceCoreSourceNode
 
   /** Node to broadcast collected trace sideband signals into the tile. */
   val traceAuxNexusNode = BundleBridgeNexus[TraceAux](default = Some(() => {
     val aux = Wire(new TraceAux)
-    aux.stall  := false.B
+    aux.stall := false.B
     aux.enable := false.B
     aux
   }))
+
   /** Trace sideband signals to be consumed by the core. */
   val traceAuxSinkNode = BundleBridgeSink[TraceAux]()
+
   /** Trace sideband signals collected here to be driven into the tile. */
   val traceAuxNode: BundleBridgeInwardNode[TraceAux] =
     traceAuxSinkNode := traceAuxNexusNode :=* BundleBridgeNameNode("trace_aux")
 
   /** Node for watchpoints to control trace driven by core. */
-  val bpwatchSourceNode = BundleBridgeSource(() => Vec(tileParams.core.nBreakpoints, new BPWatch(traceRetireWidth)))
+  val bpwatchSourceNode = BundleBridgeSource(() =>
+    Vec(tileParams.core.nBreakpoints, new BPWatch(traceRetireWidth))
+  )
+
   /** Node to broadcast watchpoints to control trace. */
   val bpwatchNexusNode = BundleBroadcast[Vec[BPWatch]]()
+
   /** Node for external consumers to source watchpoints to control trace. */
   val bpwatchNode: BundleBridgeOutwardNode[Vec[BPWatch]] =
     BundleBridgeNameNode("bpwatch") :*= bpwatchNexusNode := bpwatchSourceNode
 
-  /** Helper function for connecting MMIO devices inside the tile to an xbar that will make them visible to external masters. */
-  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int): Unit = {
+  /** Helper function for connecting MMIO devices inside the tile to an xbar
+    * that will make them visible to external masters.
+    */
+  def connectTLSlave(
+      xbarNode: TLOutwardNode,
+      node: TLNode,
+      bytes: Int
+  ): Unit = {
     DisableMonitors { implicit p =>
-      (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
+      (Seq(
+        node,
+        TLFragmenter(bytes, cacheBlockBytes, earlyAck = EarlyAck.PutFulls)
+      )
         ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
         .foldRight(xbarNode)(_ :*= _)
     }
   }
-  def connectTLSlave(node: TLNode, bytes: Int): Unit = { connectTLSlave(tlSlaveXbar.node, node, bytes) }
+  def connectTLSlave(node: TLNode, bytes: Int): Unit = {
+    connectTLSlave(tlSlaveXbar.node, node, bytes)
+  }
+  def connectMMIORaw(node: TLNode): Unit = { node := tlSlaveXbar.node }
 
-  /** TileLink node which represents the view that the intra-tile masters have of the rest of the system. */
+  /** TileLink node which represents the view that the intra-tile masters have
+    * of the rest of the system.
+    */
   val visibilityNode = p(TileVisibilityNodeKey)
-  protected def visibleManagers = visibilityNode.edges.out.flatMap(_.manager.managers)
-  protected def visiblePhysAddrBits = visibilityNode.edges.out.head.bundle.addressBits
-  def unifyManagers: List[TLManagerParameters] = ManagerUnification(visibleManagers)
+  protected def visibleManagers =
+    visibilityNode.edges.out.flatMap(_.manager.managers)
+  protected def visiblePhysAddrBits =
+    visibilityNode.edges.out.head.bundle.addressBits
+  def unifyManagers: List[TLManagerParameters] = ManagerUnification(
+    visibleManagers
+  )
 
   /** Finds resource labels for all the outward caches. */
   def nextLevelCacheProperty: PropertyOption = {
@@ -356,18 +503,19 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
 
   /** Create a DTS representation of this "cpu". */
   def cpuProperties: PropertyMap = Map(
-      "device_type"          -> "cpu".asProperty,
-      "status"               -> "okay".asProperty,
-      "clock-frequency"      -> tileParams.core.bootFreqHz.asProperty,
-      "riscv,isa"            -> isaDTS.asProperty,
-      "timebase-frequency"   -> p(DTSTimebase).asProperty,
-      "hardware-exec-breakpoint-count" -> tileParams.core.nBreakpoints.asProperty
+    "device_type" -> "cpu".asProperty,
+    "status" -> "okay".asProperty,
+    "clock-frequency" -> tileParams.core.bootFreqHz.asProperty,
+    "riscv,isa" -> isaDTS.asProperty,
+    "timebase-frequency" -> p(DTSTimebase).asProperty,
+    "hardware-exec-breakpoint-count" -> tileParams.core.nBreakpoints.asProperty
   )
 
   /** Can be used to access derived params calculated by HasCoreParameters
     *
-    * However, callers must ensure they do not access a diplomatically-determined parameter
-    * before the graph in question has been fully connected.
+    * However, callers must ensure they do not access a
+    * diplomatically-determined parameter before the graph in question has been
+    * fully connected.
     */
   protected lazy val lazyCoreParamsView: HasCoreParameters = {
     class C(implicit val p: Parameters) extends HasCoreParameters
@@ -377,4 +525,5 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
   this.suggestName(tileParams.baseName)
 }
 
-abstract class BaseTileModuleImp[+L <: BaseTile](outer: L) extends BaseHierarchicalElementModuleImp[L](outer)
+abstract class BaseTileModuleImp[+L <: BaseTile](outer: L)
+    extends BaseHierarchicalElementModuleImp[L](outer)

@@ -4,3 +4,13 @@
 [submodule "hardfloat/berkeley-testfloat-3"]
 	path = hardfloat/berkeley-testfloat-3
 	url = https://github.com/ucb-bar/berkeley-testfloat-3.git
+[submodule "examples/sky130_chip/digital_chip/saturn-vectors"]
+	path = examples/sky130_chip/digital_chip/saturn
+	url = https://github.com/kevindna/saturn-vectors.git
+[submodule "examples/sky130_chip/digital_chip/shuttle"]
+	path = examples/sky130_chip/digital_chip/shuttle
+	url = git@github.com:ucb-bar/shuttle.git
+[submodule "saturn"]
+	url = https://github.com/ucb-bar/saturn-vectors.git
+[submodule "shuttle"]
+	url = https://github.com/ucb-bar/shuttle.git

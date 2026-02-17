@@ -1,0 +1,9 @@
+package build
+
+import mill._
+import scalalib._
+
+trait ChipModule extends ScalaModule {
+  def scalaVersion = "2.13.18"
+  def chiselVersion = "7.8.0"
+}

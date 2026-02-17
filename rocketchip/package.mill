@@ -1,9 +1,7 @@
 package build.rocketchip
 
 import mill._
-import mill.scalalib._
-import mill.scalalib.publish._
-import coursier.maven.MavenRepository
+import scalalib._
 
 object `package` extends build.ChippyPublishModule {
   def publishVersion = "0.0.1"
