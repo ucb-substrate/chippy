@@ -406,20 +406,21 @@ object `package` extends build.ChippyPublishModule {
   }
 
   object `riscv-tests` extends Module {
-    def testsRoot =
+    def testsRoot = Task {
       envByNameOrRiscv("RISCV_TESTS_ROOT").map(os.Path(_) / "riscv64-unknown-elf" / "share" / "riscv-tests")
-
-    def allCases = Task {
-      testsRoot.map(os.walk(_).filterNot(p => p.last.endsWith("dump"))).get
     }
 
-    object suite extends Cross[Suite](
-      testsRoot.map(os.walk(_).map(_.last).filterNot(_.endsWith("dump")).map(_.split('-').dropRight(1).mkString("-")).filter(_ != "").toSet.toSeq.sorted).getOrElse(Seq.empty)
-    )
+    def allCases = Task {
+      testsRoot().map(os.walk(_).filterNot(p => p.last.endsWith("dump"))).get
+    }
 
-    trait Suite extends Cross.Module[String] {
-      val name: String = crossValue
+    def testNames = Task {
+      testsRoot().map(os.walk(_).map(_.last).filterNot(_.endsWith("dump")).map(_.split('-').dropRight(1).mkString("-")).filter(_ != "").toSet.toSeq.sorted).getOrElse(Seq.empty)
+    }
 
+    def suite(name: String): Suite = new Suite(name)
+
+    class Suite(name: String) extends Module {
       def description = Task {
         s"test suite ${name} from riscv-tests"
       }

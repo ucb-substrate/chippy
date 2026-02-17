@@ -15,8 +15,8 @@ import edu.berkeley.cs.chippy.TLTester
 import edu.berkeley.cs.chippy.TLTesterIO
 import edu.berkeley.cs.chippy.TLTesterReq
 import edu.berkeley.cs.chippy.TLTesterResp
-import chisel3.simulator.ChiselSim
 import chisel3.simulator.HasSimulator.simulators.verilator
+import chisel3.simulator._
 import svsim.verilator.Backend.CompilationSettings
 import _root_.circt.stage.ChiselStage
 import testchipip.uart.UARTAdapter
@@ -26,6 +26,7 @@ import chipyard.harness.ClockSourceAtFreqMHz
 import testchipip.tsi._
 import testchipip.serdes.SerialTLKey
 import chisel3.simulator.stimulus.RunUntilSuccess
+import chisel3.testing.HasTestingDirectory
 
 class TestHarness extends Module {
   val io = IO(new Bundle {
@@ -110,8 +111,14 @@ class DigitalChipTopSpec extends AnyFunSpec with ChiselSim {
 
     it("should run hello.riscv") {
       implicit val p = new DigitalChipConfig
-      implicit val simulator = verilator(verilatorSettings =
-        CompilationSettings.default
+      implicit val simulator = new HasSimulator {
+        override def getSimulator(implicit testingDirectory: HasTestingDirectory): Simulator[Backend] =
+          new Simulator[Backend] {
+            override val backend = Backend.initializeFromProcessEnvironment()
+            override val tag = "verilator"
+            override val commonCompilationSettings = svsim.commonCompilationSettings()
+            override val backendSpecificCompilationSettings = 
+        (Backend.CompilationSettings.default
           .withDisableFatalExitOnWarnings(true)
           .withTraceStyle(
             Some(
@@ -123,9 +130,10 @@ class DigitalChipTopSpec extends AnyFunSpec with ChiselSim {
                   maxWidth = Some(1024),
                   traceDepth = Some(1024)
                 )
-            )
-          )
-      )
+            )))
+            override val workspacePath = Files.createDirectories(testingDirectory.getDirectory).toString
+          }
+      }
       simulate(new TestHarness, additionalResetCycles = 5) { c =>
         RunUntilSuccess.module[TestHarness](1000, _.io.success)
       }
