@@ -44,7 +44,7 @@ class TestDriver extends ExtModule {
     "TestDriver.v",
     """module TestDriver(
       | input success,
-      | output reset
+      | output reg reset
       |);
       | initial begin
       |   $display("Resetting chip for 10 ns");
@@ -130,7 +130,8 @@ class TestHarness extends RawModule {
 }
 
 class DigitalChipTopSpec extends AnyFunSpec {
-  val testRoot = Path(getProjectRootOrCwd.toAbsolutePath) / "build"
+  val root = Path(Paths.get(sys.env("MILL_TEST_RESOURCE_DIR")).toAbsolutePath) / os.up / os.up
+  val buildRoot = root / "build"
 
   describe("DigitalChipTop") {
     it("should generate valid System Verilog") {
@@ -139,22 +140,22 @@ class DigitalChipTopSpec extends AnyFunSpec {
         LazyModule(new DigitalChipTop).module,
         args = Array(
           "--target-dir",
-          (testRoot / "Top_should_generate_valid_System_Verilog").toString()
+          (buildRoot / "Top_should_generate_valid_System_Verilog").toString()
         )
       )
       ChiselStage.emitSystemVerilogFile(
         LazyModule(new DigitalChipTop).module,
         args = Array(
           "--target-dir",
-          (testRoot / "Top_should_generate_valid_System_Verilog").toString()
+          (buildRoot / "Top_should_generate_valid_System_Verilog").toString()
         )
       )
     }
 
     it("should run hello.riscv") {
       implicit val p = new DigitalChipConfig
-      val sourceDir = testRoot / "Top_should_run_hello_riscv/src"
-      val workDir = testRoot / "Top_should_run_hello_riscv/work"
+      val sourceDir = buildRoot / "Top_should_run_hello_riscv/src"
+      val workDir = buildRoot / "Top_should_run_hello_riscv/work"
        ChiselStage.emitSystemVerilogFile(
          new SimTop,
          args = Array(
@@ -169,12 +170,20 @@ class DigitalChipTopSpec extends AnyFunSpec {
       
       Simulator.writeVerilatorSourceFilesList(sourceFilesList, sourceFiles)
 
+      val binaryPath = root / "software/hello.riscv"
+      assert(os.exists(binaryPath), "Run `make hello.riscv` in the `software/` directory to make the binary first")
+
       Simulator.writeVerilatorSimScript(
         simScript,
         "SimTop",
         sourceFilesList,
         incDirs = os.walk(sourceDir).filter(os.isDir) ++ Seq(sourceDir),
-        additionalSimulationLines = Seq("+permissive", "+verbose", "+permissive-off", "/scratch/rohankumar/chipyard/tests/build/hello.riscv")
+        additionalSimulationLines = Seq(
+          "+permissive",
+          "+verbose",
+          "+permissive-off",
+          s"${binaryPath.toString} </dev/null 2> >(spike-dasm > simulation.out) | tee simulation.log",
+        )
       )
 
       os.proc(

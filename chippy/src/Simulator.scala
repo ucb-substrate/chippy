@@ -62,6 +62,7 @@ object Simulator {
     val cmd = new LineWriter(path.toString)
     try {
       cmd("#!/bin/bash")
+      cmd("set -exo pipefail")
       cmd(verilatorCmd, " \\")
       cmd(" --cc \\")
       cmd(" --exe \\")
