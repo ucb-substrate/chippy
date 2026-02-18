@@ -30,6 +30,17 @@ import java.nio.file.Paths
 import os.RelPath
 import os.Path
 
+class TestDriver extends ExtModule {
+  setInline(
+    "TestDriver.v",
+    """module TestDriver(
+      |);
+      | $finish
+      |endmodule
+    """.stripMargin
+  )
+}
+
 class TestHarness extends Module {
   val io = IO(new Bundle {
     val success = Output(Bool())
@@ -72,6 +83,8 @@ class TestHarness extends Module {
     ~(reset.asBool),
     dtm_success
   )
+
+  val driver = Module(new TestDriver)
 
   chiptop.io.serial_tl.clock_in := digitalClock
   withClock(digitalClock) {
@@ -127,7 +140,7 @@ class DigitalChipTopSpec extends AnyFunSpec {
       val sourceFiles = Simulator.getSourceFiles(sourceDir)
 
       val cmdFiles = Simulator.verilatorCmdFiles(
-        "TestHarness",
+        "TestDriver",
         workDir,
         sourceFiles = sourceFiles,
         incDirs = os.walk(sourceDir).filter(os.isDir) ++ Seq(sourceDir)
