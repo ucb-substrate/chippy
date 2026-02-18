@@ -5,7 +5,7 @@ import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 
 import org.scalatest.funspec.AnyFunSpec
-import edu.berkeley.cs.chippy.ChippyStage
+import edu.berkeley.cs.chippy.{ChippyStage, Simulator}
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.cde.config.Parameters
@@ -15,9 +15,8 @@ import edu.berkeley.cs.chippy.TLTester
 import edu.berkeley.cs.chippy.TLTesterIO
 import edu.berkeley.cs.chippy.TLTesterReq
 import edu.berkeley.cs.chippy.TLTesterResp
-import chisel3.simulator.HasSimulator.simulators.verilator
-import chisel3.simulator._
 import svsim.verilator.Backend.CompilationSettings
+import svsim.Workspace.getProjectRootOrCwd
 import _root_.circt.stage.ChiselStage
 import testchipip.uart.UARTAdapter
 import freechips.rocketchip.jtag.JTAGIO
@@ -27,6 +26,9 @@ import testchipip.tsi._
 import testchipip.serdes.SerialTLKey
 import chisel3.simulator.stimulus.RunUntilSuccess
 import chisel3.testing.HasTestingDirectory
+import java.nio.file.Paths
+import os.RelPath
+import os.Path
 
 class TestHarness extends Module {
   val io = IO(new Bundle {
@@ -89,7 +91,9 @@ class TestHarness extends Module {
   }
 }
 
-class DigitalChipTopSpec extends AnyFunSpec with ChiselSim {
+class DigitalChipTopSpec extends AnyFunSpec {
+  val testRoot = Path(getProjectRootOrCwd.toAbsolutePath) / "build"
+
   describe("DigitalChipTop") {
     it("should generate valid System Verilog") {
       implicit val p = new DigitalChipConfig
@@ -97,46 +101,44 @@ class DigitalChipTopSpec extends AnyFunSpec with ChiselSim {
         LazyModule(new DigitalChipTop).module,
         args = Array(
           "--target-dir",
-          "./test_run_dir/Top_should_generate_valid_System_Verilog"
+          (testRoot / "Top_should_generate_valid_System_Verilog").toString()
         )
       )
       ChiselStage.emitSystemVerilogFile(
         LazyModule(new DigitalChipTop).module,
         args = Array(
           "--target-dir",
-          "./test_run_dir/Top_should_generate_valid_System_Verilog"
+          (testRoot / "Top_should_generate_valid_System_Verilog").toString()
         )
       )
     }
 
     it("should run hello.riscv") {
       implicit val p = new DigitalChipConfig
-      implicit val simulator = new HasSimulator {
-        override def getSimulator(implicit testingDirectory: HasTestingDirectory): Simulator[Backend] =
-          new Simulator[Backend] {
-            override val backend = Backend.initializeFromProcessEnvironment()
-            override val tag = "verilator"
-            override val commonCompilationSettings = svsim.commonCompilationSettings()
-            override val backendSpecificCompilationSettings = 
-        (Backend.CompilationSettings.default
-          .withDisableFatalExitOnWarnings(true)
-          .withTraceStyle(
-            Some(
-              svsim.verilator.Backend.CompilationSettings
-                .TraceStyle(
-                  svsim.verilator.Backend.CompilationSettings.TraceKind.Vcd,
-                  traceUnderscore = true,
-                  maxArraySize = Some(1024),
-                  maxWidth = Some(1024),
-                  traceDepth = Some(1024)
-                )
-            )))
-            override val workspacePath = Files.createDirectories(testingDirectory.getDirectory).toString
-          }
-      }
-      simulate(new TestHarness, additionalResetCycles = 5) { c =>
-        RunUntilSuccess.module[TestHarness](1000, _.io.success)
-      }
+      val sourceDir = testRoot / "Top_should_run_hello_riscv/src"
+      val workDir = testRoot / "Top_should_run_hello_riscv/work"
+      ChiselStage.emitSystemVerilogFile(
+        new TestHarness,
+        args = Array(
+          "--target-dir",
+          sourceDir.toString
+        )
+      )
+      val sourceFiles = Simulator.getSourceFiles(sourceDir)
+
+      val cmdFiles = Simulator.verilatorCmdFiles(
+        "TestHarness",
+        workDir,
+        sourceFiles = sourceFiles,
+        incDirs = os.walk(sourceDir).filter(os.isDir) ++ Seq(sourceDir)
+      )
+
+      os.proc(
+        "/bin/bash",
+        "-c",
+        cmdFiles.simScript
+      ).call(cwd = workDir)
+
     }
   }
 }
