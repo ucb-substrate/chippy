@@ -58,9 +58,9 @@ object Simulator {
       cmd(" --trace-depth 1024 \\")
       cmd(" -Wno-fatal \\")
       cmd(
-        " -CFLAGS \"-std=c++17 -DSVSIM_ENABLE_VERILATOR_SUPPORT -DSVSIM_VERILATOR_TRACE_ENABLED -lfesvr -I/opt/homebrew/include\" \\"
+        " -CFLAGS \"-std=c++17 -DSVSIM_ENABLE_VERILATOR_SUPPORT -DSVSIM_VERILATOR_TRACE_ENABLED  -I$RISCV/include\" \\"
       )
-      cmd(" -LDFLAGS \"-lfesvr -L/opt/homebrew/lib\" \\")
+      cmd(" -LDFLAGS \"-L$RISCV/lib -lfesvr\" \\")
       cmd(" -F ", sourceFilesList.toString)
       // "+define+ASSERT_VERBOSE_COND=!svsimTestbench.reset",
       // "+define+PRINTF_COND=!svsimTestbench.reset",
