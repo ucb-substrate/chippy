@@ -4,7 +4,6 @@ project/target
 docs/generated
 docs-target/
 *.fir
-*.v
 *.anno.json
 *.swp
 *~
