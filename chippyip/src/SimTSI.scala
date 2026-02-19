@@ -37,11 +37,12 @@ object SimTSI {
       tsi: Option[TSIIO],
       clock: Clock,
       reset: Reset,
-      binaryPath: Path
+      binaryPath: Path,
+      args: Seq[String] = Seq.empty
   ): Bool = {
     val exit = tsi
       .map { s =>
-        val sim = Module(new SimTSI(binaryPath))
+        val sim = Module(new SimTSI(binaryPath, args = args))
         sim.io.clock := clock
         sim.io.reset := reset
         sim.io.tsi <> s
@@ -56,11 +57,12 @@ object SimTSI {
   }
 }
 
-class SimTSI(binaryPath: Path)
+// TODO: Handle escaping
+class SimTSI(binaryPath: Path, args: Seq[String] = Seq.empty)
     extends BlackBox(
       Map(
-        "argc" -> IntParam(2),
-        "argv" -> RawParam(s"'{\"test\", \"${binaryPath.toString}\"}")
+        "argc" -> IntParam(args.length + 2),
+        "argv" -> RawParam(s"'{${args.map(arg => s"\"$arg\"").reverse.mkString(", ")}, \"${binaryPath.toString}\", \"placeholder\"}")
       )
     )
     with HasBlackBoxResource {
@@ -71,10 +73,10 @@ class SimTSI(binaryPath: Path)
     val exit = Output(UInt(32.W))
   })
 
-  addResource("/testchipip/vsrc/SimTSI.v")
-  addResource("/testchipip/csrc/SimTSI.cc")
-  addResource("/testchipip/csrc/testchip_htif.cc")
-  addResource("/testchipip/csrc/testchip_htif.h")
-  addResource("/testchipip/csrc/testchip_tsi.cc")
-  addResource("/testchipip/csrc/testchip_tsi.h")
+  addResource("/vsrc/SimTSI.sv")
+  addResource("/csrc/SimTSI.cc")
+  addResource("/csrc/testchip_htif.cc")
+  addResource("/csrc/testchip_htif.h")
+  addResource("/csrc/testchip_tsi.cc")
+  addResource("/csrc/testchip_tsi.h")
 }

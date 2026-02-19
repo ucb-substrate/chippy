@@ -1,10 +1,12 @@
-import "DPI-C" function void tsi_init
+import "DPI-C" function int tsi_init
 (
+    input int argc,
     input string argv[],
     input bit can_have_load_mem
 );
 import "DPI-C" function int tsi_tick
 (
+    input int id,
     input bit  tsi_out_valid,
     output bit tsi_out_ready,
     input int  tsi_out_bits,
@@ -27,7 +29,7 @@ module SimTSI(
 
     output [31:0] exit
 );
-    parameter integer argc = 1;
+    parameter int argc = 1;
     parameter string argv[argc-1:0] = '{"placeholder"};
     parameter bit can_have_load_mem = 1;
 
@@ -35,8 +37,8 @@ module SimTSI(
     bit __out_ready;
     int __in_bits;
     int __exit;
-    bit x = can_have_load_mem;
 
+    reg [31:0] id = 32'd0;
     reg __in_valid_reg;
     reg __out_ready_reg;
     reg [31:0] __in_bits_reg;
@@ -48,7 +50,7 @@ module SimTSI(
     assign exit = __exit_reg;
 
     initial begin
-        tsi_init(argv, can_have_load_mem);
+        id = tsi_init(argc, argv, can_have_load_mem);
     end
 
     // Evaluate the signals on the positive edge
@@ -64,6 +66,7 @@ module SimTSI(
             __exit_reg <= 0;
         end else begin
             __exit = tsi_tick(
+                id,
                 tsi_out_valid,
                 __out_ready,
                 tsi_out_bits,
@@ -80,3 +83,4 @@ module SimTSI(
     end
 
 endmodule
+

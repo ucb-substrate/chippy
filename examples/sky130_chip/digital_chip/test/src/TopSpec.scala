@@ -16,7 +16,8 @@ import testchipip.uart.UARTAdapter
 import freechips.rocketchip.jtag.JTAGIO
 import freechips.rocketchip.devices.debug.SimJTAG
 import chipyard.harness.ClockSourceAtFreqMHz
-import edu.berkeley.cs.chippyip.{SimTSI, TSIIO}
+// import edu.berkeley.cs.chippyip.{SimTSI, TSIIO}
+import testchipip.tsi._
 import testchipip.tsi.SerialRAM
 import testchipip.serdes.SerialTLKey
 import chisel3.simulator.stimulus.RunUntilSuccess
@@ -78,25 +79,25 @@ class TestHarness(binaryPath: Path) extends RawModule {
   digitalClock := source.io.clk
 
   withClockAndReset(digitalClock, io.reset) {
-    val chiptop_lazy = LazyModule(new DigitalChipTop)
-    val chiptop = Module(chiptop_lazy.module)
-    chiptop.io.clock := digitalClock
-    chiptop.io.reset := io.reset.asAsyncReset
+    val chiptop0_lazy = LazyModule(new DigitalChipTop)
+    val chiptop0 = Module(chiptop0_lazy.module)
+    chiptop0.io.clock := digitalClock
+    chiptop0.io.reset := io.reset.asAsyncReset
 
     val div =
-      (digitalFreqMHz.toDouble * 1000000 / chiptop.io.uart.c.initBaudRate.toDouble).toInt
-    UARTAdapter.connect(Seq(chiptop.io.uart), div, false)
+      (digitalFreqMHz.toDouble * 1000000 / chiptop0.io.uart.c.initBaudRate.toDouble).toInt
+    UARTAdapter.connect(Seq(chiptop0.io.uart), div, false)
 
     io.success := false.B
 
     val dtm_success = WireInit(false.B)
     when(dtm_success) { io.success := true.B }
     val jtag_wire = Wire(new JTAGIO)
-    jtag_wire.TDO.data := chiptop.io.jtag.TDO
+    jtag_wire.TDO.data := chiptop0.io.jtag.TDO
     jtag_wire.TDO.driven := true.B
-    chiptop.io.jtag.TCK := jtag_wire.TCK
-    chiptop.io.jtag.TMS := jtag_wire.TMS
-    chiptop.io.jtag.TDI := jtag_wire.TDI
+    chiptop0.io.jtag.TCK := jtag_wire.TCK
+    chiptop0.io.jtag.TMS := jtag_wire.TMS
+    chiptop0.io.jtag.TDI := jtag_wire.TDI
     val jtag = Module(new SimJTAG(tickDelay = 3))
     jtag.connect(
       jtag_wire,
@@ -106,35 +107,105 @@ class TestHarness(binaryPath: Path) extends RawModule {
       dtm_success
     )
 
-    chiptop.io.serial_tl.clock_in := digitalClock
-    withClock(digitalClock) {
-      val ram = Module(
-        LazyModule(
-          new SerialRAM(chiptop_lazy.system.serdessers(0), p(SerialTLKey)(0))(
-            chiptop_lazy.system.serdessers(0).p
-          )
-        ).module
-      )
-      ram.io.ser.in <> chiptop.io.serial_tl.out
-      chiptop.io.serial_tl.in <> ram.io.ser.out
+    chiptop0.io.serial_tl.clock_in := digitalClock
+    val ram = Module(
+      LazyModule(
+        new SerialRAM(chiptop0_lazy.system.serdessers(0), p(SerialTLKey)(0))(
+          chiptop0_lazy.system.serdessers(0).p
+        )
+      ).module
+    )
+    ram.io.ser.in <> chiptop0.io.serial_tl.out
+    chiptop0.io.serial_tl.in <> ram.io.ser.out
 
-      implicit def view[A <: Data, B <: Data]
-          : DataView[testchipip.tsi.TSIIO, TSIIO] =
-        DataView(
-          _ => new TSIIO,
-          _.in -> _.in,
-          _.out -> _.out
-        )
-      val success =
-        SimTSI.connect(
-          ram.io.tsi.map(_.viewAs[TSIIO]),
-          digitalClock,
-          io.reset,
-          binaryPath
-        )
-      when(success) { io.success := true.B }
-    }
+    // implicit def view[A <: Data, B <: Data]
+    //     : DataView[testchipip.tsi.TSIIO, TSIIO] =
+    //   DataView(
+    //     _ => new TSIIO,
+    //     _.in -> _.in,
+    //     _.out -> _.out
+    //   )
+    // val success =
+    //   SimTSI.connect(
+    //     ram.io.tsi.map(_.viewAs[TSIIO]),
+    //     digitalClock,
+    //     io.reset,
+    //     binaryPath,
+    //     args = Seq("chiptop0"),
+    //   )
+    val success =
+      SimTSI.connect(
+        ram.io.tsi,
+        digitalClock,
+        io.reset,
+      )
+    when(success) { io.success := true.B }
   }
+
+  // withClockAndReset(digitalClock, io.reset) {
+  //   val chiptop1_lazy = LazyModule(new DigitalChipTop)
+  //   val chiptop1 = Module(chiptop1_lazy.module)
+  //   chiptop1.io.clock := digitalClock
+  //   chiptop1.io.reset := io.reset.asAsyncReset
+
+  //   val div =
+  //     (digitalFreqMHz.toDouble * 1000000 / chiptop1.io.uart.c.initBaudRate.toDouble).toInt
+  //   UARTAdapter.connect(Seq(chiptop1.io.uart), div, false)
+
+  //   io.success := false.B
+
+  //   val dtm_success = WireInit(false.B)
+  //   when(dtm_success) { io.success := true.B }
+  //   val jtag_wire = Wire(new JTAGIO)
+  //   jtag_wire.TDO.data := chiptop1.io.jtag.TDO
+  //   jtag_wire.TDO.driven := true.B
+  //   chiptop1.io.jtag.TCK := jtag_wire.TCK
+  //   chiptop1.io.jtag.TMS := jtag_wire.TMS
+  //   chiptop1.io.jtag.TDI := jtag_wire.TDI
+  //   val jtag = Module(new SimJTAG(tickDelay = 3))
+  //   jtag.connect(
+  //     jtag_wire,
+  //     digitalClock,
+  //     io.reset,
+  //     ~(io.reset),
+  //     dtm_success
+  //   )
+
+  //   chiptop1.io.serial_tl.clock_in := digitalClock
+  //   val ram = Module(
+  //     LazyModule(
+  //       new SerialRAM(chiptop1_lazy.system.serdessers(0), p(SerialTLKey)(0))(
+  //         chiptop1_lazy.system.serdessers(0).p
+  //       )
+  //     ).module
+  //   )
+  //   ram.io.ser.in <> chiptop1.io.serial_tl.out
+  //   chiptop1.io.serial_tl.in <> ram.io.ser.out
+
+  //   // implicit def view[A <: Data, B <: Data]
+  //   //     : DataView[testchipip.tsi.TSIIO, TSIIO] =
+  //   //   DataView(
+  //   //     _ => new TSIIO,
+  //   //     _.in -> _.in,
+  //   //     _.out -> _.out
+  //   //   )
+  //   // val success =
+  //   //   SimTSI.connect(
+  //   //     ram.io.tsi.map(_.viewAs[TSIIO]),
+  //   //     digitalClock,
+  //   //     io.reset,
+  //   //     binaryPath,
+  //   //     args = Seq("chiptop1"),
+  //   //   )
+  //   val success =
+  //     SimTSI.connect(
+  //       ram.io.tsi,
+  //       digitalClock,
+  //       io.reset,
+  //       1
+  //     )
+  //   when(success) { io.success := true.B }
+  // }
 
 }
 
@@ -164,7 +235,7 @@ class DigitalChipTopSpec extends AnyFunSpec {
       implicit val p = new DigitalChipConfig
       val workDir = Utils.buildRoot / "Top_should_run_hello_riscv"
 
-      Utils.simulateTopWithBinary(workDir, Utils.root / "software/hello.riscv")
+      Utils.simulateTopWithBinary(workDir, Path("/scratch/rohankumar/chipyard/tests/build/hello.riscv"))// Utils.root / "software/hello.riscv")
     }
   }
 }

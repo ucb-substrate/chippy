@@ -15,12 +15,13 @@ object Utils {
     os.write.over(path, sourceFiles.map(_.toString).mkString("\n"))
   }
 
-  def writeSimScript(
+  def writeVerilatorSimScript(
       path: Path,
       topModule: String,
       sourceFilesList: Path,
       binaryPath: Path,
-      incDirs: Seq[Path] = Seq.empty
+      incDirs: Seq[Path] = Seq.empty,
+      optLevel: Option[String] = None,
   ) = {
     os.makeDir.all(path / os.up)
     os.write.over(
@@ -28,28 +29,64 @@ object Utils {
       s"""#!/bin/bash
 set -ex -o pipefail
 verilator \\
- --cc \\
- --exe \\
- --build \\
- --main \\
- -o ../simulation \\
- --top-module ${topModule} \\
- --Mdir verilated-sources \\
- --assert \\
- --timing \\
- --max-num-width 1048576 \\
- -O3 \\
-${incDirs.map(dir => s"  +incdir+$dir \\").mkString("\n")}
- --vpi \\
- +define+layer$$Verification$$Assert$$Temporal \\
- +define+layer$$Verification$$Assume$$Temporal \\
- +define+layer$$Verification$$Cover$$Temporal \\
- +define+VERILATOR \\
- -Wno-fatal \\
- -CFLAGS "$$CXXFLAGS -O3 -std=c++17 -DVERILATOR -I$$RISCV/include" \\
- -LDFLAGS "$$LDFLAGS -L$$RISCV/lib -Wl,-rpath,$$RISCV/lib -lriscv -lfesvr" \\
- -F ${sourceFilesList.toString}
-script -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+  --cc \\
+  --exe \\
+  --build \\
+  --main \\
+  -o ../simulation \\
+  --top-module ${topModule} \\
+  --Mdir verilated-sources \\
+  --assert \\
+  --timing \\
+  --max-num-width 1048576 \\${
+  optLevel match {
+    case Some(v) => s"\n  $v \\"
+    case None => ""
+  }
+}${
+  incDirs.map(dir => s"\n  +incdir+$dir \\").mkString("")
+}
+  --vpi \\
+  +define+layer$$Verification$$Assert$$Temporal \\
+  +define+layer$$Verification$$Assume$$Temporal \\
+  +define+layer$$Verification$$Cover$$Temporal \\
+  +define+VERILATOR \\
+  -Wno-fatal \\
+  -CFLAGS "$$CXXFLAGS -O3 -std=c++17 -DVERILATOR -I$$RISCV/include" \\
+  -LDFLAGS "$$LDFLAGS -L$$RISCV/lib -Wl,-rpath,$$RISCV/lib -lriscv -lfesvr" \\
+  -F ${sourceFilesList.toString}
+script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+"""
+    )
+  }
+
+  def writeVcsSimScript(
+      path: Path,
+      topModule: String,
+      sourceFilesList: Path,
+      binaryPath: Path,
+      incDirs: Seq[Path] = Seq.empty,
+      optLevel: Option[String] = None,
+  ) = {
+    os.makeDir.all(path / os.up)
+    os.write.over(
+      path,
+      s"""#!/bin/bash
+set -ex -o pipefail
+vcs \\
+  -full64\\
+  -CFLAGS "$$CXXFLAGS -O3 -std=c++17 -I$$RISCV/include" \\
+  -LDFLAGS "$$LDFLAGS -L$$RISCV/lib -Wl,-rpath,$$RISCV/lib" \\
+  -lriscv -lfesvr \\
+  -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -error=noZMMCM \\
+  -timescale=1ns/10ps -quiet -q +rad +vcs+lic+wait +vc+list \\
+  -f ${sourceFilesList.toString} -sverilog +systemverilogext+.sv+.svi+.svh+.svt -assert svaext +libext+.sv +v2k +verilog2001ext+.v95+.vt+.vp +libext+.v \\
+  -debug_pp \\
+  -top $topModule \\${
+  incDirs.map(dir => s"\n  +incdir+$dir \\").mkString("")
+}
+  +define+VCS +define+FSDB -o simulation -Mdir=vcs-sources
+script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
 """
     )
   }
@@ -88,7 +125,7 @@ script -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation.ou
 
     writeSourceFilesList(sourceFilesList, sourceFiles)
 
-    writeSimScript(
+    writeVcsSimScript(
       simScript,
       "SimTop",
       sourceFilesList,
