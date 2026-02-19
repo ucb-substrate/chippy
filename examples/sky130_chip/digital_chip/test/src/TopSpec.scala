@@ -182,28 +182,28 @@ class TestHarness(binaryPath: Path) extends RawModule {
   //   ram.io.ser.in <> chiptop1.io.serial_tl.out
   //   chiptop1.io.serial_tl.in <> ram.io.ser.out
 
-  //   // implicit def view[A <: Data, B <: Data]
-  //   //     : DataView[testchipip.tsi.TSIIO, TSIIO] =
-  //   //   DataView(
-  //   //     _ => new TSIIO,
-  //   //     _.in -> _.in,
-  //   //     _.out -> _.out
-  //   //   )
-  //   // val success =
-  //   //   SimTSI.connect(
-  //   //     ram.io.tsi.map(_.viewAs[TSIIO]),
-  //   //     digitalClock,
-  //   //     io.reset,
-  //   //     binaryPath,
-  //   //     args = Seq("chiptop1"),
-  //   //   )
+  //   implicit def view[A <: Data, B <: Data]
+  //       : DataView[testchipip.tsi.TSIIO, TSIIO] =
+  //     DataView(
+  //       _ => new TSIIO,
+  //       _.in -> _.in,
+  //       _.out -> _.out
+  //     )
   //   val success =
   //     SimTSI.connect(
-  //       ram.io.tsi,
+  //       ram.io.tsi.map(_.viewAs[TSIIO]),
   //       digitalClock,
   //       io.reset,
-  //       1
+  //       binaryPath,
+  //       args = Seq("chiptop1"),
   //     )
+  //   // val success =
+  //   //   SimTSI.connect(
+  //   //     ram.io.tsi,
+  //   //     digitalClock,
+  //   //     io.reset,
+  //   //     1
+  //   //   )
   //   when(success) { io.success := true.B }
   // }
 
@@ -235,6 +235,7 @@ class DigitalChipTopSpec extends AnyFunSpec {
       implicit val p = new DigitalChipConfig
       val workDir = Utils.buildRoot / "Top_should_run_hello_riscv"
 
+      // TODO: Figure out why this passes even when simulation errors.
       Utils.simulateTopWithBinary(workDir, Path("/scratch/rohankumar/chipyard/tests/build/hello.riscv"))// Utils.root / "software/hello.riscv")
     }
   }

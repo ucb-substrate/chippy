@@ -96,7 +96,7 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
     */
   def getSourceFiles(
       sourceDir: Path,
-      fileExtensions: Seq[String] = Seq(".v", ".sv", ".cc", ".h", ".vams")
+      fileExtensions: Seq[String] = Seq(".v", ".sv", ".cc", ".vams")
   ): Seq[Path] = {
     os
       .walk(sourceDir)
@@ -107,7 +107,7 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
   def simulateTopWithBinary(workDir: Path, binaryPath: Path) = {
     assert(
       os.exists(binaryPath),
-      "Run `make hello.riscv` in the `software/` directory to make the binary first"
+      "The provided binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
     )
     val sourceDir = workDir / "src"
     val simDir = workDir / "sim"
@@ -119,14 +119,14 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
         sourceDir.toString
       )
     )
-    val sourceFiles = getSourceFiles(sourceDir).filter(!_.last.endsWith(".h"))
+    val sourceFiles = getSourceFiles(sourceDir)
 
     val sourceFilesList = simDir / "sourceFiles.F"
     val simScript = simDir / "simulate.sh"
 
     writeSourceFilesList(sourceFilesList, sourceFiles)
 
-    writeVerilatorSimScript(
+    writeVcsSimScript(
       simScript,
       "SimTop",
       sourceFilesList,

@@ -29,71 +29,6 @@ import freechips.rocketchip.prci._
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.util._
 
-class DigitalSystemSimple(implicit p: Parameters) extends chipyard.DigitalTop
-  // Support instantiating a global NoC interconnect
-  with constellation.soc.CanHaveGlobalNoC
-  // Enables optionally having a chip-to-chip communication
-  // TODO: Instantiate CTC in config
-  with testchipip.ctc.CanHavePeripheryCTC 
-
-class DigitalChipTopSimpleIO(implicit p: Parameters) extends Bundle {
-  val clock = Input(Clock())
-  val reset = Input(AsyncReset())
-  val jtag = new JTAGChipIO(false)
-  val serial_tl = new DecoupledExternalSyncPhitIO(1)
-  val uart = new UARTPortIO(p(PeripheryUARTKey)(0))
-}
-
-class DigitalChipTopSimple(implicit p: Parameters) extends LazyModule with BindingScope {
-  val system = LazyModule(new DigitalSystem)
-  val clockGroupsSourceNode = ClockGroupSourceNode(Seq(ClockGroupSourceParameters()))
-  system.chiptopClockGroupsNode := clockGroupsSourceNode
-  val debugClockSinkNode = ClockSinkNode(Seq(ClockSinkParameters()))
-  debugClockSinkNode := system.locateTLBusWrapper(p(ExportDebug).slaveWhere).fixedClockNode
-  def debugClockBundle = debugClockSinkNode.in.head._1
-
-  override lazy val module = new DigitalChipTopImpl
-  class DigitalChipTopImpl extends LazyModuleImp(this) with DontTouch{
-      val io = IO(new DigitalChipTopIO)
-
-      clockGroupsSourceNode.out.foreach { case (bundle, edge) =>
-        bundle.member.data.foreach { b =>
-          b.clock := io.clock
-          b.reset := io.reset
-        }
-      }
-
-      // Connect debug pins
-      val debug_io = system.debug.get
-      Debug.connectDebugClockAndReset(Some(debug_io), debugClockBundle.clock)
-
-      // We never use the PSDIO, so tie it off on-chip
-      system.psd.psd.foreach { _ <> 0.U.asTypeOf(new PSDTestMode) }
-      system.resetctrl.map { rcio => rcio.hartIsInReset.map { _ := debugClockBundle.reset.asBool } }
-      debug_io.extTrigger.foreach { t => { t.in.req := false.B; t.out.ack := t.out.req; }} // Tie off extTrigger
-      debug_io.disableDebug.foreach { d => d := false.B } // Tie off disableDebug
-      // Drive JTAG on-chip IOs
-      debug_io.systemjtag.map { j =>
-        j.reset       := ResetCatchAndSync(j.jtag.TCK, debugClockBundle.reset.asBool)
-        j.mfr_id      := p(JtagDTMKey).idcodeManufId.U(11.W)
-        j.part_number := p(JtagDTMKey).idcodePartNum.U(16.W)
-        j.version     := p(JtagDTMKey).idcodeVersion.U(4.W)
-      }
-
-      debug_io.systemjtag.get.jtag.TCK := io.jtag.TCK
-      debug_io.systemjtag.get.jtag.TMS := io.jtag.TMS
-      debug_io.systemjtag.get.jtag.TDI := io.jtag.TDI
-      io.jtag.TDO := debug_io.systemjtag.get.jtag.TDO.data
-
-      // Tie off interupts and chip ID
-      system.module.interrupts := DontCare
-      system.chip_id_pin.get := DontCare
-
-      io.serial_tl <> system.serial_tls(0)
-      io.uart <> system.uart(0)
-  }
-}
-
 class DigitalChipSimpleConfig extends Config (
   //==================================
   // Set up TestHarness
@@ -129,7 +64,7 @@ class DigitalChipSimpleConfig extends Config (
       // Allow an external manager to probe this chip
       client = Some(testchipip.serdes.SerialTLClientParams()),
       // 4-bit bidir interface, synced to an external clock
-      phyParams = testchipip.serdes.DecoupledExternalSyncSerialPhyParams(phitWidth=16, flitWidth=16)
+      phyParams = testchipip.serdes.DecoupledExternalSyncSerialPhyParams(phitWidth=1, flitWidth=16)
     ),
   )) ++
   // Remove axi4 mem port

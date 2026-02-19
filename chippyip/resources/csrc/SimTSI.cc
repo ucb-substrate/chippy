@@ -10,7 +10,12 @@ std::map<int, testchip_tsi_t*> tsis;
 extern "C" int tsi_init(int argc, svOpenArrayHandle argv, unsigned char can_have_loadmem)
 {
     int id = next_id++;
-    tsis[id] = new testchip_tsi_t(argc, (char**)svGetArrElemPtr1(argv, 0), can_have_loadmem);
+    char* argv_actual[argc + 1];
+    for (int i = 0; i < argc; i++) {
+        argv_actual[i] = *(char**)svGetArrElemPtr1(argv, i);
+    }
+    argv_actual[argc] = NULL;
+    tsis[id] = new testchip_tsi_t(argc, argv_actual, can_have_loadmem);
     return id;
 }
 
