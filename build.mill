@@ -10,6 +10,10 @@ import publish._
 trait ChippyModule extends ScalaModule {
   def scalaVersion = "2.13.18"
   def chiselVersion = "7.8.0"
+
+  def scalacOptions = Seq(
+    "-deprecation"
+  )
 }
 
 trait ChippyPublishModule extends ChippyModule, PublishModule {

@@ -9,11 +9,6 @@ import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.prci._
-import edu.berkeley.cs.chippy.TLTesterParams
-import edu.berkeley.cs.chippy.TLTester
-import edu.berkeley.cs.chippy.TLTesterIO
-import edu.berkeley.cs.chippy.TLTesterReq
-import edu.berkeley.cs.chippy.TLTesterResp
 import svsim.verilator.Backend.CompilationSettings
 import svsim.Workspace.getProjectRootOrCwd
 import _root_.circt.stage.ChiselStage
@@ -21,17 +16,19 @@ import testchipip.uart.UARTAdapter
 import freechips.rocketchip.jtag.JTAGIO
 import freechips.rocketchip.devices.debug.SimJTAG
 import chipyard.harness.ClockSourceAtFreqMHz
-import testchipip.tsi._
+import edu.berkeley.cs.chippyip.{SimTSI, TSIIO}
+import testchipip.tsi.SerialRAM
 import testchipip.serdes.SerialTLKey
 import chisel3.simulator.stimulus.RunUntilSuccess
 import chisel3.testing.HasTestingDirectory
 import java.nio.file.Paths
 import os.RelPath
 import os.Path
+import chisel3.experimental.dataview._
 
-class SimTop extends RawModule {
+class SimTop(binaryPath: Path) extends RawModule {
   val driver = Module(new TestDriver)
-  val harness = Module(new TestHarness)
+  val harness = Module(new TestHarness(binaryPath))
   harness.io.reset := driver.reset
   driver.success := harness.io.success
 }
@@ -64,7 +61,7 @@ class TestDriver extends ExtModule {
   )
 }
 
-class TestHarness extends RawModule {
+class TestHarness(binaryPath: Path) extends RawModule {
   val io = IO(new Bundle {
     val success = Output(Bool())
     val reset = Input(Bool())
@@ -121,8 +118,20 @@ class TestHarness extends RawModule {
       ram.io.ser.in <> chiptop.io.serial_tl.out
       chiptop.io.serial_tl.in <> ram.io.ser.out
 
+      implicit def view[A <: Data, B <: Data]
+          : DataView[testchipip.tsi.TSIIO, TSIIO] =
+        DataView(
+          _ => new TSIIO,
+          _.in -> _.in,
+          _.out -> _.out
+        )
       val success =
-        SimTSI.connect(ram.io.tsi, digitalClock, io.reset)
+        SimTSI.connect(
+          ram.io.tsi.map(_.viewAs[TSIIO]),
+          digitalClock,
+          io.reset,
+          binaryPath
+        )
       when(success) { io.success := true.B }
     }
   }
@@ -137,14 +146,16 @@ class DigitalChipTopSpec extends AnyFunSpec {
         LazyModule(new DigitalChipTop).module,
         args = Array(
           "--target-dir",
-          (Utils.buildRoot / "Top_should_generate_valid_System_Verilog").toString()
+          (Utils.buildRoot / "Top_should_generate_valid_System_Verilog")
+            .toString()
         )
       )
       ChiselStage.emitSystemVerilogFile(
         LazyModule(new DigitalChipTop).module,
         args = Array(
           "--target-dir",
-          (Utils.buildRoot / "Top_should_generate_valid_System_Verilog").toString()
+          (Utils.buildRoot / "Top_should_generate_valid_System_Verilog")
+            .toString()
         )
       )
     }
@@ -152,7 +163,7 @@ class DigitalChipTopSpec extends AnyFunSpec {
     it("should run hello.riscv") {
       implicit val p = new DigitalChipConfig
       val workDir = Utils.buildRoot / "Top_should_run_hello_riscv"
-      
+
       Utils.simulateTopWithBinary(workDir, Utils.root / "software/hello.riscv")
     }
   }
