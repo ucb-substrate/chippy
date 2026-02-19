@@ -129,7 +129,7 @@ class DigitalChipSimpleConfig extends Config (
       // Allow an external manager to probe this chip
       client = Some(testchipip.serdes.SerialTLClientParams()),
       // 4-bit bidir interface, synced to an external clock
-      phyParams = testchipip.serdes.DecoupledExternalSyncSerialPhyParams(phitWidth=32, flitWidth=32)
+      phyParams = testchipip.serdes.DecoupledExternalSyncSerialPhyParams(phitWidth=16, flitWidth=16)
     ),
   )) ++
   // Remove axi4 mem port

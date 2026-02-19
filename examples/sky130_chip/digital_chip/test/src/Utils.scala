@@ -111,6 +111,7 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
     )
     val sourceDir = workDir / "src"
     val simDir = workDir / "sim"
+    os.remove.all(sourceDir)
     ChiselStage.emitSystemVerilogFile(
       new SimTop(binaryPath),
       args = Array(
@@ -125,7 +126,7 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
 
     writeSourceFilesList(sourceFilesList, sourceFiles)
 
-    writeVcsSimScript(
+    writeVerilatorSimScript(
       simScript,
       "SimTop",
       sourceFilesList,

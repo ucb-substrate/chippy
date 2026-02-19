@@ -68,7 +68,7 @@ class TestHarness(binaryPath: Path) extends RawModule {
     val reset = Input(Bool())
   })
 
-  implicit val p: Parameters = new DigitalChipSimpleConfig
+  implicit val p: Parameters = new DigitalChipConfig
 
   val digitalFreqMHz = 500
 
@@ -79,7 +79,7 @@ class TestHarness(binaryPath: Path) extends RawModule {
   digitalClock := source.io.clk
 
   withClockAndReset(digitalClock, io.reset) {
-    val chiptop0_lazy = LazyModule(new DigitalChipTopSimple)
+    val chiptop0_lazy = LazyModule(new DigitalChipTop)
     val chiptop0 = Module(chiptop0_lazy.module)
     chiptop0.io.clock := digitalClock
     chiptop0.io.reset := io.reset.asAsyncReset
