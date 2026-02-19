@@ -5,7 +5,6 @@ import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 
 import org.scalatest.funspec.AnyFunSpec
-import edu.berkeley.cs.chippy.Simulator
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.cde.config.Parameters
@@ -127,12 +126,10 @@ class TestHarness extends RawModule {
       when(success) { io.success := true.B }
     }
   }
+
 }
 
 class DigitalChipTopSpec extends AnyFunSpec {
-  val root = Path(Paths.get(sys.env("MILL_TEST_RESOURCE_DIR")).toAbsolutePath) / os.up / os.up
-  val buildRoot = root / "build"
-
   describe("DigitalChipTop") {
     it("should generate valid System Verilog") {
       implicit val p = new DigitalChipConfig
@@ -140,58 +137,23 @@ class DigitalChipTopSpec extends AnyFunSpec {
         LazyModule(new DigitalChipTop).module,
         args = Array(
           "--target-dir",
-          (buildRoot / "Top_should_generate_valid_System_Verilog").toString()
+          (Utils.buildRoot / "Top_should_generate_valid_System_Verilog").toString()
         )
       )
       ChiselStage.emitSystemVerilogFile(
         LazyModule(new DigitalChipTop).module,
         args = Array(
           "--target-dir",
-          (buildRoot / "Top_should_generate_valid_System_Verilog").toString()
+          (Utils.buildRoot / "Top_should_generate_valid_System_Verilog").toString()
         )
       )
     }
 
     it("should run hello.riscv") {
       implicit val p = new DigitalChipConfig
-      val sourceDir = buildRoot / "Top_should_run_hello_riscv/src"
-      val workDir = buildRoot / "Top_should_run_hello_riscv/work"
-       ChiselStage.emitSystemVerilogFile(
-         new SimTop,
-         args = Array(
-           "--target-dir",
-           sourceDir.toString
-         )
-       )
-      val sourceFiles = Simulator.getSourceFiles(sourceDir)
-
-      val sourceFilesList = workDir / "sourceFiles.F"
-      val simScript = workDir / "simulate.sh"
+      val workDir = Utils.buildRoot / "Top_should_run_hello_riscv"
       
-      Simulator.writeVerilatorSourceFilesList(sourceFilesList, sourceFiles)
-
-      val binaryPath = root / "software/hello.riscv"
-      assert(os.exists(binaryPath), "Run `make hello.riscv` in the `software/` directory to make the binary first")
-
-      Simulator.writeVerilatorSimScript(
-        simScript,
-        "SimTop",
-        sourceFilesList,
-        incDirs = os.walk(sourceDir).filter(os.isDir) ++ Seq(sourceDir),
-        additionalSimulationLines = Seq(
-          "+permissive",
-          "+verbose",
-          "+permissive-off",
-          s"${binaryPath.toString} </dev/null 2> >(spike-dasm > simulation.out) | tee simulation.log",
-        )
-      )
-
-      os.proc(
-        "/bin/bash",
-        "-c",
-        simScript
-      ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = workDir)
-
+      Utils.simulateTopWithBinary(workDir, Utils.root / "software/hello.riscv")
     }
   }
 }
