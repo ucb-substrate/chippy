@@ -3,6 +3,7 @@ package examples.sky130_chip.digital_chip
 import os.Path
 import circt.stage.ChiselStage
 import java.nio.file.Paths
+import testchipip.dram.SimDRAM
 
 object Utils {
   val root = Path(
@@ -19,9 +20,8 @@ object Utils {
       path: Path,
       topModule: String,
       sourceFilesList: Path,
-      binaryPath: Path,
       incDirs: Seq[Path] = Seq.empty,
-      optLevel: Option[String] = None,
+      optLevel: Option[String] = None
   ) = {
     os.makeDir.all(path / os.up)
     os.write.over(
@@ -38,14 +38,10 @@ verilator \\
   --Mdir verilated-sources \\
   --assert \\
   --timing \\
-  --max-num-width 1048576 \\${
-  optLevel match {
-    case Some(v) => s"\n  $v \\"
-    case None => ""
-  }
-}${
-  incDirs.map(dir => s"\n  +incdir+$dir \\").mkString("")
-}
+  --max-num-width 1048576 \\${optLevel match {
+          case Some(v) => s"\n  $v \\"
+          case None    => ""
+        }}${incDirs.map(dir => s"\n  +incdir+$dir \\").mkString("")}
   --vpi \\
   +define+layer$$Verification$$Assert$$Temporal \\
   +define+layer$$Verification$$Assume$$Temporal \\
@@ -55,19 +51,21 @@ verilator \\
   -CFLAGS "$$CXXFLAGS -O3 -std=c++17 -DVERILATOR -I$$RISCV/include" \\
   -LDFLAGS "$$LDFLAGS -L$$RISCV/lib -Wl,-rpath,$$RISCV/lib -lriscv -lfesvr" \\
   -F ${sourceFilesList.toString}
-script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+script -f -c "./simulation </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
 """
     )
+    path.toIO.setExecutable(true)
   }
 
   def writeVcsSimScript(
       path: Path,
       topModule: String,
       sourceFilesList: Path,
-      binaryPath: Path,
       incDirs: Seq[Path] = Seq.empty,
-      optLevel: Option[String] = None,
+      optLevel: Option[String] = None
   ) = {
+    val dramsim_ini =
+      getClass.getResource("/dramsim2_ini").getPath
     os.makeDir.all(path / os.up)
     os.write.over(
       path,
@@ -77,18 +75,17 @@ vcs \\
   -full64\\
   -CFLAGS "$$CXXFLAGS -O3 -std=c++17 -I$$RISCV/include" \\
   -LDFLAGS "$$LDFLAGS -L$$RISCV/lib -Wl,-rpath,$$RISCV/lib" \\
-  -lriscv -lfesvr \\
+  -lriscv -lfesvr -ldramsim \\
   -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -error=noZMMCM \\
   -timescale=1ns/10ps -quiet -q +rad +vcs+lic+wait +vc+list \\
   -f ${sourceFilesList.toString} -sverilog +systemverilogext+.sv+.svi+.svh+.svt -assert svaext +libext+.sv +v2k +verilog2001ext+.v95+.vt+.vp +libext+.v \\
   -debug_pp \\
-  -top $topModule \\${
-  incDirs.map(dir => s"\n  +incdir+$dir \\").mkString("")
-}
+  -top $topModule \\${incDirs.map(dir => s"\n  +incdir+$dir \\").mkString("")}
   +define+VCS +define+FSDB -o simulation -Mdir=vcs-sources
-script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.toString} +permissive-off </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
 """
     )
+    path.toIO.setExecutable(true)
   }
 
   /** Finds source files within a given source directory with the given file
@@ -104,17 +101,25 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
       .filter(path => fileExtensions.exists(ext => path.last.endsWith(ext)))
   }
 
-  def simulateTopWithBinary(workDir: Path, binaryPath: Path) = {
+  def simulateTopWithBinaries(
+      workDir: Path,
+      chip0BinaryPath: Path,
+      chip1BinaryPath: Path
+  ) = {
     assert(
-      os.exists(binaryPath),
-      "The provided binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
+      os.exists(chip0BinaryPath),
+      "The provided chip0 binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
+    )
+    assert(
+      os.exists(chip1BinaryPath),
+      "The provided chip1 binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
     )
     os.remove.all(workDir)
     os.makeDir.all(workDir)
     val sourceDir = workDir / "src"
     val simDir = workDir / "sim"
     ChiselStage.emitSystemVerilogFile(
-      new SimTop(binaryPath),
+      new SimTop(chip0BinaryPath, chip1BinaryPath),
       args = Array(
         "--target-dir",
         sourceDir.toString
@@ -131,7 +136,6 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
       simScript,
       "SimTop",
       sourceFilesList,
-      binaryPath,
       incDirs = os.walk(sourceDir).filter(os.isDir) ++ Seq(sourceDir)
     )
 

@@ -1,9 +1,12 @@
 package examples.sky130_chip.digital_chip
 
 import org.chipsalliance.cde.config.Config
+import freechips.rocketchip.amba.axi4.{AXI4Bundle}
+import testchipip.util.{ClockedIO}
 import testchipip.soc._
 import chisel3._
 import chisel3.util._
+import chisel3.reflect.DataMirror
 import org.chipsalliance.cde.config.{Config, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
@@ -52,6 +55,11 @@ class DigitalChipTop(implicit p: Parameters) extends LazyModule with BindingScop
   debugClockSinkNode := system.locateTLBusWrapper(p(ExportDebug).slaveWhere).fixedClockNode
   def debugClockBundle = debugClockSinkNode.in.head._1
 
+  val axiClockSinkNode = p(ExtMem).map(_ => ClockSinkNode(Seq(ClockSinkParameters())))
+  axiClockSinkNode.map(_ := system.asInstanceOf[HasTileLinkLocations].locateTLBusWrapper(MBUS).fixedClockNode)
+  def axiClockBundle = axiClockSinkNode.get.in.head._1
+
+
   override lazy val module = new DigitalChipTopImpl
   class DigitalChipTopImpl extends LazyModuleImp(this) with DontTouch{
       val io = IO(new DigitalChipTopIO)
@@ -91,6 +99,15 @@ class DigitalChipTop(implicit p: Parameters) extends LazyModule with BindingScop
 
       io.serial_tl <> system.serial_tls(0)
       io.uart <> system.uart(0)
+
+      val axi = p(ExtMem).map(_ => {
+          val m = system.mem_axi4(0)
+          val axi = IO(new ClockedIO(DataMirror.internal.chiselTypeClone[AXI4Bundle](m)))
+          axi.bits <> m
+          axi.clock <> axiClockBundle.clock
+          axi
+      })
+
   }
 }
 
