@@ -8,16 +8,19 @@ import org.scalatest.funspec.AnyFunSpec
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.cde.config.Parameters
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.prci._
 import svsim.verilator.Backend.CompilationSettings
 import svsim.Workspace.getProjectRootOrCwd
 import _root_.circt.stage.ChiselStage
 import testchipip.uart.UARTAdapter
 import freechips.rocketchip.jtag.JTAGIO
+import freechips.rocketchip.util._
 import freechips.rocketchip.devices.debug.SimJTAG
 import chipyard.harness.ClockSourceAtFreqMHz
-// import edu.berkeley.cs.chippyip.{SimTSI, TSIIO}
-import testchipip.tsi._
+import edu.berkeley.cs.chippyip.{SimTSI, TSIIO}
+// import testchipip.tsi._
+import testchipip.dram._
 import testchipip.tsi.SerialRAM
 import testchipip.serdes.SerialTLKey
 import chisel3.simulator.stimulus.RunUntilSuccess
@@ -27,9 +30,9 @@ import os.RelPath
 import os.Path
 import chisel3.experimental.dataview._
 
-class SimTop(binaryPath: Path) extends RawModule {
+class SimTop(chip0BinaryPath: Path, chip1BinaryPath: Path) extends RawModule {
   val driver = Module(new TestDriver)
-  val harness = Module(new TestHarness(binaryPath))
+  val harness = Module(new TestHarness(chip0BinaryPath, chip1BinaryPath))
   harness.io.reset := driver.reset
   driver.success := harness.io.success
 }
@@ -62,7 +65,12 @@ class TestDriver extends ExtModule {
   )
 }
 
-class TestHarness(binaryPath: Path) extends RawModule {
+class TestHarnessIO extends Bundle {
+    val success = Output(Bool())
+    val reset = Input(Bool())
+}
+
+class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path) extends RawModule {
   val io = IO(new Bundle {
     val success = Output(Bool())
     val reset = Input(Bool())
@@ -118,28 +126,35 @@ class TestHarness(binaryPath: Path) extends RawModule {
     ram.io.ser.in <> chiptop0.io.serial_tl.out
     chiptop0.io.serial_tl.in <> ram.io.ser.out
 
-    // implicit def view[A <: Data, B <: Data]
-    //     : DataView[testchipip.tsi.TSIIO, TSIIO] =
-    //   DataView(
-    //     _ => new TSIIO,
-    //     _.in -> _.in,
-    //     _.out -> _.out
-    //   )
-    // val success =
-    //   SimTSI.connect(
-    //     ram.io.tsi.map(_.viewAs[TSIIO]),
-    //     digitalClock,
-    //     io.reset,
-    //     binaryPath,
-    //     args = Seq("chiptop0"),
-    //   )
+    implicit def view[A <: Data, B <: Data]
+        : DataView[testchipip.tsi.TSIIO, TSIIO] =
+      DataView(
+        _ => new TSIIO,
+        _.in -> _.in,
+        _.out -> _.out
+      )
     val success =
       SimTSI.connect(
-        ram.io.tsi,
+        ram.io.tsi.map(_.viewAs[TSIIO]),
         digitalClock,
         io.reset,
+        chip0BinaryPath,
       )
     when(success) { io.success := true.B }
+
+    p(ExtMem).map(params => {
+      val port = chiptop0.axi.get
+      val memSize = params.master.size
+      val memBase = params.master.base
+      val lineSize = 64 // cache block size
+      val clockFreq = p(MemoryBusKey).dtsFrequency.get.toInt
+      val edge = chiptop0_lazy.system.memAXI4Node.edges.in(0) 
+      val mem = Module(new SimDRAM(memSize, lineSize, clockFreq, memBase, edge.bundle, 0)).suggestName("simdram")
+
+      mem.io.clock := port.clock
+      mem.io.reset := io.reset.asAsyncReset
+      mem.io.axi <> port.bits
+    })
   }
 
   // withClockAndReset(digitalClock, io.reset) {
@@ -194,16 +209,8 @@ class TestHarness(binaryPath: Path) extends RawModule {
   //       ram.io.tsi.map(_.viewAs[TSIIO]),
   //       digitalClock,
   //       io.reset,
-  //       binaryPath,
-  //       args = Seq("chiptop1"),
+  //       chip1BinaryPath,
   //     )
-  //   // val success =
-  //   //   SimTSI.connect(
-  //   //     ram.io.tsi,
-  //   //     digitalClock,
-  //   //     io.reset,
-  //   //     1
-  //   //   )
   //   when(success) { io.success := true.B }
   // }
 
@@ -236,7 +243,7 @@ class DigitalChipTopSpec extends AnyFunSpec {
       val workDir = Utils.buildRoot / "Top_should_run_hello_riscv"
 
       // TODO: Figure out why this passes even when simulation errors.
-      Utils.simulateTopWithBinary(workDir, Utils.root / "software/hello.riscv")
+      Utils.simulateTopWithBinaries(workDir, Utils.root / "software/hello0.riscv", Utils.root / "software/hello1.riscv")
     }
   }
 }

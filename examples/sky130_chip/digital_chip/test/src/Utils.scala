@@ -19,7 +19,6 @@ object Utils {
       path: Path,
       topModule: String,
       sourceFilesList: Path,
-      binaryPath: Path,
       incDirs: Seq[Path] = Seq.empty,
       optLevel: Option[String] = None,
   ) = {
@@ -55,16 +54,16 @@ verilator \\
   -CFLAGS "$$CXXFLAGS -O3 -std=c++17 -DVERILATOR -I$$RISCV/include" \\
   -LDFLAGS "$$LDFLAGS -L$$RISCV/lib -Wl,-rpath,$$RISCV/lib -lriscv -lfesvr" \\
   -F ${sourceFilesList.toString}
-script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+script -f -c "./simulation </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
 """
     )
+    path.toIO.setExecutable(true)
   }
 
   def writeVcsSimScript(
       path: Path,
       topModule: String,
       sourceFilesList: Path,
-      binaryPath: Path,
       incDirs: Seq[Path] = Seq.empty,
       optLevel: Option[String] = None,
   ) = {
@@ -86,9 +85,10 @@ vcs \\
   incDirs.map(dir => s"\n  +incdir+$dir \\").mkString("")
 }
   +define+VCS +define+FSDB -o simulation -Mdir=vcs-sources
-script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+script -f -c "./simulation </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
 """
     )
+    path.toIO.setExecutable(true)
   }
 
   /** Finds source files within a given source directory with the given file
@@ -104,17 +104,21 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
       .filter(path => fileExtensions.exists(ext => path.last.endsWith(ext)))
   }
 
-  def simulateTopWithBinary(workDir: Path, binaryPath: Path) = {
+  def simulateTopWithBinaries(workDir: Path, chip0BinaryPath: Path, chip1BinaryPath: Path) = {
     assert(
-      os.exists(binaryPath),
-      "The provided binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
+      os.exists(chip0BinaryPath),
+      "The provided chip0 binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
+    )
+    assert(
+      os.exists(chip1BinaryPath),
+      "The provided chip1 binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
     )
     os.remove.all(workDir)
     os.makeDir.all(workDir)
     val sourceDir = workDir / "src"
     val simDir = workDir / "sim"
     ChiselStage.emitSystemVerilogFile(
-      new SimTop(binaryPath),
+      new SimTop(chip0BinaryPath, chip1BinaryPath),
       args = Array(
         "--target-dir",
         sourceDir.toString
@@ -131,7 +135,6 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
       simScript,
       "SimTop",
       sourceFilesList,
-      binaryPath,
       incDirs = os.walk(sourceDir).filter(os.isDir) ++ Seq(sourceDir)
     )
 
