@@ -236,7 +236,7 @@ class DigitalChipTopSpec extends AnyFunSpec {
       val workDir = Utils.buildRoot / "Top_should_run_hello_riscv"
 
       // TODO: Figure out why this passes even when simulation errors.
-      Utils.simulateTopWithBinary(workDir, Path("/scratch/rohankumar/chipyard/tests/build/hello.riscv"))// Utils.root / "software/hello.riscv")
+      Utils.simulateTopWithBinary(workDir, Utils.root / "software/hello.riscv")
     }
   }
 }

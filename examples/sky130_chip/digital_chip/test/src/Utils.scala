@@ -109,9 +109,10 @@ script -f -c "./simulation ${binaryPath} </dev/null 2> >(spike-dasm > simulation
       os.exists(binaryPath),
       "The provided binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
     )
+    os.remove.all(workDir)
+    os.makeDir.all(workDir)
     val sourceDir = workDir / "src"
     val simDir = workDir / "sim"
-    os.remove.all(sourceDir)
     ChiselStage.emitSystemVerilogFile(
       new SimTop(binaryPath),
       args = Array(
