@@ -137,7 +137,7 @@ class TestHarness(binaryPath: Path) extends RawModule {
       SimTSI.connect(
         ram.io.tsi,
         digitalClock,
-        io.reset,
+        io.reset
       )
     when(success) { io.success := true.B }
   }
@@ -209,18 +209,10 @@ class TestHarness(binaryPath: Path) extends RawModule {
 
 }
 
-class DigitalChipTopSpec extends AnyFunSpec {
-  describe("DigitalChipTop") {
+class DigitalChipSpec extends AnyFunSpec {
+  describe("DigitalChip") {
     it("should generate valid System Verilog") {
       implicit val p = new DigitalChipConfig
-      ChiselStage.emitCHIRRTLFile(
-        LazyModule(new DigitalChipTop).module,
-        args = Array(
-          "--target-dir",
-          (Utils.buildRoot / "Top_should_generate_valid_System_Verilog")
-            .toString()
-        )
-      )
       ChiselStage.emitSystemVerilogFile(
         LazyModule(new DigitalChipTop).module,
         args = Array(
