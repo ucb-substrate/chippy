@@ -38,10 +38,11 @@ object SimTSI {
       clock: Clock,
       reset: Reset,
       binaryPath: Path,
+      plusArgs: Seq[String] = Seq.empty
   ): Bool = {
     val exit = tsi
       .map { s =>
-        val sim = Module(new SimTSI(binaryPath))
+        val sim = Module(new SimTSI(binaryPath, plusArgs = plusArgs))
         sim.io.clock := clock
         sim.io.reset := reset
         sim.io.tsi <> s
@@ -57,11 +58,11 @@ object SimTSI {
 }
 
 // TODO: Handle escaping
-class SimTSI(binaryPath: Path)
+class SimTSI(binaryPath: Path, plusArgs: Seq[String] = Seq.empty)
     extends BlackBox(
       Map(
-        "argc" -> IntParam(2),
-        "argv" -> RawParam(s"'{\"${binaryPath.toString}\", \"placeholder\"}")
+        "argc" -> IntParam(2 + plusArgs.length),
+        "argv" -> RawParam(s"'{${plusArgs.reverse.map(arg => s"\"${arg}\", ").mkString("")}\"${binaryPath.toString}\", \"placeholder\"}")
       )
     )
     with HasBlackBoxResource {

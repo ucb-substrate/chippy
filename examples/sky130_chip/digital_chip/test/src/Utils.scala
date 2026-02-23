@@ -4,6 +4,7 @@ import os.Path
 import circt.stage.ChiselStage
 import java.nio.file.Paths
 import testchipip.dram.SimDRAM
+import org.chipsalliance.cde.config.Parameters
 
 object Utils {
   val root = Path(
@@ -62,10 +63,11 @@ script -f -c "./simulation </dev/null 2> >(spike-dasm > simulation.out)" simulat
       topModule: String,
       sourceFilesList: Path,
       incDirs: Seq[Path] = Seq.empty,
-      optLevel: Option[String] = None
+      loadmem: Boolean = true,
   ) = {
-    val dramsim_ini =
-      getClass.getResource("/dramsim2_ini").getPath
+    // val dramsim_ini =
+    //   getClass.getResource("/dramsim2_ini").getPath
+    val dramsim_ini = Path("/scratch/rohankumar/chippy/testchipip/resources/dramsim2_ini")
     os.makeDir.all(path / os.up)
     os.write.over(
       path,
@@ -81,8 +83,12 @@ vcs \\
   -f ${sourceFilesList.toString} -sverilog +systemverilogext+.sv+.svi+.svh+.svt -assert svaext +libext+.sv +v2k +verilog2001ext+.v95+.vt+.vp +libext+.v \\
   -debug_pp \\
   -top $topModule \\${incDirs.map(dir => s"\n  +incdir+$dir \\").mkString("")}
-  +define+VCS +define+FSDB -o simulation -Mdir=vcs-sources
-script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.toString} +permissive-off </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+  +define+layer$$Verification$$Assert$$Temporal \\
+  +define+layer$$Verification$$Assume$$Temporal \\
+  +define+layer$$Verification$$Cover$$Temporal \\
+  +define+VCS +define+FSDB +define+RANDOMIZE_MEM_INIT +define+RANDOMIZE_REG_INIT +define+RANDOMIZE_GARBAGE_ASSIGN +define+RANDOMIZE_INVALID_ASSIGN \\
+  -o simulation -Mdir=vcs-sources
+script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.toString}${if (loadmem) { s" +loadmem=${(root / "software/hello0.riscv").toString}" } else { "" }} +permissive-off placeholder-binary </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
 """
     )
     path.toIO.setExecutable(true)
@@ -105,7 +111,7 @@ script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.t
       workDir: Path,
       chip0BinaryPath: Path,
       chip1BinaryPath: Path
-  ) = {
+  )(implicit p: Parameters) = {
     assert(
       os.exists(chip0BinaryPath),
       "The provided chip0 binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"

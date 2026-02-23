@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 
+import org.chipsalliance.cde.config.Config
 import org.scalatest.funspec.AnyFunSpec
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy._
@@ -30,7 +31,7 @@ import os.RelPath
 import os.Path
 import chisel3.experimental.dataview._
 
-class SimTop(chip0BinaryPath: Path, chip1BinaryPath: Path) extends RawModule {
+class SimTop(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit p: Parameters) extends RawModule {
   val driver = Module(new TestDriver)
   val harness = Module(new TestHarness(chip0BinaryPath, chip1BinaryPath))
   harness.io.reset := driver.reset
@@ -70,14 +71,12 @@ class TestHarnessIO extends Bundle {
   val reset = Input(Bool())
 }
 
-class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)
+class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit p: Parameters)
     extends RawModule {
   val io = IO(new Bundle {
     val success = Output(Bool())
     val reset = Input(Bool())
   })
-
-  implicit val p: Parameters = new DigitalChipConfig
 
   val digitalFreqMHz = 500
 
@@ -94,19 +93,19 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)
     chiptop0.io.reset := io.reset.asAsyncReset
 
     val div =
-      (digitalFreqMHz.toDouble * 1000000 / chiptop0.io.uart.c.initBaudRate.toDouble).toInt
-    UARTAdapter.connect(Seq(chiptop0.io.uart), div, false)
+      (digitalFreqMHz.toDouble * 1000000 / chiptop0.uart.c.initBaudRate.toDouble).toInt
+    UARTAdapter.connect(Seq(chiptop0.uart), div, false)
 
     io.success := false.B
 
     val dtm_success = WireInit(false.B)
     when(dtm_success) { io.success := true.B }
     val jtag_wire = Wire(new JTAGIO)
-    jtag_wire.TDO.data := chiptop0.io.jtag.TDO
+    jtag_wire.TDO.data := chiptop0.jtag.TDO
     jtag_wire.TDO.driven := true.B
-    chiptop0.io.jtag.TCK := jtag_wire.TCK
-    chiptop0.io.jtag.TMS := jtag_wire.TMS
-    chiptop0.io.jtag.TDI := jtag_wire.TDI
+    chiptop0.jtag.TCK := jtag_wire.TCK
+    chiptop0.jtag.TMS := jtag_wire.TMS
+    chiptop0.jtag.TDI := jtag_wire.TDI
     val jtag = Module(new SimJTAG(tickDelay = 3))
     jtag.connect(
       jtag_wire,
@@ -116,7 +115,7 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)
       dtm_success
     )
 
-    chiptop0.io.serial_tl.clock_in := digitalClock
+    chiptop0.serial_tl.clock_in := digitalClock
     val ram = Module(
       LazyModule(
         new SerialRAM(chiptop0_lazy.system.serdessers(0), p(SerialTLKey)(0))(
@@ -124,8 +123,8 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)
         )
       ).module
     )
-    ram.io.ser.in <> chiptop0.io.serial_tl.out
-    chiptop0.io.serial_tl.in <> ram.io.ser.out
+    ram.io.ser.in <> chiptop0.serial_tl.out
+    chiptop0.serial_tl.in <> ram.io.ser.out
 
     implicit def view[A <: Data, B <: Data]
         : DataView[testchipip.tsi.TSIIO, TSIIO] =
@@ -139,83 +138,67 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)
         ram.io.tsi.map(_.viewAs[TSIIO]),
         digitalClock,
         io.reset,
-        chip0BinaryPath
+        chip0BinaryPath,
       )
     when(success) { io.success := true.B }
-
-    p(ExtMem).map(params => {
-      val port = chiptop0.axi.get
-      val memSize = params.master.size
-      val memBase = params.master.base
-      val lineSize = 64 // cache block size
-      val clockFreq = p(MemoryBusKey).dtsFrequency.get.toInt
-      val edge = chiptop0_lazy.system.memAXI4Node.edges.in(0)
-      val mem = Module(
-        new SimDRAM(memSize, lineSize, clockFreq, memBase, edge.bundle, 0)
-      ).suggestName("simdram")
-
-      mem.io.clock := port.clock
-      mem.io.reset := io.reset.asAsyncReset
-      mem.io.axi <> port.bits
-    })
   }
 
-  // withClockAndReset(digitalClock, io.reset) {
-  //   val chiptop1_lazy = LazyModule(new DigitalChipTop)
-  //   val chiptop1 = Module(chiptop1_lazy.module)
-  //   chiptop1.io.clock := digitalClock
-  //   chiptop1.io.reset := io.reset.asAsyncReset
+  withClockAndReset(digitalClock, io.reset) {
+    val chiptop1_lazy = LazyModule(new DigitalChipTop)
+    val chiptop1 = Module(chiptop1_lazy.module)
+    chiptop1.io.clock := digitalClock
+    chiptop1.io.reset := io.reset.asAsyncReset
 
-  //   val div =
-  //     (digitalFreqMHz.toDouble * 1000000 / chiptop1.io.uart.c.initBaudRate.toDouble).toInt
-  //   UARTAdapter.connect(Seq(chiptop1.io.uart), div, false)
+    val div =
+      (digitalFreqMHz.toDouble * 1000000 / chiptop1.uart.c.initBaudRate.toDouble).toInt
+    UARTAdapter.connect(Seq(chiptop1.uart), div, false)
 
-  //   io.success := false.B
+    io.success := false.B
 
-  //   val dtm_success = WireInit(false.B)
-  //   when(dtm_success) { io.success := true.B }
-  //   val jtag_wire = Wire(new JTAGIO)
-  //   jtag_wire.TDO.data := chiptop1.io.jtag.TDO
-  //   jtag_wire.TDO.driven := true.B
-  //   chiptop1.io.jtag.TCK := jtag_wire.TCK
-  //   chiptop1.io.jtag.TMS := jtag_wire.TMS
-  //   chiptop1.io.jtag.TDI := jtag_wire.TDI
-  //   val jtag = Module(new SimJTAG(tickDelay = 3))
-  //   jtag.connect(
-  //     jtag_wire,
-  //     digitalClock,
-  //     io.reset,
-  //     ~(io.reset),
-  //     dtm_success
-  //   )
+    val dtm_success = WireInit(false.B)
+    when(dtm_success) { io.success := true.B }
+    val jtag_wire = Wire(new JTAGIO)
+    jtag_wire.TDO.data := chiptop1.jtag.TDO
+    jtag_wire.TDO.driven := true.B
+    chiptop1.jtag.TCK := jtag_wire.TCK
+    chiptop1.jtag.TMS := jtag_wire.TMS
+    chiptop1.jtag.TDI := jtag_wire.TDI
+    val jtag = Module(new SimJTAG(tickDelay = 3))
+    jtag.connect(
+      jtag_wire,
+      digitalClock,
+      io.reset,
+      ~(io.reset),
+      dtm_success
+    )
 
-  //   chiptop1.io.serial_tl.clock_in := digitalClock
-  //   val ram = Module(
-  //     LazyModule(
-  //       new SerialRAM(chiptop1_lazy.system.serdessers(0), p(SerialTLKey)(0))(
-  //         chiptop1_lazy.system.serdessers(0).p
-  //       )
-  //     ).module
-  //   )
-  //   ram.io.ser.in <> chiptop1.io.serial_tl.out
-  //   chiptop1.io.serial_tl.in <> ram.io.ser.out
+    chiptop1.serial_tl.clock_in := digitalClock
+    val ram = Module(
+      LazyModule(
+        new SerialRAM(chiptop1_lazy.system.serdessers(0), p(SerialTLKey)(0))(
+          chiptop1_lazy.system.serdessers(0).p
+        )
+      ).module
+    )
+    ram.io.ser.in <> chiptop1.serial_tl.out
+    chiptop1.serial_tl.in <> ram.io.ser.out
 
-  //   implicit def view[A <: Data, B <: Data]
-  //       : DataView[testchipip.tsi.TSIIO, TSIIO] =
-  //     DataView(
-  //       _ => new TSIIO,
-  //       _.in -> _.in,
-  //       _.out -> _.out
-  //     )
-  //   val success =
-  //     SimTSI.connect(
-  //       ram.io.tsi.map(_.viewAs[TSIIO]),
-  //       digitalClock,
-  //       io.reset,
-  //       chip1BinaryPath,
-  //     )
-  //   when(success) { io.success := true.B }
-  // }
+    implicit def view[A <: Data, B <: Data]
+        : DataView[testchipip.tsi.TSIIO, TSIIO] =
+      DataView(
+        _ => new TSIIO,
+        _.in -> _.in,
+        _.out -> _.out
+      )
+    val success =
+      SimTSI.connect(
+        ram.io.tsi.map(_.viewAs[TSIIO]),
+        digitalClock,
+        io.reset,
+        chip1BinaryPath,
+      )
+    when(success) { io.success := true.B }
+  }
 
 }
 
@@ -227,15 +210,15 @@ class DigitalChipSpec extends AnyFunSpec {
         LazyModule(new DigitalChipTop).module,
         args = Array(
           "--target-dir",
-          (Utils.buildRoot / "Top_should_generate_valid_System_Verilog")
+          (Utils.buildRoot / "DigitalChip_should_generate_valid_System_Verilog")
             .toString()
         )
       )
     }
 
     it("should run hello.riscv") {
-      implicit val p = new DigitalChipConfig
-      val workDir = Utils.buildRoot / "Top_should_run_hello_riscv"
+      implicit val p = new DigitalChipConfig(sim = true)
+      val workDir = Utils.buildRoot / "DigitalChip_should_run_hello_riscv"
 
       // TODO: Figure out why this passes even when simulation errors.
       Utils.simulateTopWithBinaries(

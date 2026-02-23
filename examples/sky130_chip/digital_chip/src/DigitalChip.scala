@@ -39,14 +39,6 @@ class DigitalSystem(implicit p: Parameters) extends chipyard.DigitalTop
   // TODO: Instantiate CTC in config
   with testchipip.ctc.CanHavePeripheryCTC 
 
-class DigitalChipTopIO(implicit p: Parameters) extends Bundle {
-  val clock = Input(Clock())
-  val reset = Input(AsyncReset())
-  val jtag = new JTAGChipIO(false)
-  val serial_tl = new DecoupledExternalSyncPhitIO(1)
-  val uart = new UARTPortIO(p(PeripheryUARTKey)(0))
-}
-
 class DigitalChipTop(implicit p: Parameters) extends LazyModule with BindingScope {
   val system = LazyModule(new DigitalSystem)
   val clockGroupsSourceNode = ClockGroupSourceNode(Seq(ClockGroupSourceParameters()))
@@ -55,14 +47,13 @@ class DigitalChipTop(implicit p: Parameters) extends LazyModule with BindingScop
   debugClockSinkNode := system.locateTLBusWrapper(p(ExportDebug).slaveWhere).fixedClockNode
   def debugClockBundle = debugClockSinkNode.in.head._1
 
-  val axiClockSinkNode = p(ExtMem).map(_ => ClockSinkNode(Seq(ClockSinkParameters())))
-  axiClockSinkNode.map(_ := system.asInstanceOf[HasTileLinkLocations].locateTLBusWrapper(MBUS).fixedClockNode)
-  def axiClockBundle = axiClockSinkNode.get.in.head._1
-
 
   override lazy val module = new DigitalChipTopImpl
-  class DigitalChipTopImpl extends LazyModuleImp(this) with DontTouch{
-      val io = IO(new DigitalChipTopIO)
+  class DigitalChipTopImpl extends LazyRawModuleImp(this) with DontTouch{
+      val io = IO(new Bundle {
+        val clock = Input(Clock())
+        val reset = Input(AsyncReset())
+      })
 
       clockGroupsSourceNode.out.foreach { case (bundle, edge) =>
         bundle.member.data.foreach { b =>
@@ -88,31 +79,28 @@ class DigitalChipTop(implicit p: Parameters) extends LazyModule with BindingScop
         j.version     := p(JtagDTMKey).idcodeVersion.U(4.W)
       }
 
-      debug_io.systemjtag.get.jtag.TCK := io.jtag.TCK
-      debug_io.systemjtag.get.jtag.TMS := io.jtag.TMS
-      debug_io.systemjtag.get.jtag.TDI := io.jtag.TDI
-      io.jtag.TDO := debug_io.systemjtag.get.jtag.TDO.data
+    val jtag = IO(new JTAGChipIO(false))
+      debug_io.systemjtag.get.jtag.TCK := jtag.TCK
+      debug_io.systemjtag.get.jtag.TMS := jtag.TMS
+      debug_io.systemjtag.get.jtag.TDI := jtag.TDI
+      jtag.TDO := debug_io.systemjtag.get.jtag.TDO.data
 
       // Tie off interupts and chip ID
       system.module.interrupts := DontCare
-      system.chip_id_pin.get := DontCare
 
-      io.serial_tl <> system.serial_tls(0)
-      io.uart <> system.uart(0)
-
-      val axi = p(ExtMem).map(_ => {
-          val m = system.mem_axi4(0)
-          val axi = IO(new ClockedIO(DataMirror.internal.chiselTypeClone[AXI4Bundle](m)))
-          axi.bits <> m
-          axi.clock <> axiClockBundle.clock
-          axi
-      })
-
+      // val serial_tl = IO(DataMirror.internal.chiselTypeClone[DecoupledExternalSyncPhitIO](system.serial_tls(0)))
+      val serial_tl = IO(new DecoupledExternalSyncPhitIO(p(SerialTLKey)(0).phyParams.phitWidth))
+      serial_tl <> system.serial_tls(0)
+      val uart = IO(chiselTypeOf(system.uart(0)))
+      uart <> system.uart(0)
   }
 }
 
-class DigitalChipConfig extends Config (
-
+/** Digital chip configuration.
+ *
+ *  Simulation flag expands tilelink bus and adds AXI port to allow faster binary loading.
+ */
+class DigitalChipConfig(sim: Boolean = false) extends Config (
   //==================================
   // Set up buses
   //==================================
@@ -142,25 +130,15 @@ class DigitalChipConfig extends Config (
       routerParams    = (i) => UserRouterParams(combineRCVA=true, combineSAST=true),
       routingRelation = BlockingVirtualSubnetworksRouting(BidirectionalTorus1DShortestRouting(), 3, 2)
     ),
-  beNoCParams = NoCParams(
-    topology        = UnidirectionalTorus1D(7),
-    channelParamGen = (a, b) => UserChannelParams(Seq.fill(4) { UserVirtualChannelParams(5) }, unifiedBuffer = false),
-    routerParams    = (i) => UserRouterParams(combineRCVA=true, combineSAST=true),
-    routingRelation = BlockingVirtualSubnetworksRouting(UnidirectionalTorus1DDatelineRouting(), 2, 2)
-  ),
-beDivision=8,
-), inlineNoC=true) ++
+    beNoCParams = NoCParams(
+      topology        = UnidirectionalTorus1D(7),
+      channelParamGen = (a, b) => UserChannelParams(Seq.fill(4) { UserVirtualChannelParams(5) }, unifiedBuffer = false),
+      routerParams    = (i) => UserRouterParams(combineRCVA=true, combineSAST=true),
+      routingRelation = BlockingVirtualSubnetworksRouting(UnidirectionalTorus1DDatelineRouting(), 2, 2)
+    ),
+    beDivision=8,
+  ), inlineNoC=true) ++
   new chipyard.config.WithSystemBusWidth(256) ++
-
-
-  //==================================
-  // Set up TestHarness
-  //==================================
-  new chipyard.harness.WithAbsoluteFreqHarnessClockInstantiator ++ // use absolute frequencies for simulations in the harness
-  // NOTE: This only simulates properly in VCS
-  new testchipip.soc.WithChipIdPin ++                               // Add pin to identify chips
-  new chipyard.harness.WithSerialTLTiedOff(tieoffs=Some(Seq(1))) ++ // Tie-off the chip-to-chip link in single-chip sims
-  new chipyard.harness.WithDriveChipIdPin ++
 
   //==================================
   // Set up peripherals
@@ -215,7 +193,14 @@ beDivision=8,
       // Allow an external manager to probe this chip
       client = Some(testchipip.serdes.SerialTLClientParams()),
       // 4-bit bidir interface, synced to an external clock
-      phyParams = testchipip.serdes.DecoupledExternalSyncSerialPhyParams(phitWidth=1, flitWidth=16)
+      phyParams = {
+        val (phitWidth, flitWidth) = if (sim) {
+          (32, 32)
+        } else {
+          (1, 16)
+        }
+        testchipip.serdes.DecoupledExternalSyncSerialPhyParams(phitWidth=phitWidth, flitWidth=flitWidth)
+      }
     ),
   )) ++
   // Remove axi4 mem port
