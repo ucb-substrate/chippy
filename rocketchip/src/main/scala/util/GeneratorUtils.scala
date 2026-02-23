@@ -10,6 +10,6 @@ object ElaborationArtefacts {
   }
 
   def contains(extension: String): Boolean = {
-    files.foldLeft(false)((t, s) => {s._1 == extension | t})
+    files.foldLeft(false)((t, s) => { s._1 == extension | t })
   }
 }

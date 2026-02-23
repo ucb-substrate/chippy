@@ -6,7 +6,7 @@ import org.chipsalliance.cde.config.{Parameters}
 import freechips.rocketchip.diplomacy._
 
 trait HasDeviceDFTPorts[T <: Bundle] {
-  
+
   def dftNode: BundleBridgeSource[T]
 
   def makeDFTPort(implicit p: Parameters): ModuleValue[T] = {
@@ -15,13 +15,15 @@ trait HasDeviceDFTPorts[T <: Bundle] {
   }
 }
 
-trait CanHaveDFT { 
-  
+trait CanHaveDFT {
+
   implicit val p: Parameters
 
   def devices: Seq[LazyModule]
 
-  val dftNodes = devices.collect { case source: HasDeviceDFTPorts[Bundle] => source }
+  val dftNodes = devices.collect { case source: HasDeviceDFTPorts[Bundle] =>
+    source
+  }
   dftNodes.foreach(_.makeDFTPort)
 }
 /*
@@ -38,4 +40,4 @@ trait CanHaveDFT {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

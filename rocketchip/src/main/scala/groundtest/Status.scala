@@ -14,8 +14,8 @@ class GroundTestStatus extends Bundle {
 object DebugCombiner {
   def apply(debugs: Seq[GroundTestStatus]): GroundTestStatus = {
     val out = Wire(new GroundTestStatus)
-    out.timeout  := ValidMux(debugs.map(_.timeout))
-    out.error    := ValidMux(debugs.map(_.error))
+    out.timeout := ValidMux(debugs.map(_.timeout))
+    out.error := ValidMux(debugs.map(_.error))
     out
   }
 }

@@ -6,8 +6,7 @@ import chisel3._
 
 case class APBMonitorArgs(edge: APBEdgeParameters)
 
-abstract class APBMonitorBase(args: APBMonitorArgs) extends Module
-{
+abstract class APBMonitorBase(args: APBMonitorArgs) extends Module {
   val io = IO(new Bundle {
     val in = Input(new APBBundle(args.edge.bundle))
   })

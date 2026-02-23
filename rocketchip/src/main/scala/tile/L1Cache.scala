@@ -8,12 +8,13 @@ import chisel3.util.log2Up
 import org.chipsalliance.cde.config.Parameters
 
 trait L1CacheParams {
-  def nSets:         Int
-  def nWays:         Int
-  def rowBits:       Int
-  def nTLBSets:      Int
-  def nTLBWays:      Int
-  def blockBytes:    Int // TODO this is ignored in favor of p(CacheBlockBytes) in BaseTile
+  def nSets: Int
+  def nWays: Int
+  def rowBits: Int
+  def nTLBSets: Int
+  def nTLBWays: Int
+  def blockBytes
+      : Int // TODO this is ignored in favor of p(CacheBlockBytes) in BaseTile
 }
 
 trait HasL1CacheParameters extends HasTileParameters {
@@ -29,7 +30,7 @@ trait HasL1CacheParameters extends HasTileParameters {
   def wayBits = log2Up(nWays)
   def isDM = nWays == 1
   def rowBits = cacheParams.rowBits
-  def rowBytes = rowBits/8
+  def rowBytes = rowBits / 8
   def rowOffBits = log2Up(rowBytes)
   def nTLBSets = cacheParams.nTLBSets
   def nTLBWays = cacheParams.nTLBWays
@@ -40,8 +41,10 @@ trait HasL1CacheParameters extends HasTileParameters {
   def refillCycles = cacheDataBeats
 }
 
-abstract class L1CacheModule(implicit val p: Parameters) extends Module
-  with HasL1CacheParameters
+abstract class L1CacheModule(implicit val p: Parameters)
+    extends Module
+    with HasL1CacheParameters
 
-abstract class L1CacheBundle(implicit val p: Parameters) extends Bundle
-  with HasL1CacheParameters
+abstract class L1CacheBundle(implicit val p: Parameters)
+    extends Bundle
+    with HasL1CacheParameters

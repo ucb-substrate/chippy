@@ -7,8 +7,20 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
 
-import freechips.rocketchip.resources.{Device, DeviceSnippet, Description, ResourceBinding, ResourceInt}
-import freechips.rocketchip.interrupts.{IntIdentityNode, IntSinkNode, IntSinkPortSimple, IntSourceNode, IntSourcePortSimple}
+import freechips.rocketchip.resources.{
+  Device,
+  DeviceSnippet,
+  Description,
+  ResourceBinding,
+  ResourceInt
+}
+import freechips.rocketchip.interrupts.{
+  IntIdentityNode,
+  IntSinkNode,
+  IntSinkPortSimple,
+  IntSourceNode,
+  IntSourcePortSimple
+}
 import freechips.rocketchip.util.CanHaveErrors
 
 import freechips.rocketchip.resources.{IntToProperty, StringToProperty}
@@ -33,7 +45,8 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 // Use diplomatic interrupts to external interrupts from the subsystem into the tile
 trait SinksExternalInterrupts { this: BaseTile =>
 
-  val intInwardNode = intXbar.intnode :=* IntIdentityNode()(ValName("int_local"))
+  val intInwardNode =
+    intXbar.intnode :=* IntIdentityNode()(ValName("int_local"))
   protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
   intSinkNode := intXbar.intnode
 
@@ -41,17 +54,21 @@ trait SinksExternalInterrupts { this: BaseTile =>
   val intcDevice = new DeviceSnippet {
     override def parent = Some(cpuDevice)
     def describe(): Description = {
-      Description("interrupt-controller", Map(
-        "compatible"           -> "riscv,cpu-intc".asProperty,
-        "interrupt-controller" -> Nil,
-        "#interrupt-cells"     -> 1.asProperty))
+      Description(
+        "interrupt-controller",
+        Map(
+          "compatible" -> "riscv,cpu-intc".asProperty,
+          "interrupt-controller" -> Nil,
+          "#interrupt-cells" -> 1.asProperty
+        )
+      )
     }
   }
 
   ResourceBinding {
     intSinkNode.edges.in.flatMap(_.source.sources).map { case s =>
       for (i <- s.range.start until s.range.end) {
-       csrIntMap.lift(i).foreach { j =>
+        csrIntMap.lift(i).foreach { j =>
           s.resources.foreach { r =>
             r.bind(intcDevice, ResourceInt(j))
           }
@@ -74,17 +91,16 @@ trait SinksExternalInterrupts { this: BaseTile =>
   // go from flat diplomatic Interrupts to bundled TileInterrupts
   def decodeCoreInterrupts(core: TileInterrupts): Unit = {
     val async_ips = Seq(core.debug)
-    val periph_ips = Seq(
-      core.msip,
-      core.mtip,
-      core.meip)
+    val periph_ips = Seq(core.msip, core.mtip, core.meip)
 
     val seip = if (core.seip.isDefined) Seq(core.seip.get) else Nil
 
     val core_ips = core.lip
 
     val (interrupts, _) = intSinkNode.in(0)
-    (async_ips ++ periph_ips ++ seip ++ core_ips).zip(interrupts).foreach { case(c, i) => c := i }
+    (async_ips ++ periph_ips ++ seip ++ core_ips).zip(interrupts).foreach {
+      case (c, i) => c := i
+    }
   }
 }
 
@@ -94,33 +110,42 @@ trait SourcesExternalNotifications { this: BaseTile =>
 
   def reportHalt(could_halt: Option[Bool]): Unit = {
     val (halt_and_catch_fire, _) = haltNode.out(0)
-    halt_and_catch_fire(0) := could_halt.map(RegEnable(true.B, false.B, _)).getOrElse(false.B)
+    halt_and_catch_fire(0) := could_halt
+      .map(RegEnable(true.B, false.B, _))
+      .getOrElse(false.B)
   }
 
   def reportHalt(errors: Seq[CanHaveErrors]): Unit = {
-    reportHalt(errors.flatMap(_.uncorrectable).map(_.valid).reduceOption(_||_))
+    reportHalt(
+      errors.flatMap(_.uncorrectable).map(_.valid).reduceOption(_ || _)
+    )
   }
 
   // Report when the tile has ceased to retire instructions
   val ceaseNode = IntSourceNode(IntSourcePortSimple())
 
-  def reportCease(could_cease: Option[Bool], quiescenceCycles: Int = 8): Unit = {
+  def reportCease(
+      could_cease: Option[Bool],
+      quiescenceCycles: Int = 8
+  ): Unit = {
     def waitForQuiescence(cease: Bool): Bool = {
       // don't report cease until signal is stable for longer than any pipeline depth
       val count = RegInit(0.U(log2Ceil(quiescenceCycles + 1).W))
       val saturated = count >= quiescenceCycles.U
-      when (!cease) { count := 0.U }
-      when (cease && !saturated) { count := count + 1.U }
+      when(!cease) { count := 0.U }
+      when(cease && !saturated) { count := count + 1.U }
       saturated
     }
     val (cease, _) = ceaseNode.out(0)
-    cease(0) := could_cease.map{ c => 
-      val cease = (waitForQuiescence(c))
-      // Test-Only Code --
-      val prev_cease = RegNext(cease, false.B)
-      assert(!(prev_cease & !cease), "CEASE line can not glitch once raised") 
-      cease
-    }.getOrElse(false.B)
+    cease(0) := could_cease
+      .map { c =>
+        val cease = (waitForQuiescence(c))
+        // Test-Only Code --
+        val prev_cease = RegNext(cease, false.B)
+        assert(!(prev_cease & !cease), "CEASE line can not glitch once raised")
+        cease
+      }
+      .getOrElse(false.B)
   }
 
   // Report when the tile is waiting for an interrupt
@@ -128,6 +153,6 @@ trait SourcesExternalNotifications { this: BaseTile =>
 
   def reportWFI(could_wfi: Option[Bool]): Unit = {
     val (wfi, _) = wfiNode.out(0)
-    wfi(0) := could_wfi.map(RegNext(_, init=false.B)).getOrElse(false.B)
+    wfi(0) := could_wfi.map(RegNext(_, init = false.B)).getOrElse(false.B)
   }
 }

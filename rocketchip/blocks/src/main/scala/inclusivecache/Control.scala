@@ -23,100 +23,169 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 
-
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 
-class InclusiveCacheControl(outer: InclusiveCache, control: InclusiveCacheControlParameters)(implicit p: Parameters) extends LazyModule()(p) {
+class InclusiveCacheControl(
+    outer: InclusiveCache,
+    control: InclusiveCacheControlParameters
+)(implicit p: Parameters)
+    extends LazyModule()(p) {
   val ctrlnode = TLRegisterNode(
-    address     = Seq(AddressSet(control.address, InclusiveCacheParameters.L2ControlSize-1)),
-    device      = outer.device,
-    concurrency = 1, // Only one flush at a time (else need to track who answers)
-    beatBytes   = control.beatBytes)
+    address = Seq(
+      AddressSet(control.address, InclusiveCacheParameters.L2ControlSize - 1)
+    ),
+    device = outer.device,
+    concurrency =
+      1, // Only one flush at a time (else need to track who answers)
+    beatBytes = control.beatBytes
+  )
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val flush_match = Input(Bool())
       val flush_req = Decoupled(UInt(64.W))
-      val invalidate_req = Output(Bool()) // Don't release block to main memory, just clear from directory
+      val invalidate_req = Output(
+        Bool()
+      ) // Don't release block to main memory, just clear from directory
       val flush_resp = Input(Bool())
     })
     // Flush directive
-    val flushInValid   = RegInit(false.B)
+    val flushInValid = RegInit(false.B)
     val flushInAddress = Reg(UInt(64.W))
     val flushIsInvalidate = Reg(Bool())
-    val flushOutValid  = RegInit(false.B)
-    val flushOutReady  = WireInit(init = false.B)
+    val flushOutValid = RegInit(false.B)
+    val flushOutReady = WireInit(init = false.B)
 
-    when (flushOutReady) { flushOutValid := false.B }
-    when (io.flush_resp) { flushOutValid := true.B }
-    when (io.flush_req.ready) { flushInValid := false.B }
+    when(flushOutReady) { flushOutValid := false.B }
+    when(io.flush_resp) { flushOutValid := true.B }
+    when(io.flush_req.ready) { flushInValid := false.B }
     io.flush_req.valid := flushInValid
     io.flush_req.bits := flushInAddress
     io.invalidate_req := flushIsInvalidate
 
-    when (!io.flush_match && flushInValid) {
+    when(!io.flush_match && flushInValid) {
       flushInValid := false.B
       flushOutValid := true.B
     }
 
-    val flush32 = RegField.w(32, RegWriteFn((ivalid, oready, data) => {
-      when (oready) { flushOutReady := true.B }
-      when (ivalid) { flushInValid := true.B }
-      when (ivalid && !flushInValid) {
-        flushInAddress := data << 4
-        flushIsInvalidate := false.B
-      }
-      (!flushInValid, flushOutValid)
-    }), RegFieldDesc("Flush32", "Flush the physical address equal to the 32-bit written data << 4 from the cache"))
+    val flush32 = RegField.w(
+      32,
+      RegWriteFn((ivalid, oready, data) => {
+        when(oready) { flushOutReady := true.B }
+        when(ivalid) { flushInValid := true.B }
+        when(ivalid && !flushInValid) {
+          flushInAddress := data << 4
+          flushIsInvalidate := false.B
+        }
+        (!flushInValid, flushOutValid)
+      }),
+      RegFieldDesc(
+        "Flush32",
+        "Flush the physical address equal to the 32-bit written data << 4 from the cache"
+      )
+    )
 
-    val flush64 = RegField.w(64, RegWriteFn((ivalid, oready, data) => {
-      when (oready) { flushOutReady := true.B }
-      when (ivalid) { flushInValid := true.B }
-      when (ivalid && !flushInValid) {
-        flushInAddress := data
-        flushIsInvalidate := false.B
-      }
-      (!flushInValid, flushOutValid)
-    }), RegFieldDesc("Flush64", "Flush the phsyical address equal to the 64-bit written data from the cache"))
+    val flush64 = RegField.w(
+      64,
+      RegWriteFn((ivalid, oready, data) => {
+        when(oready) { flushOutReady := true.B }
+        when(ivalid) { flushInValid := true.B }
+        when(ivalid && !flushInValid) {
+          flushInAddress := data
+          flushIsInvalidate := false.B
+        }
+        (!flushInValid, flushOutValid)
+      }),
+      RegFieldDesc(
+        "Flush64",
+        "Flush the phsyical address equal to the 64-bit written data from the cache"
+      )
+    )
 
-    val invalidate32 = RegField.w(32, RegWriteFn((ivalid, oready, data) => {
-      when (oready) { flushOutReady := true.B }
-      when (ivalid) { flushInValid := true.B }
-      when (ivalid && !flushInValid) {
-        flushInAddress := data << 4
-        flushIsInvalidate := true.B
-      }
-      (!flushInValid, flushOutValid)
-    }), RegFieldDesc("Invalidate32", "Invalidate the physical address equal to the 32-bit written data << 4 from the cache"))
+    val invalidate32 = RegField.w(
+      32,
+      RegWriteFn((ivalid, oready, data) => {
+        when(oready) { flushOutReady := true.B }
+        when(ivalid) { flushInValid := true.B }
+        when(ivalid && !flushInValid) {
+          flushInAddress := data << 4
+          flushIsInvalidate := true.B
+        }
+        (!flushInValid, flushOutValid)
+      }),
+      RegFieldDesc(
+        "Invalidate32",
+        "Invalidate the physical address equal to the 32-bit written data << 4 from the cache"
+      )
+    )
 
-    val invalidate64 = RegField.w(64, RegWriteFn((ivalid, oready, data) => {
-      when (oready) { flushOutReady := true.B }
-      when (ivalid) { flushInValid := true.B }
-      when (ivalid && !flushInValid) {
-        flushInAddress := data
-        flushIsInvalidate := true.B
-      }
-      (!flushInValid, flushOutValid)
-    }), RegFieldDesc("Invalidate64", "Invalidate the phsyical address equal to the 64-bit written data from the cache"))
+    val invalidate64 = RegField.w(
+      64,
+      RegWriteFn((ivalid, oready, data) => {
+        when(oready) { flushOutReady := true.B }
+        when(ivalid) { flushInValid := true.B }
+        when(ivalid && !flushInValid) {
+          flushInAddress := data
+          flushIsInvalidate := true.B
+        }
+        (!flushInValid, flushOutValid)
+      }),
+      RegFieldDesc(
+        "Invalidate64",
+        "Invalidate the phsyical address equal to the 64-bit written data from the cache"
+      )
+    )
 
     // Information about the cache configuration
-    val banksR  = RegField.r(8, outer.node.edges.in.size.U,         RegFieldDesc("Banks",
-      "Number of banks in the cache", reset=Some(outer.node.edges.in.size)))
-    val waysR   = RegField.r(8, outer.cache.ways.U,                 RegFieldDesc("Ways",
-      "Number of ways per bank", reset=Some(outer.cache.ways)))
-    val lgSetsR = RegField.r(8, log2Ceil(outer.cache.sets).U,       RegFieldDesc("lgSets",
-      "Base-2 logarithm of the sets per bank", reset=Some(log2Ceil(outer.cache.sets))))
-    val lgBlockBytesR = RegField.r(8, log2Ceil(outer.cache.blockBytes).U, RegFieldDesc("lgBlockBytes",
-      "Base-2 logarithm of the bytes per cache block", reset=Some(log2Ceil(outer.cache.blockBytes))))
+    val banksR = RegField.r(
+      8,
+      outer.node.edges.in.size.U,
+      RegFieldDesc(
+        "Banks",
+        "Number of banks in the cache",
+        reset = Some(outer.node.edges.in.size)
+      )
+    )
+    val waysR = RegField.r(
+      8,
+      outer.cache.ways.U,
+      RegFieldDesc(
+        "Ways",
+        "Number of ways per bank",
+        reset = Some(outer.cache.ways)
+      )
+    )
+    val lgSetsR = RegField.r(
+      8,
+      log2Ceil(outer.cache.sets).U,
+      RegFieldDesc(
+        "lgSets",
+        "Base-2 logarithm of the sets per bank",
+        reset = Some(log2Ceil(outer.cache.sets))
+      )
+    )
+    val lgBlockBytesR = RegField.r(
+      8,
+      log2Ceil(outer.cache.blockBytes).U,
+      RegFieldDesc(
+        "lgBlockBytes",
+        "Base-2 logarithm of the bytes per cache block",
+        reset = Some(log2Ceil(outer.cache.blockBytes))
+      )
+    )
 
     val regmap = ctrlnode.regmap(
-      0x000 -> RegFieldGroup("Config", Some("Information about the Cache Configuration"), Seq(banksR, waysR, lgSetsR, lgBlockBytesR)),
+      0x000 -> RegFieldGroup(
+        "Config",
+        Some("Information about the Cache Configuration"),
+        Seq(banksR, waysR, lgSetsR, lgBlockBytesR)
+      ),
       0x200 -> (if (control.beatBytes >= 8) Seq(flush64) else Nil),
       0x240 -> Seq(flush32),
       0x280 -> (if (control.beatBytes >= 8) Seq(invalidate64) else Nil),
-      0x2c0 -> Seq(invalidate32),
+      0x2c0 -> Seq(invalidate32)
     )
   }
 }

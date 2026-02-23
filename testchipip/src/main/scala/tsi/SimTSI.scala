@@ -7,14 +7,21 @@ import chisel3.experimental.{IntParam}
 import org.chipsalliance.cde.config.{Parameters, Field}
 
 object SimTSI {
-  def connect(tsi: Option[TSIIO], clock: Clock, reset: Reset, chipId: Int = 0): Bool = {
-    val exit = tsi.map { s =>
-      val sim = Module(new SimTSI(chipId))
-      sim.io.clock := clock
-      sim.io.reset := reset
-      sim.io.tsi <> s
-      sim.io.exit
-    }.getOrElse(0.U)
+  def connect(
+      tsi: Option[TSIIO],
+      clock: Clock,
+      reset: Reset,
+      chipId: Int = 0
+  ): Bool = {
+    val exit = tsi
+      .map { s =>
+        val sim = Module(new SimTSI(chipId))
+        sim.io.clock := clock
+        sim.io.reset := reset
+        sim.io.tsi <> s
+        sim.io.exit
+      }
+      .getOrElse(0.U)
 
     val success = exit === 1.U
     val error = exit >= 2.U
@@ -23,7 +30,9 @@ object SimTSI {
   }
 }
 
-class SimTSI(chipId: Int) extends BlackBox(Map("CHIPID" -> IntParam(chipId))) with HasBlackBoxResource {
+class SimTSI(chipId: Int)
+    extends BlackBox(Map("CHIPID" -> IntParam(chipId)))
+    with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Bool())

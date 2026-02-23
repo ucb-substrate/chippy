@@ -1,12 +1,11 @@
 package sifive.blocks.devices.chiplink
 
-import chisel3._ 
+import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-class RX(info: ChipLinkInfo) extends Module
-{
+class RX(info: ChipLinkInfo) extends Module {
   val io = new Bundle {
     val b2c_send = Input(Bool())
     val b2c_data = Input(UInt(info.params.dataBits.W))
@@ -15,8 +14,10 @@ class RX(info: ChipLinkInfo) extends Module
     val c = new AsyncBundle(UInt(info.params.dataBits.W), info.params.crossing)
     val d = new AsyncBundle(UInt(info.params.dataBits.W), info.params.crossing)
     val e = new AsyncBundle(UInt(info.params.dataBits.W), info.params.crossing)
-    val rxc = new AsyncBundle(new CreditBump(info.params), AsyncQueueParams.singleton())
-    val txc = new AsyncBundle(new CreditBump(info.params), AsyncQueueParams.singleton())
+    val rxc =
+      new AsyncBundle(new CreditBump(info.params), AsyncQueueParams.singleton())
+    val txc =
+      new AsyncBundle(new CreditBump(info.params), AsyncQueueParams.singleton())
   }
 
   // Immediately register our input data
@@ -26,13 +27,13 @@ class RX(info: ChipLinkInfo) extends Module
 
   // Fit b2c into the firstlast API
   val beat = Wire(Decoupled(UInt(info.params.dataBits.W)))
-  beat.bits  := b2c_data
+  beat.bits := b2c_data
   beat.valid := b2c_send
   beat.ready := true.B
 
   // Select the correct HellaQueue for the request
   val (first, _) = info.firstlast(beat)
-  val formatBits  = beat.bits(2, 0)
+  val formatBits = beat.bits(2, 0)
   val formatValid = beat.fire && first
   val format = Mux(formatValid, formatBits, RegEnable(formatBits, formatValid))
   val formatOH = UIntToOH(format)
@@ -52,7 +53,7 @@ class RX(info: ChipLinkInfo) extends Module
   (formatOH.asBools zip hqX) foreach { case (sel, hq) =>
     hq.io.enq.valid := beat.valid && sel
     hq.io.enq.bits := beat.bits
-    assert (!hq.io.enq.valid || hq.io.enq.ready) // overrun impossible
+    assert(!hq.io.enq.valid || hq.io.enq.ready) // overrun impossible
   }
 
   // Send HellaQueue output to their respective FSMs
@@ -81,13 +82,17 @@ class RX(info: ChipLinkInfo) extends Module
   }
 
   // Generate new TX credits as we receive F-format messages
-  val txInc = Mux(beat.valid && formatOH(5), CreditBump(info.params, beat.bits), CreditBump(info.params, 0))
+  val txInc = Mux(
+    beat.valid && formatOH(5),
+    CreditBump(info.params, beat.bits),
+    CreditBump(info.params, 0)
+  )
 
   // As we hand-over credits, reset the counters
   tx := tx + txInc
   rx := rx + rxInc
-  when (txOut.fire) { tx := txInc }
-  when (rxOut.fire) { rx := rxInc }
+  when(txOut.fire) { tx := txInc }
+  when(rxOut.fire) { rx := rxInc }
 }
 
 /*
@@ -104,4 +109,4 @@ class RX(info: ChipLinkInfo) extends Module
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

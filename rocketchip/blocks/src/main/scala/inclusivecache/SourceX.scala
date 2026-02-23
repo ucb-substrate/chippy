@@ -21,13 +21,12 @@ import chisel3._
 import chisel3.util._
 
 // The control port response source
-class SourceXRequest(params: InclusiveCacheParameters) extends InclusiveCacheBundle(params)
-{
+class SourceXRequest(params: InclusiveCacheParameters)
+    extends InclusiveCacheBundle(params) {
   val fail = Bool()
 }
 
-class SourceX(params: InclusiveCacheParameters) extends Module
-{
+class SourceX(params: InclusiveCacheParameters) extends Module {
   val io = IO(new Bundle {
     val req = Flipped(Decoupled(new SourceXRequest(params)))
     val x = Decoupled(new SourceXRequest(params))
@@ -38,7 +37,11 @@ class SourceX(params: InclusiveCacheParameters) extends Module
 
   io.req.ready := x.ready
   x.valid := io.req.valid
-  params.ccover(x.valid && !x.ready, "SOURCEX_STALL", "Backpressure when sending a control message")
+  params.ccover(
+    x.valid && !x.ready,
+    "SOURCEX_STALL",
+    "Backpressure when sending a control message"
+  )
 
   x.bits := io.req.bits
 }

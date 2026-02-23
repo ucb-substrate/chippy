@@ -1,11 +1,10 @@
 package sifive.blocks.devices.chiplink
 
-import chisel3._ 
+import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink._
 
-class SinkE(info: ChipLinkInfo) extends Module
-{
+class SinkE(info: ChipLinkInfo) extends Module {
   val io = new Bundle {
     val e = Flipped(Decoupled(new TLBundleE(info.edgeIn.bundle)))
     val q = Decoupled(new DataLayer(info.params))
@@ -20,15 +19,16 @@ class SinkE(info: ChipLinkInfo) extends Module
   val header = info.encode(
     format = 4.U,
     opcode = 0.U,
-    param  = 0.U,
-    size   = 0.U,
+    param = 0.U,
+    size = 0.U,
     domain = 0.U,
-    source = io.d_clSink)
+    source = io.d_clSink
+  )
 
   io.e.ready := io.q.ready
   io.q.valid := io.e.valid
-  io.q.bits.last  := true.B
-  io.q.bits.data  := header
+  io.q.bits.last := true.B
+  io.q.bits.data := header
   io.q.bits.beats := 1.U
 }
 
@@ -46,4 +46,4 @@ class SinkE(info: ChipLinkInfo) extends Module
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

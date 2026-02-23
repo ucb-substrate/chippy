@@ -6,8 +6,8 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
-/** Takes in data on one decoupled interface and broadcasts it
-  * to N decoupled output interfaces.
+/** Takes in data on one decoupled interface and broadcasts it to N decoupled
+  * output interfaces.
   */
 class Broadcaster[T <: Data](typ: T, n: Int) extends Module {
   val io = IO(new Bundle {
@@ -15,7 +15,7 @@ class Broadcaster[T <: Data](typ: T, n: Int) extends Module {
     val out = Vec(n, Decoupled(typ))
   })
 
-  require (n > 0)
+  require(n > 0)
 
   if (n == 1) {
     io.out.head <> io.in
@@ -31,11 +31,11 @@ class Broadcaster[T <: Data](typ: T, n: Int) extends Module {
     }
     io.in.ready := io.out.head.ready && idx === 0.U
 
-    when (io.in.fire) { save := io.in.bits }
+    when(io.in.fire) { save := io.in.bits }
 
-    when (io.out(idx).fire) {
-      when (idx === (n - 1).U) { idx := 0.U }
-      .otherwise { idx := idx + 1.U }
+    when(io.out(idx).fire) {
+      when(idx === (n - 1).U) { idx := 0.U }
+        .otherwise { idx := idx + 1.U }
     }
   }
 }

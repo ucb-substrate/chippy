@@ -7,15 +7,14 @@ import chisel3.util.{Decoupled, DecoupledIO}
 
 // A Repeater passes its input to its output, unless repeat is asserted.
 // When repeat is asserted, the Repeater copies the input and repeats it next cycle.
-class Repeater[T <: Data](gen: T) extends Module
-{
+class Repeater[T <: Data](gen: T) extends Module {
   override def desiredName = s"Repeater_${gen.typeName}"
-  val io = IO( new Bundle {
+  val io = IO(new Bundle {
     val repeat = Input(Bool())
     val full = Output(Bool())
     val enq = Flipped(Decoupled(gen.cloneType))
     val deq = Decoupled(gen.cloneType)
-  } )
+  })
 
   val full = RegInit(false.B)
   val saved = Reg(gen.cloneType)
@@ -26,12 +25,11 @@ class Repeater[T <: Data](gen: T) extends Module
   io.deq.bits := Mux(full, saved, io.enq.bits)
   io.full := full
 
-  when (io.enq.fire &&  io.repeat) { full := true.B; saved := io.enq.bits }
-  when (io.deq.fire && !io.repeat) { full := false.B }
+  when(io.enq.fire && io.repeat) { full := true.B; saved := io.enq.bits }
+  when(io.deq.fire && !io.repeat) { full := false.B }
 }
 
-object Repeater
-{
+object Repeater {
   def apply[T <: Data](enq: DecoupledIO[T], repeat: Bool): DecoupledIO[T] = {
     val repeater = Module(new Repeater(chiselTypeOf(enq.bits)))
     repeater.io.repeat := repeat

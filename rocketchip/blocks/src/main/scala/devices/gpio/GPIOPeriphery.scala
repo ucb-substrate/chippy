@@ -12,8 +12,16 @@ trait HasPeripheryGPIO { this: BaseSubsystem =>
     (gpio.ioNode.makeSink(), gpio.iofNode.map { _.makeSink() })
   }.unzip
 
-  val gpio = InModuleBody { gpioNodes.zipWithIndex.map { case(n,i) => n.makeIO()(ValName(s"gpio_$i")) } }
-  val iof = InModuleBody { iofNodes.zipWithIndex.map { case(o,i) => o.map { n => n.makeIO()(ValName(s"iof_$i")) } } }
+  val gpio = InModuleBody {
+    gpioNodes.zipWithIndex.map { case (n, i) =>
+      n.makeIO()(ValName(s"gpio_$i"))
+    }
+  }
+  val iof = InModuleBody {
+    iofNodes.zipWithIndex.map { case (o, i) =>
+      o.map { n => n.makeIO()(ValName(s"iof_$i")) }
+    }
+  }
 }
 
 /*
@@ -30,4 +38,4 @@ trait HasPeripheryGPIO { this: BaseSubsystem =>
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

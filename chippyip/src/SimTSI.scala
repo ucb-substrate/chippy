@@ -62,7 +62,9 @@ class SimTSI(binaryPath: Path, plusArgs: Seq[String] = Seq.empty)
     extends BlackBox(
       Map(
         "argc" -> IntParam(2 + plusArgs.length),
-        "argv" -> RawParam(s"'{${plusArgs.reverse.map(arg => s"\"${arg}\", ").mkString("")}\"${binaryPath.toString}\", \"placeholder\"}")
+        "argv" -> RawParam(
+          s"'{${plusArgs.reverse.map(arg => s"\"${arg}\", ").mkString("")}\"${binaryPath.toString}\", \"placeholder\"}"
+        )
       )
     )
     with HasBlackBoxResource {

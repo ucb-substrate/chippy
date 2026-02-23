@@ -15,85 +15,106 @@ abstract class TLBundleBase(val params: TLBundleParameters) extends Bundle
 //   Put + Acquire
 //   Release + AccessAck
 
-object TLMessages
-{
+object TLMessages {
   //                                  A    B    C    D    E
-  def PutFullData    = 0.U     //     .    .                   => AccessAck
-  def PutPartialData = 1.U     //     .    .                   => AccessAck
-  def ArithmeticData = 2.U     //     .    .                   => AccessAckData
-  def LogicalData    = 3.U     //     .    .                   => AccessAckData
-  def Get            = 4.U     //     .    .                   => AccessAckData
-  def Hint           = 5.U     //     .    .                   => HintAck
-  def AcquireBlock   = 6.U     //     .                        => Grant[Data]
-  def AcquirePerm    = 7.U     //     .                        => Grant[Data]
-  def Probe          = 6.U     //          .                   => ProbeAck[Data]
-  def AccessAck      = 0.U     //               .    .
-  def AccessAckData  = 1.U     //               .    .
-  def HintAck        = 2.U     //               .    .
-  def ProbeAck       = 4.U     //               .
-  def ProbeAckData   = 5.U     //               .
-  def Release        = 6.U     //               .              => ReleaseAck
-  def ReleaseData    = 7.U     //               .              => ReleaseAck
-  def Grant          = 4.U     //                    .         => GrantAck
-  def GrantData      = 5.U     //                    .         => GrantAck
-  def ReleaseAck     = 6.U     //                    .
-  def GrantAck       = 0.U     //                         .
+  def PutFullData = 0.U //     .    .                   => AccessAck
+  def PutPartialData = 1.U //     .    .                   => AccessAck
+  def ArithmeticData = 2.U //     .    .                   => AccessAckData
+  def LogicalData = 3.U //     .    .                   => AccessAckData
+  def Get = 4.U //     .    .                   => AccessAckData
+  def Hint = 5.U //     .    .                   => HintAck
+  def AcquireBlock = 6.U //     .                        => Grant[Data]
+  def AcquirePerm = 7.U //     .                        => Grant[Data]
+  def Probe = 6.U //          .                   => ProbeAck[Data]
+  def AccessAck = 0.U //               .    .
+  def AccessAckData = 1.U //               .    .
+  def HintAck = 2.U //               .    .
+  def ProbeAck = 4.U //               .
+  def ProbeAckData = 5.U //               .
+  def Release = 6.U //               .              => ReleaseAck
+  def ReleaseData = 7.U //               .              => ReleaseAck
+  def Grant = 4.U //                    .         => GrantAck
+  def GrantData = 5.U //                    .         => GrantAck
+  def ReleaseAck = 6.U //                    .
+  def GrantAck = 0.U //                         .
 
   def isA(x: UInt) = x <= AcquirePerm
   def isB(x: UInt) = x <= Probe
   def isC(x: UInt) = x <= ReleaseData
   def isD(x: UInt) = x <= ReleaseAck
 
-  def adResponse = VecInit(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant, Grant)
-  def bcResponse = VecInit(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, ProbeAck, ProbeAck)
+  def adResponse = VecInit(
+    AccessAck,
+    AccessAck,
+    AccessAckData,
+    AccessAckData,
+    AccessAckData,
+    HintAck,
+    Grant,
+    Grant
+  )
+  def bcResponse = VecInit(
+    AccessAck,
+    AccessAck,
+    AccessAckData,
+    AccessAckData,
+    AccessAckData,
+    HintAck,
+    ProbeAck,
+    ProbeAck
+  )
 
-  def a = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
-               ("PutPartialData",TLPermissions.PermMsgReserved),
-               ("ArithmeticData",TLAtomics.ArithMsg),
-               ("LogicalData",TLAtomics.LogicMsg),
-               ("Get",TLPermissions.PermMsgReserved),
-               ("Hint",TLHints.HintsMsg),
-               ("AcquireBlock",TLPermissions.PermMsgGrow),
-               ("AcquirePerm",TLPermissions.PermMsgGrow))
+  def a = Seq(
+    ("PutFullData", TLPermissions.PermMsgReserved),
+    ("PutPartialData", TLPermissions.PermMsgReserved),
+    ("ArithmeticData", TLAtomics.ArithMsg),
+    ("LogicalData", TLAtomics.LogicMsg),
+    ("Get", TLPermissions.PermMsgReserved),
+    ("Hint", TLHints.HintsMsg),
+    ("AcquireBlock", TLPermissions.PermMsgGrow),
+    ("AcquirePerm", TLPermissions.PermMsgGrow)
+  )
 
-  def b = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
-               ("PutPartialData",TLPermissions.PermMsgReserved),
-               ("ArithmeticData",TLAtomics.ArithMsg),
-               ("LogicalData",TLAtomics.LogicMsg),
-               ("Get",TLPermissions.PermMsgReserved),
-               ("Hint",TLHints.HintsMsg),
-               ("Probe",TLPermissions.PermMsgCap))
+  def b = Seq(
+    ("PutFullData", TLPermissions.PermMsgReserved),
+    ("PutPartialData", TLPermissions.PermMsgReserved),
+    ("ArithmeticData", TLAtomics.ArithMsg),
+    ("LogicalData", TLAtomics.LogicMsg),
+    ("Get", TLPermissions.PermMsgReserved),
+    ("Hint", TLHints.HintsMsg),
+    ("Probe", TLPermissions.PermMsgCap)
+  )
 
-  def c = Seq( ("AccessAck",TLPermissions.PermMsgReserved),
-               ("AccessAckData",TLPermissions.PermMsgReserved),
-               ("HintAck",TLPermissions.PermMsgReserved),
-               ("Invalid Opcode",TLPermissions.PermMsgReserved),
-               ("ProbeAck",TLPermissions.PermMsgReport),
-               ("ProbeAckData",TLPermissions.PermMsgReport),
-               ("Release",TLPermissions.PermMsgReport),
-               ("ReleaseData",TLPermissions.PermMsgReport))
+  def c = Seq(
+    ("AccessAck", TLPermissions.PermMsgReserved),
+    ("AccessAckData", TLPermissions.PermMsgReserved),
+    ("HintAck", TLPermissions.PermMsgReserved),
+    ("Invalid Opcode", TLPermissions.PermMsgReserved),
+    ("ProbeAck", TLPermissions.PermMsgReport),
+    ("ProbeAckData", TLPermissions.PermMsgReport),
+    ("Release", TLPermissions.PermMsgReport),
+    ("ReleaseData", TLPermissions.PermMsgReport)
+  )
 
-  def d = Seq( ("AccessAck",TLPermissions.PermMsgReserved),
-               ("AccessAckData",TLPermissions.PermMsgReserved),
-               ("HintAck",TLPermissions.PermMsgReserved),
-               ("Invalid Opcode",TLPermissions.PermMsgReserved),
-               ("Grant",TLPermissions.PermMsgCap),
-               ("GrantData",TLPermissions.PermMsgCap),
-               ("ReleaseAck",TLPermissions.PermMsgReserved))
+  def d = Seq(
+    ("AccessAck", TLPermissions.PermMsgReserved),
+    ("AccessAckData", TLPermissions.PermMsgReserved),
+    ("HintAck", TLPermissions.PermMsgReserved),
+    ("Invalid Opcode", TLPermissions.PermMsgReserved),
+    ("Grant", TLPermissions.PermMsgCap),
+    ("GrantData", TLPermissions.PermMsgCap),
+    ("ReleaseAck", TLPermissions.PermMsgReserved)
+  )
 
 }
 
-/**
-  * The three primary TileLink permissions are:
-  *   (T)runk: the agent is (or is on inwards path to) the global point of serialization.
-  *   (B)ranch: the agent is on an outwards path to
-  *   (N)one:
-  * These permissions are permuted by transfer operations in various ways.
-  * Operations can cap permissions, request for them to be grown or shrunk,
-  * or for a report on their current status.
+/** The three primary TileLink permissions are: (T)runk: the agent is (or is on
+  * inwards path to) the global point of serialization. (B)ranch: the agent is
+  * on an outwards path to (N)one: These permissions are permuted by transfer
+  * operations in various ways. Operations can cap permissions, request for them
+  * to be grown or shrunk, or for a report on their current status.
   */
-object TLPermissions
-{
+object TLPermissions {
   val aWidth = 2
   val bdWidth = 2
   val cWidth = 3
@@ -122,45 +143,49 @@ object TLPermissions
   def NtoN = 5.U(cWidth.W)
   def isReport(x: UInt) = x <= NtoN
 
-  def PermMsgGrow:Seq[String] = Seq("Grow NtoB", "Grow NtoT", "Grow BtoT")
-  def PermMsgCap:Seq[String] = Seq("Cap toT", "Cap toB", "Cap toN")
-  def PermMsgReport:Seq[String] = Seq("Shrink TtoB", "Shrink TtoN", "Shrink BtoN", "Report TotT", "Report BtoB", "Report NtoN")
-  def PermMsgReserved:Seq[String] = Seq("Reserved")
+  def PermMsgGrow: Seq[String] = Seq("Grow NtoB", "Grow NtoT", "Grow BtoT")
+  def PermMsgCap: Seq[String] = Seq("Cap toT", "Cap toB", "Cap toN")
+  def PermMsgReport: Seq[String] = Seq(
+    "Shrink TtoB",
+    "Shrink TtoN",
+    "Shrink BtoN",
+    "Report TotT",
+    "Report BtoB",
+    "Report NtoN"
+  )
+  def PermMsgReserved: Seq[String] = Seq("Reserved")
 }
 
-object TLAtomics
-{
+object TLAtomics {
   val width = 3
 
   // Arithmetic types
-  def MIN  = 0.U(width.W)
-  def MAX  = 1.U(width.W)
+  def MIN = 0.U(width.W)
+  def MAX = 1.U(width.W)
   def MINU = 2.U(width.W)
   def MAXU = 3.U(width.W)
-  def ADD  = 4.U(width.W)
+  def ADD = 4.U(width.W)
   def isArithmetic(x: UInt) = x <= ADD
 
   // Logical types
-  def XOR  = 0.U(width.W)
-  def OR   = 1.U(width.W)
-  def AND  = 2.U(width.W)
+  def XOR = 0.U(width.W)
+  def OR = 1.U(width.W)
+  def AND = 2.U(width.W)
   def SWAP = 3.U(width.W)
   def isLogical(x: UInt) = x <= SWAP
 
-  def ArithMsg:Seq[String] = Seq("MIN", "MAX", "MINU", "MAXU", "ADD")
-  def LogicMsg:Seq[String] = Seq("XOR", "OR", "AND", "SWAP")
+  def ArithMsg: Seq[String] = Seq("MIN", "MAX", "MINU", "MAXU", "ADD")
+  def LogicMsg: Seq[String] = Seq("XOR", "OR", "AND", "SWAP")
 }
 
-
-object TLHints
-{
+object TLHints {
   val width = 1
 
-  def PREFETCH_READ  = 0.U(width.W)
+  def PREFETCH_READ = 0.U(width.W)
   def PREFETCH_WRITE = 1.U(width.W)
   def isHints(x: UInt) = x <= PREFETCH_WRITE
 
-  def HintsMsg:Seq[String] = Seq("PrefetchRead", "PrefetchWrite")
+  def HintsMsg: Seq[String] = Seq("PrefetchRead", "PrefetchWrite")
 }
 
 sealed trait TLChannel extends TLBundleBase {
@@ -171,100 +196,107 @@ sealed trait TLDataChannel extends TLChannel
 sealed trait TLAddrChannel extends TLDataChannel
 
 final class TLBundleA(params: TLBundleParameters)
-  extends TLBundleBase(params) with TLAddrChannel
-{
+    extends TLBundleBase(params)
+    with TLAddrChannel {
   override def typeName = s"TLBundleA_${params.shortName}"
   val channelName = "'A' channel"
   // fixed fields during multibeat:
-  val opcode  = UInt(3.W)
-  val param   = UInt(List(TLAtomics.width, TLPermissions.aWidth, TLHints.width).max.W) // amo_opcode || grow perms || hint
-  val size    = UInt(params.sizeBits.W)
-  val source  = UInt(params.sourceBits.W) // from
+  val opcode = UInt(3.W)
+  val param = UInt(
+    List(TLAtomics.width, TLPermissions.aWidth, TLHints.width).max.W
+  ) // amo_opcode || grow perms || hint
+  val size = UInt(params.sizeBits.W)
+  val source = UInt(params.sourceBits.W) // from
   val address = UInt(params.addressBits.W) // to
-  val user    = BundleMap(params.requestFields)
-  val echo    = BundleMap(params.echoFields)
+  val user = BundleMap(params.requestFields)
+  val echo = BundleMap(params.echoFields)
   // variable fields during multibeat:
-  val mask    = UInt((params.dataBits/8).W)
-  val data    = UInt(params.dataBits.W)
+  val mask = UInt((params.dataBits / 8).W)
+  val data = UInt(params.dataBits.W)
   val corrupt = Bool() // only applies to *Data messages
 }
 final class TLBundleB(params: TLBundleParameters)
-  extends TLBundleBase(params) with TLAddrChannel
-{
+    extends TLBundleBase(params)
+    with TLAddrChannel {
   override def typeName = s"TLBundleB_${params.shortName}"
   val channelName = "'B' channel"
   // fixed fields during multibeat:
-  val opcode  = UInt(3.W)
-  val param   = UInt(TLPermissions.bdWidth.W) // cap perms
-  val size    = UInt(params.sizeBits.W)
-  val source  = UInt(params.sourceBits.W) // to
+  val opcode = UInt(3.W)
+  val param = UInt(TLPermissions.bdWidth.W) // cap perms
+  val size = UInt(params.sizeBits.W)
+  val source = UInt(params.sourceBits.W) // to
   val address = UInt(params.addressBits.W) // from
   // variable fields during multibeat:
-  val mask    = UInt((params.dataBits/8).W)
-  val data    = UInt(params.dataBits.W)
+  val mask = UInt((params.dataBits / 8).W)
+  val data = UInt(params.dataBits.W)
   val corrupt = Bool() // only applies to *Data messages
 }
 
 final class TLBundleC(params: TLBundleParameters)
-  extends TLBundleBase(params) with TLAddrChannel
-{
+    extends TLBundleBase(params)
+    with TLAddrChannel {
   override def typeName = s"TLBundleC_${params.shortName}"
   val channelName = "'C' channel"
   // fixed fields during multibeat:
-  val opcode  = UInt(3.W)
-  val param   = UInt(TLPermissions.cWidth.W) // shrink or report perms
-  val size    = UInt(params.sizeBits.W)
-  val source  = UInt(params.sourceBits.W) // from
+  val opcode = UInt(3.W)
+  val param = UInt(TLPermissions.cWidth.W) // shrink or report perms
+  val size = UInt(params.sizeBits.W)
+  val source = UInt(params.sourceBits.W) // from
   val address = UInt(params.addressBits.W) // to
-  val user    = BundleMap(params.requestFields)
-  val echo    = BundleMap(params.echoFields)
+  val user = BundleMap(params.requestFields)
+  val echo = BundleMap(params.echoFields)
   // variable fields during multibeat:
-  val data    = UInt(params.dataBits.W)
+  val data = UInt(params.dataBits.W)
   val corrupt = Bool() // only applies to *Data messages
 }
 
 final class TLBundleD(params: TLBundleParameters)
-  extends TLBundleBase(params) with TLDataChannel
-{
+    extends TLBundleBase(params)
+    with TLDataChannel {
   override def typeName = s"TLBundleD_${params.shortName}"
   val channelName = "'D' channel"
   // fixed fields during multibeat:
-  val opcode  = UInt(3.W)
-  val param   = UInt(TLPermissions.bdWidth.W) // cap perms
-  val size    = UInt(params.sizeBits.W)
-  val source  = UInt(params.sourceBits.W) // to
-  val sink    = UInt(params.sinkBits.W)   // from
-  val denied  = Bool() // implies corrupt iff *Data
-  val user    = BundleMap(params.responseFields)
-  val echo    = BundleMap(params.echoFields)
+  val opcode = UInt(3.W)
+  val param = UInt(TLPermissions.bdWidth.W) // cap perms
+  val size = UInt(params.sizeBits.W)
+  val source = UInt(params.sourceBits.W) // to
+  val sink = UInt(params.sinkBits.W) // from
+  val denied = Bool() // implies corrupt iff *Data
+  val user = BundleMap(params.responseFields)
+  val echo = BundleMap(params.echoFields)
   // variable fields during multibeat:
-  val data    = UInt(params.dataBits.W)
+  val data = UInt(params.dataBits.W)
   val corrupt = Bool() // only applies to *Data messages
 }
 
 final class TLBundleE(params: TLBundleParameters)
-  extends TLBundleBase(params) with TLChannel
-{
+    extends TLBundleBase(params)
+    with TLChannel {
   override def typeName = s"TLBundleE_${params.shortName}"
   val channelName = "'E' channel"
   val sink = UInt(params.sinkBits.W) // to
 }
 
-class TLBundle(val params: TLBundleParameters) extends Record
-{
+class TLBundle(val params: TLBundleParameters) extends Record {
   // Emulate a Bundle with elements abcde or ad depending on params.hasBCE
 
-  private val optA = Some                (Decoupled(new TLBundleA(params)))
-  private val optB = params.hasBCE.option(Flipped(Decoupled(new TLBundleB(params))))
+  private val optA = Some(Decoupled(new TLBundleA(params)))
+  private val optB =
+    params.hasBCE.option(Flipped(Decoupled(new TLBundleB(params))))
   private val optC = params.hasBCE.option(Decoupled(new TLBundleC(params)))
-  private val optD = Some                (Flipped(Decoupled(new TLBundleD(params))))
+  private val optD = Some(Flipped(Decoupled(new TLBundleD(params))))
   private val optE = params.hasBCE.option(Decoupled(new TLBundleE(params)))
 
-  def a: DecoupledIO[TLBundleA] = optA.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleA(params)))))
-  def b: DecoupledIO[TLBundleB] = optB.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleB(params)))))
-  def c: DecoupledIO[TLBundleC] = optC.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleC(params)))))
-  def d: DecoupledIO[TLBundleD] = optD.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleD(params)))))
-  def e: DecoupledIO[TLBundleE] = optE.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleE(params)))))
+  def a: DecoupledIO[TLBundleA] =
+    optA.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleA(params)))))
+  def b: DecoupledIO[TLBundleB] =
+    optB.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleB(params)))))
+  def c: DecoupledIO[TLBundleC] =
+    optC.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleC(params)))))
+  def d: DecoupledIO[TLBundleD] =
+    optD.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleD(params)))))
+  def e: DecoupledIO[TLBundleE] =
+    optE.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleE(params)))))
 
   val elements =
     if (params.hasBCE) ListMap("e" -> e, "d" -> d, "c" -> c, "b" -> b, "a" -> a)
@@ -289,15 +321,14 @@ class TLBundle(val params: TLBundleParameters) extends Record
   }
 }
 
-object TLBundle
-{
+object TLBundle {
   def apply(params: TLBundleParameters) = new TLBundle(params)
 }
 
 class TLAsyncBundleBase(val params: TLAsyncBundleParameters) extends Bundle
 
-class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(params)
-{
+class TLAsyncBundle(params: TLAsyncBundleParameters)
+    extends TLAsyncBundleBase(params) {
   val a = new AsyncBundle(new TLBundleA(params.base), params.async)
   val b = Flipped(new AsyncBundle(new TLBundleB(params.base), params.async))
   val c = new AsyncBundle(new TLBundleC(params.base), params.async)
@@ -305,8 +336,8 @@ class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(p
   val e = new AsyncBundle(new TLBundleE(params.base), params.async)
 }
 
-class TLRationalBundle(params: TLBundleParameters) extends TLBundleBase(params)
-{
+class TLRationalBundle(params: TLBundleParameters)
+    extends TLBundleBase(params) {
   val a = RationalIO(new TLBundleA(params))
   val b = Flipped(RationalIO(new TLBundleB(params)))
   val c = RationalIO(new TLBundleC(params))
@@ -314,8 +345,8 @@ class TLRationalBundle(params: TLBundleParameters) extends TLBundleBase(params)
   val e = RationalIO(new TLBundleE(params))
 }
 
-class TLCreditedBundle(params: TLBundleParameters) extends TLBundleBase(params)
-{
+class TLCreditedBundle(params: TLBundleParameters)
+    extends TLBundleBase(params) {
   val a = CreditedIO(new TLBundleA(params))
   val b = Flipped(CreditedIO(new TLBundleB(params)))
   val c = CreditedIO(new TLBundleC(params))

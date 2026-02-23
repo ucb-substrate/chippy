@@ -14,11 +14,13 @@ abstract class DiplomaticSRAM(
     beatBytes: Int,
     devName: Option[String],
     dtsCompat: Option[Seq[String]] = None,
-    devOverride: Option[Device with DeviceRegName] = None)(implicit p: Parameters) extends LazyModule
-{
-  val device = devOverride.getOrElse(devName
-    .map(new SimpleDevice(_, dtsCompat.getOrElse(Seq("sifive,sram0"))))
-    .getOrElse(new MemoryDevice())
+    devOverride: Option[Device with DeviceRegName] = None
+)(implicit p: Parameters)
+    extends LazyModule {
+  val device = devOverride.getOrElse(
+    devName
+      .map(new SimpleDevice(_, dtsCompat.getOrElse(Seq("sifive,sram0"))))
+      .getOrElse(new MemoryDevice())
   )
 
   val resources = device.reg("mem")
@@ -29,10 +31,14 @@ abstract class DiplomaticSRAM(
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
   // Use single-ported memory with byte-write enable
-  def makeSinglePortedByteWriteSeqMem(size: BigInt, lanes: Int = beatBytes, bits: Int = 8) = {
+  def makeSinglePortedByteWriteSeqMem(
+      size: BigInt,
+      lanes: Int = beatBytes,
+      bits: Int = 8
+  ) = {
     // We require the address range to include an entire beat (for the write mask)
 
-    val mem  =  DescribedSRAM(
+    val mem = DescribedSRAM(
       name = devName.getOrElse("mem"),
       desc = devName.getOrElse("mem"),
       size = size,
@@ -60,7 +66,7 @@ trait HasJustOneSeqMem {
     */
   def laneDataBits: Int
 
-    /** The ecc code used by this memory
+  /** The ecc code used by this memory
     */
   def eccCode: Option[Code]
 

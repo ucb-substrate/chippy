@@ -1,4 +1,3 @@
-
 /*============================================================================
 
 This Chisel source file is part of a pre-release version of the HardFloat IEEE
@@ -49,9 +48,10 @@ object rawFloatFromFN {
     val isZeroFractIn = (fractIn === 0.U)
 
     val normDist = countLeadingZeros(fractIn)
-    val subnormFract = (fractIn << normDist) (sigWidth - 3, 0) << 1
+    val subnormFract = (fractIn << normDist)(sigWidth - 3, 0) << 1
     val adjustedExp =
-      Mux(isZeroExpIn,
+      Mux(
+        isZeroExpIn,
         normDist ^ ((BigInt(1) << (expWidth + 1)) - 1).U,
         expIn
       ) + ((BigInt(1) << (expWidth - 1)).U
@@ -71,4 +71,3 @@ object rawFloatFromFN {
     out
   }
 }
-

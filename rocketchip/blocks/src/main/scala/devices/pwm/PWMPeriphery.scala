@@ -9,9 +9,11 @@ case object PeripheryPWMKey extends Field[Seq[PWMParams]](Nil)
 
 trait HasPeripheryPWM { this: BaseSubsystem =>
   val pwmNodes = p(PeripheryPWMKey).map { ps =>
-    PWMAttachParams(ps).attachTo(this).ioNode.makeSink 
+    PWMAttachParams(ps).attachTo(this).ioNode.makeSink
   }
-  val pwm  = InModuleBody { pwmNodes.zipWithIndex.map  { case(n,i) => n.makeIO()(ValName(s"pwm_$i")) } }
+  val pwm = InModuleBody {
+    pwmNodes.zipWithIndex.map { case (n, i) => n.makeIO()(ValName(s"pwm_$i")) }
+  }
 }
 
 /*
@@ -28,4 +30,4 @@ trait HasPeripheryPWM { this: BaseSubsystem =>
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

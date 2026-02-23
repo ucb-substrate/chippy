@@ -1,6 +1,6 @@
 package sifive.blocks.devices.mockaon
 
-import chisel3._ 
+import chisel3._
 import org.chipsalliance.cde.config.Field
 import freechips.rocketchip.devices.debug.HasPeripheryDebug
 import freechips.rocketchip.devices.tilelink.CanHavePeripheryCLINT
@@ -12,13 +12,16 @@ import freechips.rocketchip.util.{ResetCatchAndSync, SynchronizerShiftReg}
 
 case object PeripheryMockAONKey extends Field[MockAONParams]
 
-trait HasPeripheryMockAON extends CanHavePeripheryCLINT with HasPeripheryDebug { this: BaseSubsystem =>
+trait HasPeripheryMockAON extends CanHavePeripheryCLINT with HasPeripheryDebug {
+  this: BaseSubsystem =>
   // We override the clock & Reset here so that all synchronizers, etc
   // are in the proper clock domain.
-  val mockAONParams= p(PeripheryMockAONKey)
+  val mockAONParams = p(PeripheryMockAONKey)
   private val tlbus = locateTLBusWrapper(CBUS)
   val aon = LazyModule(new MockAONWrapper(tlbus.beatBytes, mockAONParams))
-  aon.node := tlbus.coupleTo("aon") { TLAsyncCrossingSource() := TLFragmenter(tlbus) := _ }
+  aon.node := tlbus.coupleTo("aon") {
+    TLAsyncCrossingSource() := TLFragmenter(tlbus) := _
+  }
   ibus.fromAsync := aon.intnode
 }
 
@@ -29,7 +32,9 @@ trait HasPeripheryMockAONBundle {
   }
 }
 
-trait HasPeripheryMockAONModuleImp extends LazyModuleImp with HasPeripheryMockAONBundle {
+trait HasPeripheryMockAONModuleImp
+    extends LazyModuleImp
+    with HasPeripheryMockAONBundle {
   val outer: HasPeripheryMockAON
   val aon = IO(new MockAONWrapperBundle)
 
@@ -41,7 +46,8 @@ trait HasPeripheryMockAONModuleImp extends LazyModuleImp with HasPeripheryMockAO
   outer.aon.module.reset := true.B
 
   // Synchronize the external toggle into the clint
-  val rtc_sync = SynchronizerShiftReg(outer.aon.module.io.rtc.asUInt.asBool, 3, Some("rtc"))
+  val rtc_sync =
+    SynchronizerShiftReg(outer.aon.module.io.rtc.asUInt.asBool, 3, Some("rtc"))
   val rtc_last = RegNext(rtc_sync, false.B)
   val rtc_tick = RegNext(rtc_sync & (~rtc_last), false.B)
 
@@ -49,7 +55,9 @@ trait HasPeripheryMockAONModuleImp extends LazyModuleImp with HasPeripheryMockAO
     clint.module.io.rtcTick := rtc_tick
   }
 
-  outer.aon.module.io.ndreset := outer.debugOpt.map(d => d.module.io.ctrl.ndreset).getOrElse(false.B)
+  outer.aon.module.io.ndreset := outer.debugOpt
+    .map(d => d.module.io.ctrl.ndreset)
+    .getOrElse(false.B)
 }
 
 /*
@@ -66,4 +74,4 @@ trait HasPeripheryMockAONModuleImp extends LazyModuleImp with HasPeripheryMockAO
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

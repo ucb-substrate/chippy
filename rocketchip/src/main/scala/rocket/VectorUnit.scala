@@ -8,16 +8,16 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 
 case class RocketCoreVectorParams(
-  build: Parameters => RocketVectorUnit,
-  vLen: Int,
-  eLen: Int,
-  vfLen: Int,
-  vfh: Boolean,
-  vMemDataBits: Int,
-  decoder: Parameters => RocketVectorDecoder,
-  useDCache: Boolean,
-  issueVConfig: Boolean,
-  vExts: Seq[String]
+    build: Parameters => RocketVectorUnit,
+    vLen: Int,
+    eLen: Int,
+    vfLen: Int,
+    vfh: Boolean,
+    vMemDataBits: Int,
+    decoder: Parameters => RocketVectorDecoder,
+    useDCache: Boolean,
+    issueVConfig: Boolean,
+    vExts: Seq[String]
 )
 
 class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
@@ -76,7 +76,8 @@ abstract class RocketVectorUnit(implicit p: Parameters) extends LazyModule {
   val atlNode: TLNode = TLIdentityNode()
 }
 
-class RocketVectorUnitModuleImp(outer: RocketVectorUnit) extends LazyModuleImp(outer) {
+class RocketVectorUnitModuleImp(outer: RocketVectorUnit)
+    extends LazyModuleImp(outer) {
   val io = IO(new Bundle {
     val core = new VectorCoreIO
     val tlb = Flipped(new DCacheTLBPort)
@@ -87,12 +88,14 @@ class RocketVectorUnitModuleImp(outer: RocketVectorUnit) extends LazyModuleImp(o
   })
 }
 
-abstract class RocketVectorDecoder(implicit p: Parameters) extends CoreModule()(p) {
+abstract class RocketVectorDecoder(implicit p: Parameters)
+    extends CoreModule()(p) {
   val io = IO(new Bundle {
     val inst = Input(UInt(32.W))
     val vconfig = Input(new VConfig)
     val vector = Output(Bool()) // this is a vector instruction
-    val legal = Output(Bool()) // this is a legal vector instruction given vconfig
+    val legal =
+      Output(Bool()) // this is a legal vector instruction given vconfig
     val fp = Output(Bool())
     val read_rs1 = Output(Bool())
     val read_rs2 = Output(Bool())

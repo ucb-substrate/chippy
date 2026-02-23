@@ -13,7 +13,7 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.prci._
 
 case class GlobalNoCParams(
-  nocParams: NoCParams = NoCParams()
+    nocParams: NoCParams = NoCParams()
 )
 
 trait CanAttachToGlobalNoC {
@@ -25,16 +25,23 @@ case object GlobalNoCKey extends Field[GlobalNoCParams](GlobalNoCParams())
 
 class GlobalNoCDomain(implicit p: Parameters) extends ClockSinkDomain()(p) {
   InModuleBody {
-    val interfaces = getChildren.map(_.module).collect {
-      case a: CanAttachToGlobalNoC => a
-    }.toSeq
+    val interfaces = getChildren
+      .map(_.module)
+      .collect { case a: CanAttachToGlobalNoC =>
+        a
+      }
+      .toSeq
     if (interfaces.size > 0) {
-      val noc = Module(new ProtocolNoC(ProtocolNoCParams(
-        p(GlobalNoCKey).nocParams,
-        interfaces.map(_.protocolParams)
-      )))
+      val noc = Module(
+        new ProtocolNoC(
+          ProtocolNoCParams(
+            p(GlobalNoCKey).nocParams,
+            interfaces.map(_.protocolParams)
+          )
+        )
+      )
 
-      (interfaces zip noc.io.protocol).foreach { case (l,r) =>
+      (interfaces zip noc.io.protocol).foreach { case (l, r) =>
         l.io_global <> r
       }
     }

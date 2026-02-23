@@ -75,4 +75,3 @@ class MmioAdderSpec extends AnyFunSpec with ChiselSim {
     }
   }
 }
-

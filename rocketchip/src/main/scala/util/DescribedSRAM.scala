@@ -8,10 +8,10 @@ import chisel3.util.log2Ceil
 
 object DescribedSRAM {
   def apply[T <: Data](
-    name: String,
-    desc: String,
-    size: BigInt, // depth
-    data: T
+      name: String,
+      desc: String,
+      size: BigInt, // depth
+      data: T
   ): SyncReadMem[T] = {
 
     val mem = SyncReadMem(size, data)
@@ -20,7 +20,7 @@ object DescribedSRAM {
 
     val granWidth = data match {
       case v: Vec[_] => v.head.getWidth
-      case d => d.getWidth
+      case d         => d.getWidth
     }
 
     val uid = 0

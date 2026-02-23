@@ -4,7 +4,12 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.devices.tilelink.{DevNullParams, TLTestRAM, TLROM, TLError}
+import freechips.rocketchip.devices.tilelink.{
+  DevNullParams,
+  TLTestRAM,
+  TLROM,
+  TLError
+}
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.unittest._
@@ -20,10 +25,21 @@ import testchipip.util._
 import testchipip.tsi._
 import testchipip.ctc._
 class BlockDeviceTrackerTestDriver(nSectors: Int)(implicit p: Parameters)
-    extends LazyModule with HasBlockDeviceParameters {
+    extends LazyModule
+    with HasBlockDeviceParameters {
   val bdParams = p(BlockDeviceKey).get
-  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
-    name = "blkdev-testdriver", sourceId = IdRange(0, 1))))))
+  val node = TLClientNode(
+    Seq(
+      TLMasterPortParameters.v1(
+        Seq(
+          TLClientParameters(
+            name = "blkdev-testdriver",
+            sourceId = IdRange(0, 1)
+          )
+        )
+      )
+    )
+  )
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -38,29 +54,29 @@ class BlockDeviceTrackerTestDriver(nSectors: Int)(implicit p: Parameters)
     val (tl, edge) = node.out(0)
 
     val (s_start :: s_bdev_write_req :: s_bdev_write_complete ::
-         s_bdev_read_req :: s_bdev_read_complete ::
-         s_mem_read_req :: s_mem_read_resp :: s_done :: Nil) = Enum(8)
+      s_bdev_read_req :: s_bdev_read_complete ::
+      s_mem_read_req :: s_mem_read_resp :: s_done :: Nil) = Enum(8)
     val state = RegInit(s_start)
 
-    when (io.start && state === s_start) { state := s_bdev_write_req }
-    when (state === s_bdev_write_req && req.ready) {
+    when(io.start && state === s_start) { state := s_bdev_write_req }
+    when(state === s_bdev_write_req && req.ready) {
       state := s_bdev_write_complete
     }
-    when (state === s_bdev_write_complete && complete.valid) {
+    when(state === s_bdev_write_complete && complete.valid) {
       state := s_bdev_read_req
     }
-    when (state === s_bdev_read_req && req.ready) {
+    when(state === s_bdev_read_req && req.ready) {
       state := s_bdev_read_complete
     }
-    when (state === s_bdev_read_complete && complete.valid) {
+    when(state === s_bdev_read_complete && complete.valid) {
       state := s_mem_read_req
     }
 
-    when (tl.a.fire) { state := s_mem_read_resp }
+    when(tl.a.fire) { state := s_mem_read_resp }
     val (read_beat, read_sector_done) = Counter(tl.d.fire, dataBeats)
     val (read_sector, read_all_done) = Counter(read_sector_done, nSectors)
-    when (read_sector_done) { state := s_mem_read_req }
-    when (read_all_done) { state := s_done }
+    when(read_sector_done) { state := s_mem_read_req }
+    when(read_all_done) { state := s_done }
 
     req.valid := state.isOneOf(s_bdev_write_req, s_bdev_read_req)
     req.bits.addr := Mux(state === s_bdev_write_req, 0x10000.U, 0x0.U)
@@ -85,26 +101,30 @@ class BlockDeviceTrackerTestDriver(nSectors: Int)(implicit p: Parameters)
     val full_beat = WireInit(UInt(8.W), init = Cat(read_sector, read_beat))
     val expected_data = Fill(beatBytes, full_beat)
 
-    assert(!tl.d.valid || tl.d.bits.data === expected_data,
-      "Unexpected data read\n")
+    assert(
+      !tl.d.valid || tl.d.bits.data === expected_data,
+      "Unexpected data read\n"
+    )
   }
 }
 
-class BlockDeviceTrackerTest(implicit p: Parameters) extends LazyModule
+class BlockDeviceTrackerTest(implicit p: Parameters)
+    extends LazyModule
     with HasBlockDeviceParameters {
   val bdParams = p(BlockDeviceKey).get
   val nSectors = 4
   val beatBytes = dataBitsPerBeat / 8
 
-  val testBytes = Seq.tabulate(nSectors * dataBeats)(
-    i => Seq.fill(beatBytes) { i.toByte }).flatten
+  val testBytes = Seq
+    .tabulate(nSectors * dataBeats)(i => Seq.fill(beatBytes) { i.toByte })
+    .flatten
 
-  val testram = LazyModule(new TLTestRAM(
-    address = AddressSet(0x0, 0xffff),
-    beatBytes = beatBytes))
-  val testrom = LazyModule(new TLROM(
-    0x10000, 64 * dataBytes, testBytes,
-    beatBytes = beatBytes))
+  val testram = LazyModule(
+    new TLTestRAM(address = AddressSet(0x0, 0xffff), beatBytes = beatBytes)
+  )
+  val testrom = LazyModule(
+    new TLROM(0x10000, 64 * dataBytes, testBytes, beatBytes = beatBytes)
+  )
 
   val tracker = LazyModule(new BlockDeviceTracker(0))
   val driver = LazyModule(new BlockDeviceTrackerTestDriver(nSectors))
@@ -126,11 +146,10 @@ class BlockDeviceTrackerTest(implicit p: Parameters) extends LazyModule
 }
 
 class BlockDeviceTrackerTestWrapper(implicit p: Parameters) extends UnitTest {
-  val testParams = p.alterPartial({
-    case BlockDeviceKey => Some(BlockDeviceConfig())
+  val testParams = p.alterPartial({ case BlockDeviceKey =>
+    Some(BlockDeviceConfig())
   })
-  val test = Module(LazyModule(
-    new BlockDeviceTrackerTest()(testParams)).module)
+  val test = Module(LazyModule(new BlockDeviceTrackerTest()(testParams)).module)
   test.io.start := io.start
   io.finished := test.io.finished
 }
@@ -141,39 +160,56 @@ class SerdesTest(implicit p: Parameters) extends LazyModule {
   val lineBytes = 64
   val serWidth = 32
 
-  val fuzzer = LazyModule(new TLFuzzer(
-    nOperations = 32,
-    inFlight = 1 << idBits))
+  val fuzzer = LazyModule(
+    new TLFuzzer(nOperations = 32, inFlight = 1 << idBits)
+  )
 
-  val serdes = LazyModule(new TLSerdesser(
-    flitWidth = serWidth,
-    clientPortParams = None,
-    managerPortParams = Some(TLSlavePortParameters.v1(
-      beatBytes = beatBytes,
-      managers = Seq(TLSlaveParameters.v1(
-        address = Seq(AddressSet(0, 0xffff)),
-        regionType = RegionType.UNCACHED,
-        supportsGet = TransferSizes(1, lineBytes),
-        supportsPutFull = TransferSizes(1, lineBytes)))
-    ))
-  ))
+  val serdes = LazyModule(
+    new TLSerdesser(
+      flitWidth = serWidth,
+      clientPortParams = None,
+      managerPortParams = Some(
+        TLSlavePortParameters.v1(
+          beatBytes = beatBytes,
+          managers = Seq(
+            TLSlaveParameters.v1(
+              address = Seq(AddressSet(0, 0xffff)),
+              regionType = RegionType.UNCACHED,
+              supportsGet = TransferSizes(1, lineBytes),
+              supportsPutFull = TransferSizes(1, lineBytes)
+            )
+          )
+        )
+      )
+    )
+  )
 
-  val desser = LazyModule(new TLSerdesser(
-    flitWidth = serWidth,
-    managerPortParams = None,
-    clientPortParams = Some(TLMasterPortParameters.v1(
-      clients = Seq(TLMasterParameters.v1(
-        name = "tl-desser",
-        sourceId = IdRange(0, 1 << idBits)))
-    ))
-  ))
+  val desser = LazyModule(
+    new TLSerdesser(
+      flitWidth = serWidth,
+      managerPortParams = None,
+      clientPortParams = Some(
+        TLMasterPortParameters.v1(
+          clients = Seq(
+            TLMasterParameters.v1(
+              name = "tl-desser",
+              sourceId = IdRange(0, 1 << idBits)
+            )
+          )
+        )
+      )
+    )
+  )
 
-  val testram = LazyModule(new TLTestRAM(
-    address = AddressSet(0, 0xffff),
-    beatBytes = beatBytes))
+  val testram = LazyModule(
+    new TLTestRAM(address = AddressSet(0, 0xffff), beatBytes = beatBytes)
+  )
 
   serdes.managerNode.get := TLBuffer() := fuzzer.node
-  testram.node := TLBuffer() := TLFragmenter(beatBytes, lineBytes) := desser.clientNode.get
+  testram.node := TLBuffer() := TLFragmenter(
+    beatBytes,
+    lineBytes
+  ) := desser.clientNode.get
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -195,45 +231,63 @@ class SerdesTestWrapper(implicit p: Parameters) extends UnitTest {
   io.finished := test.io.finished
   test.reset := testReset || reset.asBool
 
-  when (testReset && io.start) { testReset := false.B }
+  when(testReset && io.start) { testReset := false.B }
 }
 
-class BidirectionalSerdesTest(phyParams: SerialPhyParams)(implicit p: Parameters) extends LazyModule {
+class BidirectionalSerdesTest(phyParams: SerialPhyParams)(implicit
+    p: Parameters
+) extends LazyModule {
   val idBits = 2
   val beatBytes = 8
   val lineBytes = 64
 
-  val fuzzer = Seq.fill(2) { LazyModule(new TLFuzzer(
-    nOperations = 32,
-    inFlight = 1 << idBits)) }
+  val fuzzer = Seq.fill(2) {
+    LazyModule(new TLFuzzer(nOperations = 32, inFlight = 1 << idBits))
+  }
 
-  val serdes = Seq.fill(2) { LazyModule(new TLSerdesser(
-    flitWidth = phyParams.flitWidth,
-    clientPortParams = Some(TLMasterPortParameters.v1(
-      clients = Seq(TLMasterParameters.v1(
-        name = "tl-desser",
-        sourceId = IdRange(0, 1 << idBits)))
-    )),
-    managerPortParams = Some(TLSlavePortParameters.v1(
-      managers = Seq(TLSlaveParameters.v1(
-        address = Seq(AddressSet(0, 0xffff)),
-        regionType = RegionType.UNCACHED,
-        supportsGet = TransferSizes(1, lineBytes),
-        supportsPutFull = TransferSizes(1, lineBytes))
-      ),
-      beatBytes = 8
-    ))
-  )) }
+  val serdes = Seq.fill(2) {
+    LazyModule(
+      new TLSerdesser(
+        flitWidth = phyParams.flitWidth,
+        clientPortParams = Some(
+          TLMasterPortParameters.v1(
+            clients = Seq(
+              TLMasterParameters
+                .v1(name = "tl-desser", sourceId = IdRange(0, 1 << idBits))
+            )
+          )
+        ),
+        managerPortParams = Some(
+          TLSlavePortParameters.v1(
+            managers = Seq(
+              TLSlaveParameters.v1(
+                address = Seq(AddressSet(0, 0xffff)),
+                regionType = RegionType.UNCACHED,
+                supportsGet = TransferSizes(1, lineBytes),
+                supportsPutFull = TransferSizes(1, lineBytes)
+              )
+            ),
+            beatBytes = 8
+          )
+        )
+      )
+    )
+  }
 
-  val testram = Seq.fill(2) { LazyModule(new TLTestRAM(
-    address = AddressSet(0, 0xffff),
-    beatBytes = beatBytes))
+  val testram = Seq.fill(2) {
+    LazyModule(
+      new TLTestRAM(address = AddressSet(0, 0xffff), beatBytes = beatBytes)
+    )
   }
 
   serdes(0).managerNode.get := TLBuffer() := fuzzer(0).node
   serdes(1).managerNode.get := TLBuffer() := fuzzer(1).node
-  testram(0).node := TLBuffer() := TLFragmenter(beatBytes, lineBytes) := serdes(0).clientNode.get
-  testram(1).node := TLBuffer() := TLFragmenter(beatBytes, lineBytes) := serdes(1).clientNode.get
+  testram(0).node := TLBuffer() := TLFragmenter(beatBytes, lineBytes) := serdes(
+    0
+  ).clientNode.get
+  testram(1).node := TLBuffer() := TLFragmenter(beatBytes, lineBytes) := serdes(
+    1
+  ).clientNode.get
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -289,21 +343,31 @@ class BidirectionalSerdesTest(phyParams: SerialPhyParams)(implicit p: Parameters
   }
 }
 
-class BidirectionalSerdesTestWrapper(phyParams: SerialPhyParams, timeout: Int = 4096)(implicit p: Parameters) extends UnitTest(timeout) {
+class BidirectionalSerdesTestWrapper(
+    phyParams: SerialPhyParams,
+    timeout: Int = 4096
+)(implicit p: Parameters)
+    extends UnitTest(timeout) {
   val testReset = RegInit(true.B)
   val test = Module(LazyModule(new BidirectionalSerdesTest(phyParams)).module)
   io.finished := test.io.finished
   test.reset := testReset || reset.asBool
 
-  when (testReset && io.start) { testReset := false.B }
+  when(testReset && io.start) { testReset := false.B }
 }
 
 // A module which generates random data and address values over TileLink
 // CTC cannot transmit sub-word operations, so we limit ourselves to size >= 32b
-class TLCTCTester(nOperations: Int = 32)(implicit p: Parameters) extends LazyModule {
-  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
-    name = s"ctc-tester", sourceId = IdRange(0, 1))))))
-  
+class TLCTCTester(nOperations: Int = 32)(implicit p: Parameters)
+    extends LazyModule {
+  val node = TLClientNode(
+    Seq(
+      TLMasterPortParameters.v1(
+        Seq(TLClientParameters(name = s"ctc-tester", sourceId = IdRange(0, 1)))
+      )
+    )
+  )
+
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -318,20 +382,36 @@ class TLCTCTester(nOperations: Int = 32)(implicit p: Parameters) extends LazyMod
     val addrBits = log2Up(edge.manager.maxAddress)
 
     val rand = new Random()
-    val data_vec = VecInit(Seq.fill(nOperations)(rand.nextInt(1 << dataBits).U(dataBits.W)))
-    val raw_addr_vec = VecInit(Seq.fill(nOperations)(rand.nextInt(1 << addrBits).U(addrBits.W)))
-    val rw_vec = VecInit(Seq.fill(nOperations)(rand.nextBoolean().B)) // Is the access a read or a write
-    val size_vec = VecInit(Seq.fill(nOperations)(if (rand.nextBoolean()) 4.U else 5.U)) // words and doublewords only
+    val data_vec = VecInit(
+      Seq.fill(nOperations)(rand.nextInt(1 << dataBits).U(dataBits.W))
+    )
+    val raw_addr_vec = VecInit(
+      Seq.fill(nOperations)(rand.nextInt(1 << addrBits).U(addrBits.W))
+    )
+    val rw_vec = VecInit(
+      Seq.fill(nOperations)(rand.nextBoolean().B)
+    ) // Is the access a read or a write
+    val size_vec = VecInit(
+      Seq.fill(nOperations)(if (rand.nextBoolean()) 4.U else 5.U)
+    ) // words and doublewords only
 
     val reqs_remaining = RegInit(nOperations.U)
     val resps_remaining = RegInit(nOperations.U)
 
     val idx = 32.U - reqs_remaining
     val currSize = size_vec(idx)
-    val currAddr = (raw_addr_vec(idx) >> currSize) << currSize  
+    val currAddr = (raw_addr_vec(idx) >> currSize) << currSize
 
-    val tlRead = edge.Get(fromSource = 0.U, toAddress = currAddr, lgSize = currSize)._2
-    val tlWrite = edge.Put(fromSource = 0.U, toAddress = currAddr, lgSize = currSize, data = data_vec(idx))._2
+    val tlRead =
+      edge.Get(fromSource = 0.U, toAddress = currAddr, lgSize = currSize)._2
+    val tlWrite = edge
+      .Put(
+        fromSource = 0.U,
+        toAddress = currAddr,
+        lgSize = currSize,
+        data = data_vec(idx)
+      )
+      ._2
 
     val (send_req :: wait_resp :: done :: Nil) = Enum(3)
     val state = RegInit(send_req)
@@ -340,21 +420,21 @@ class TLCTCTester(nOperations: Int = 32)(implicit p: Parameters) extends LazyMod
     out.a.valid := !reset.asBool && reqs_remaining =/= 0.U && (!a_first || !inflight)
     out.b.ready := false.B
     out.c.valid := false.B
-    out.d.ready := true.B 
+    out.d.ready := true.B
     out.e.valid := false.B
 
     out.a.bits := Mux(rw_vec(idx), tlRead, tlWrite)
 
-    when (out.a.fire) { 
-      inflight := true.B 
-    }.elsewhen (d_first && out.d.fire) { 
-      inflight := false.B 
+    when(out.a.fire) {
+      inflight := true.B
+    }.elsewhen(d_first && out.d.fire) {
+      inflight := false.B
     }
 
-    when (out.a.fire && a_last) {
+    when(out.a.fire && a_last) {
       reqs_remaining := reqs_remaining - 1.U
     }
-    when (out.d.fire && d_last) {
+    when(out.d.fire && d_last) {
       resps_remaining := resps_remaining - 1.U
     }
 
@@ -362,19 +442,24 @@ class TLCTCTester(nOperations: Int = 32)(implicit p: Parameters) extends LazyMod
   }
 }
 
-class TLCTCTest(phyParams: SerialPhyParams)(implicit p: Parameters) extends LazyModule {
+class TLCTCTest(phyParams: SerialPhyParams)(implicit p: Parameters)
+    extends LazyModule {
   val numChannels = 2
   val beatBytes = 8
 
   val testers = Seq.fill(2) { LazyModule(new TLCTCTester(nOperations = 32)) }
 
-  val tl2ctc = Seq.fill(2) { LazyModule(new TileLinkToCTC(beatBytes = beatBytes)) }
-  val ctc2tl = Seq.fill(2) { LazyModule(new CTCToTileLink(portId=0)) }
+  val tl2ctc = Seq.fill(2) {
+    LazyModule(new TileLinkToCTC(beatBytes = beatBytes))
+  }
+  val ctc2tl = Seq.fill(2) { LazyModule(new CTCToTileLink(portId = 0)) }
 
-  val testrams = Seq.fill(2) { LazyModule(new TLTestRAM(
-    address = AddressSet(0, 0xffff),
-    beatBytes = beatBytes)) }
-  
+  val testrams = Seq.fill(2) {
+    LazyModule(
+      new TLTestRAM(address = AddressSet(0, 0xffff), beatBytes = beatBytes)
+    )
+  }
+
   tl2ctc(0).node := TLBuffer() := testers(0).node
   tl2ctc(1).node := TLBuffer() := testers(1).node
 
@@ -408,12 +493,14 @@ class TLCTCTest(phyParams: SerialPhyParams)(implicit p: Parameters) extends Lazy
   }
 }
 
-class TLCTCTestWrapper(phyParams: SerialPhyParams, timeout: Int = 4096)(implicit p: Parameters) extends UnitTest(timeout) {
+class TLCTCTestWrapper(phyParams: SerialPhyParams, timeout: Int = 4096)(implicit
+    p: Parameters
+) extends UnitTest(timeout) {
   val testReset = RegInit(true.B)
   val test = Module(LazyModule(new TLCTCTest(phyParams)).module)
   io.finished := test.io.finished
   test.reset := testReset || reset.asBool
-  when (testReset && io.start) { testReset := false.B }
+  when(testReset && io.start) { testReset := false.B }
 }
 
 class StreamWidthAdapterTest extends UnitTest {
@@ -421,14 +508,19 @@ class StreamWidthAdapterTest extends UnitTest {
   val larger = Wire(new StreamIO(64))
 
   val data = VecInit(
-    0xab13.U, 0x71ff.U, 0x6421.U, 0x9123.U,
-    0xbbdd.U, 0x1542.U, 0x8912.U)
+    0xab13.U,
+    0x71ff.U,
+    0x6421.U,
+    0x9123.U,
+    0xbbdd.U,
+    0x1542.U,
+    0x8912.U
+  )
 
-  val keep = VecInit(
-    "b11".U, "b10".U, "b11".U, "b00".U,
-    "b11".U, "b01".U, "b11".U)
+  val keep =
+    VecInit("b11".U, "b10".U, "b11".U, "b00".U, "b11".U, "b01".U, "b11".U)
 
-  val (inIdx, inDone)   = Counter(smaller.in.fire,  data.size)
+  val (inIdx, inDone) = Counter(smaller.in.fire, data.size)
   val (outIdx, outDone) = Counter(smaller.out.fire, data.size)
 
   val started = RegInit(false.B)
@@ -444,39 +536,44 @@ class StreamWidthAdapterTest extends UnitTest {
   StreamWidthAdapter(larger, smaller)
   larger.in <> Queue(larger.out, 2)
 
-  when (io.start && !started) {
+  when(io.start && !started) {
     started := true.B
     sending := true.B
     receiving := true.B
   }
 
-  when (outDone)  { sending   := false.B }
-  when (inDone) { receiving := false.B }
+  when(outDone) { sending := false.B }
+  when(inDone) { receiving := false.B }
 
   io.finished := !sending && !receiving
 
-  assert(!smaller.in.valid ||
-    (smaller.in.bits.data === data(inIdx) &&
-     smaller.in.bits.keep === keep(inIdx) &&
-     smaller.in.bits.last === inDone),
-    "StreamWidthAdapterTest: Data, keep, or last does not match")
+  assert(
+    !smaller.in.valid ||
+      (smaller.in.bits.data === data(inIdx) &&
+        smaller.in.bits.keep === keep(inIdx) &&
+        smaller.in.bits.last === inDone),
+    "StreamWidthAdapterTest: Data, keep, or last does not match"
+  )
 }
 
 class SwitcherDummy(implicit p: Parameters) extends LazyModule {
-  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
-    "dummy", IdRange(0, 1))))))
+  val node = TLClientNode(
+    Seq(
+      TLMasterPortParameters.v1(Seq(TLClientParameters("dummy", IdRange(0, 1))))
+    )
+  )
 
   lazy val module = new LazyModuleImp(this) {
     val (tl, edge) = node.out(0)
 
     tl.a.valid := false.B
-    tl.a.bits  := DontCare
+    tl.a.bits := DontCare
     tl.b.ready := false.B
     tl.c.valid := false.B
-    tl.c.bits  := DontCare
+    tl.c.bits := DontCare
     tl.d.ready := false.B
     tl.e.valid := false.B
-    tl.e.bits  := DontCare
+    tl.e.bits := DontCare
   }
 }
 
@@ -490,28 +587,35 @@ class SwitcherTest(implicit p: Parameters) extends LazyModule {
   val address = Seq(AddressSet(0x0, 0xffff))
 
   val fuzzers = Seq.fill(outChannels) {
-    LazyModule(new TLFuzzer(
-      nOperations = 32,
-      inFlight = 1 << inIdBits))
+    LazyModule(new TLFuzzer(nOperations = 32, inFlight = 1 << inIdBits))
   }
 
   val dummies = Seq.fill(outChannels) {
-    Seq.fill(inChannels/outChannels-1) {
+    Seq.fill(inChannels / outChannels - 1) {
       LazyModule(new SwitcherDummy)
     }
   }
 
-  val switcher = LazyModule(new TLSwitcher(
-    inChannels, Seq(1, outChannels), Seq.fill(inChannels)(address),
-    beatBytes = beatBytes, lineBytes = lineBytes, idBits = outIdBits))
+  val switcher = LazyModule(
+    new TLSwitcher(
+      inChannels,
+      Seq(1, outChannels),
+      Seq.fill(inChannels)(address),
+      beatBytes = beatBytes,
+      lineBytes = lineBytes,
+      idBits = outIdBits
+    )
+  )
 
-  val error = LazyModule(new TLError(
-    DevNullParams(address, beatBytes, lineBytes), beatBytes = beatBytes))
+  val error = LazyModule(
+    new TLError(
+      DevNullParams(address, beatBytes, lineBytes),
+      beatBytes = beatBytes
+    )
+  )
 
   val rams = Seq.fill(outChannels) {
-    LazyModule(new TLTestRAM(
-      address = address.head,
-      beatBytes = beatBytes))
+    LazyModule(new TLTestRAM(address = address.head, beatBytes = beatBytes))
   }
 
   fuzzers.zip(dummies).foreach { case (fuzzer, dummy) =>
@@ -522,9 +626,10 @@ class SwitcherTest(implicit p: Parameters) extends LazyModule {
   error.node := switcher.outnodes(0)
   rams.foreach(
     _.node :=
-    TLBuffer() :=
-    TLFragmenter(beatBytes, lineBytes) :=
-    switcher.outnodes(1))
+      TLBuffer() :=
+      TLFragmenter(beatBytes, lineBytes) :=
+      switcher.outnodes(1)
+  )
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -546,18 +651,24 @@ class TLRingNetworkTest(implicit p: Parameters) extends LazyModule {
   val blockBytes = p(CacheBlockBytes)
 
   val fuzzers = Seq.tabulate(2) { i =>
-    LazyModule(new TLFuzzer(
-      nOperations = 64,
-      overrideAddress = Some(AddressSet(i * 0x2000, 0x1fff))))
+    LazyModule(
+      new TLFuzzer(
+        nOperations = 64,
+        overrideAddress = Some(AddressSet(i * 0x2000, 0x1fff))
+      )
+    )
   }
   val rams = Seq.tabulate(4) { i =>
-    LazyModule(new TLTestRAM(
-      address = AddressSet(i * 0x1000, 0xfff),
-      beatBytes = 8))
+    LazyModule(
+      new TLTestRAM(address = AddressSet(i * 0x1000, 0xfff), beatBytes = 8)
+    )
   }
-  val ring = LazyModule(new TLRingNetwork(
-    inputMap = Some(Seq(1, 0)),
-    outputMap = Some(Seq(0, 2, 1, 3))))
+  val ring = LazyModule(
+    new TLRingNetwork(
+      inputMap = Some(Seq(1, 0)),
+      outputMap = Some(Seq(0, 2, 1, 3))
+    )
+  )
 
   fuzzers.foreach(ring.node := _.node)
   rams.foreach(_.node := TLFragmenter(beatBytes, blockBytes) := ring.node)
@@ -576,7 +687,8 @@ class TLRingNetworkTestWrapper(implicit p: Parameters) extends UnitTest {
   io.finished := test.io.finished
 }
 
-class NetworkXbarTestDriver(nOut: Int, streams: Seq[(Int, Seq[Int])]) extends Module {
+class NetworkXbarTestDriver(nOut: Int, streams: Seq[(Int, Seq[Int])])
+    extends Module {
   val bundleType = new NetworkBundle(nOut, UInt(32.W))
   val io = IO(new Bundle with UnitTestIO {
     val out = Decoupled(bundleType)
@@ -584,9 +696,10 @@ class NetworkXbarTestDriver(nOut: Int, streams: Seq[(Int, Seq[Int])]) extends Mo
 
   val maxLength = streams.map(_._2.length).reduce(max(_, _))
   val streamIdx = RegInit(0.U(log2Ceil(maxLength).W))
-  val (curStream, streamDone) = Counter(io.out.fire && io.out.bits.last, streams.length)
+  val (curStream, streamDone) =
+    Counter(io.out.fire && io.out.bits.last, streams.length)
 
-  when (io.out.fire) {
+  when(io.out.fire) {
     streamIdx := Mux(io.out.bits.last, 0.U, streamIdx + 1.U)
   }
 
@@ -595,22 +708,23 @@ class NetworkXbarTestDriver(nOut: Int, streams: Seq[(Int, Seq[Int])]) extends Mo
     val netData = Wire(bundleType)
     netData.netId := outId.U
     netData.payload := streamData(streamIdx)
-    netData.last := streamIdx === (streamInit.length-1).U
+    netData.last := streamIdx === (streamInit.length - 1).U
     netData
   })
 
   val (s_start :: s_send :: s_done :: Nil) = Enum(3)
   val state = RegInit(s_start)
 
-  when (state === s_start && io.start) { state := s_send }
-  when (streamDone) { state := s_done }
+  when(state === s_start && io.start) { state := s_send }
+  when(streamDone) { state := s_done }
 
   io.out.valid := state === s_send
   io.out.bits := outs(curStream)
   io.finished := state === s_done
 }
 
-class NetworkXbarTestChecker(nOut: Int, id: Int, streams: Seq[Seq[Int]]) extends Module {
+class NetworkXbarTestChecker(nOut: Int, id: Int, streams: Seq[Seq[Int]])
+    extends Module {
   val bundleType = new NetworkBundle(nOut, UInt(32.W))
   val io = IO(new Bundle {
     val in = Flipped(Decoupled(bundleType))
@@ -619,27 +733,34 @@ class NetworkXbarTestChecker(nOut: Int, id: Int, streams: Seq[Seq[Int]]) extends
 
   val maxLength = streams.map(_.length).reduce(max(_, _))
   val streamIdx = RegInit(0.U(log2Ceil(maxLength).W))
-  val (curStream, streamDone) = Counter(io.in.fire && io.in.bits.last, streams.length)
+  val (curStream, streamDone) =
+    Counter(io.in.fire && io.in.bits.last, streams.length)
 
-  when (io.in.fire) {
+  when(io.in.fire) {
     streamIdx := Mux(io.in.bits.last, 0.U, streamIdx + 1.U)
   }
 
   streams.zipWithIndex.foreach { case (streamInit, i) =>
     val streamExpect = VecInit(streamInit.map(_.U(32.W)))
-    val streamLast = streamIdx === (streamInit.length-1).U
+    val streamLast = streamIdx === (streamInit.length - 1).U
 
-    when (curStream === i.U && io.in.valid) {
-      assert(io.in.bits.payload === streamExpect(streamIdx), s"Unexpected data at output ${id}")
+    when(curStream === i.U && io.in.valid) {
+      assert(
+        io.in.bits.payload === streamExpect(streamIdx),
+        s"Unexpected data at output ${id}"
+      )
       assert(io.in.bits.last === streamLast, s"Unexpect last at output ${id}")
     }
   }
 
-  assert(!io.in.valid || io.in.bits.netId === id.U, s"Output ${id} got data intended for another")
+  assert(
+    !io.in.valid || io.in.bits.netId === id.U,
+    s"Output ${id} got data intended for another"
+  )
 
   val finished = RegInit(false.B)
 
-  when (streamDone) { finished := true.B }
+  when(streamDone) { finished := true.B }
 
   io.in.ready := !finished
   io.finished := finished
@@ -649,16 +770,17 @@ class NetworkXbarTest extends UnitTest {
   val nIn = 2
   val nOut = 2
   val driverStreams = Seq(
-    Seq((1, Seq(0x43, 0x21, 0x55, 0x34)),
-        (0, Seq(0x11, 0x53, 0x20))),
-    Seq((0, Seq(0xa2, 0xb7, 0x4d, 0x18, 0xce)),
-        (1, Seq(0x89, 0x9A))))
+    Seq((1, Seq(0x43, 0x21, 0x55, 0x34)), (0, Seq(0x11, 0x53, 0x20))),
+    Seq((0, Seq(0xa2, 0xb7, 0x4d, 0x18, 0xce)), (1, Seq(0x89, 0x9a)))
+  )
   val checkerStreams = Seq(
     Seq(driverStreams(1)(0)._2, driverStreams(0)(1)._2),
-    Seq(driverStreams(0)(0)._2, driverStreams(1)(1)._2))
+    Seq(driverStreams(0)(0)._2, driverStreams(1)(1)._2)
+  )
 
-  val drivers = driverStreams.map(
-    streams => Module(new NetworkXbarTestDriver(nOut, streams)))
+  val drivers = driverStreams.map(streams =>
+    Module(new NetworkXbarTestDriver(nOut, streams))
+  )
 
   val checkers = Seq.tabulate(nOut) { id =>
     val streams = checkerStreams(id)
@@ -682,12 +804,27 @@ object TestChipUnitTests {
     Seq(
       Module(new BlockDeviceTrackerTestWrapper),
       Module(new SerdesTestWrapper),
-      Module(new BidirectionalSerdesTestWrapper(DecoupledInternalSyncSerialPhyParams(), 5000)),
-      Module(new BidirectionalSerdesTestWrapper(CreditedSourceSyncSerialPhyParams(), 10000)),
+      Module(
+        new BidirectionalSerdesTestWrapper(
+          DecoupledInternalSyncSerialPhyParams(),
+          5000
+        )
+      ),
+      Module(
+        new BidirectionalSerdesTestWrapper(
+          CreditedSourceSyncSerialPhyParams(),
+          10000
+        )
+      ),
       Module(new SwitchTestWrapper),
       Module(new StreamWidthAdapterTest),
       Module(new NetworkXbarTest),
       Module(new TLRingNetworkTestWrapper),
-      Module(new TLCTCTestWrapper(CreditedSourceSyncSerialPhyParams(flitWidth = 32, phitWidth = 4), 20000))
+      Module(
+        new TLCTCTestWrapper(
+          CreditedSourceSyncSerialPhyParams(flitWidth = 32, phitWidth = 4),
+          20000
+        )
+      )
     )
 }

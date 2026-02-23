@@ -9,9 +9,9 @@ object WrapInc {
     if (n == 1) {
       0.U
     } else if (isPow2(n)) {
-      (value + 1.U)(log2Ceil(n)-1,0)
+      (value + 1.U)(log2Ceil(n) - 1, 0)
     } else {
-      val wrap = (value === (n-1).U)
+      val wrap = (value === (n - 1).U)
       Mux(wrap, 0.U, value + 1.U)
     }
   }
@@ -21,4 +21,3 @@ object WrapInc {
     Mux(wrap, 0.U, value + 1.U)
   }
 }
-

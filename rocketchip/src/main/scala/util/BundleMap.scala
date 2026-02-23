@@ -31,19 +31,29 @@ sealed trait BundleFieldBase {
   // Overload this if there is a way to unify differently parameterized cases of a field
   // (For example, by selecting the widest width)
   def unify(that: BundleFieldBase): BundleFieldBase = {
-    require (this == that, s"Attempted to unify two BundleMaps with conflicting fields: ${this} and ${that}")
+    require(
+      this == that,
+      s"Attempted to unify two BundleMaps with conflicting fields: ${this} and ${that}"
+    )
     that
   }
 }
 
-abstract class BundleField[T <: Data](val key: BundleKey[T], typeT: => T, val default: T => Unit) extends BundleFieldBase {
+abstract class BundleField[T <: Data](
+    val key: BundleKey[T],
+    typeT: => T,
+    val default: T => Unit
+) extends BundleFieldBase {
   def data: T = typeT
   def defaultFlip(x: T): Unit = {}
   def setDataDefault(x: Data): Unit = default(x.asInstanceOf[T])
   def setDataDefaultFlip(x: Data): Unit = defaultFlip(x.asInstanceOf[T])
 }
 
-abstract class SimpleBundleField[T <: Data](key: BundleKey[T])(typeT: => T, defaultT: => T) extends BundleField(key, typeT, { x: T => x := defaultT })
+abstract class SimpleBundleField[T <: Data](key: BundleKey[T])(
+    typeT: => T,
+    defaultT: => T
+) extends BundleField(key, typeT, { x: T => x := defaultT })
 
 object BundleField {
   /* Consider an arbiter that receives two request streams A and B and combines them to C.
@@ -56,8 +66,11 @@ object BundleField {
     fields.groupBy(_.key.name).map(_._2.reduce(_ unify _)).toList
   /* There is no point in carrying an extra field if the other end does not use it.
    */
-  def accept(fields: Seq[BundleFieldBase], keys: Seq[BundleKeyBase]): Seq[BundleFieldBase] = {
-    def hk = HashMap(keys.map(k => (k.name, k)):_*)
+  def accept(
+      fields: Seq[BundleFieldBase],
+      keys: Seq[BundleKeyBase]
+  ): Seq[BundleFieldBase] = {
+    def hk = HashMap(keys.map(k => (k.name, k)): _*)
     fields.filter(f => hk.lift(f.key.name) == Some(f.key))
   }
 }
@@ -80,12 +93,16 @@ sealed trait BundleKeyBase {
  *  - data fields (which are per-beat/byte and should be widened by bus-width adapters)
  *  - control fields (which are per-burst and are unaffected by width adapters)
  */
-sealed trait IsDataKey    extends BundleKeyBase
+sealed trait IsDataKey extends BundleKeyBase
 sealed trait IsControlKey extends BundleKeyBase
 
 sealed class BundleKey[T <: Data](val name: String) extends BundleKeyBase
-abstract class ControlKey[T <: Data](name: String) extends BundleKey[T](name) with IsControlKey
-abstract class DataKey   [T <: Data](name: String) extends BundleKey[T](name) with IsDataKey
+abstract class ControlKey[T <: Data](name: String)
+    extends BundleKey[T](name)
+    with IsControlKey
+abstract class DataKey[T <: Data](name: String)
+    extends BundleKey[T](name)
+    with IsDataKey
 
 /* Signals can be further categorized in a request-response protocol:
  *  - request fields flow from master to slave
@@ -98,16 +115,22 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record {
   // All fields must have distinct key.names
   require(fields.map(_.key.name).distinct.size == fields.size)
 
-  val elements: SeqMap[String, Data] = SeqMap(fields.map { bf => bf.key.name -> chisel3.reflect.DataMirror.internal.chiselTypeClone(bf.data) } :_*)
+  val elements: SeqMap[String, Data] = SeqMap(fields.map { bf =>
+    bf.key.name -> chisel3.reflect.DataMirror.internal.chiselTypeClone(bf.data)
+  }: _*)
 
   // A BundleMap is best viewed as a map from BundleKey to Data
-  def keydata: Seq[(BundleKeyBase, Data)] = (fields zip elements) map { case (field, (_, data)) => (field.key, data) }
+  def keydata: Seq[(BundleKeyBase, Data)] = (fields zip elements) map {
+    case (field, (_, data)) => (field.key, data)
+  }
 
-  def apply[T <: Data](key: BundleKey[T]): T = elements(key.name).asInstanceOf[T]
-  def lift [T <: Data](key: BundleKey[T]): Option[T] = elements.lift(key.name).map(_.asInstanceOf[T])
+  def apply[T <: Data](key: BundleKey[T]): T =
+    elements(key.name).asInstanceOf[T]
+  def lift[T <: Data](key: BundleKey[T]): Option[T] =
+    elements.lift(key.name).map(_.asInstanceOf[T])
 
-  def apply(key: BundleKeyBase): Data         = elements(key.name)
-  def lift (key: BundleKeyBase): Option[Data] = elements.lift(key.name)
+  def apply(key: BundleKeyBase): Data = elements(key.name)
+  def lift(key: BundleKeyBase): Option[Data] = elements.lift(key.name)
 
   // Create a new BundleMap with only the selected Keys retained
   def subset(fn: BundleKeyBase => Boolean): BundleMap = {
@@ -119,7 +142,10 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record {
 
 object BundleMap {
   def apply(fields: Seq[BundleFieldBase] = Nil) = new BundleMap(fields)
-  /** Sets the default values of all bundle map elements that are aligned w.r.t. d */
+
+  /** Sets the default values of all bundle map elements that are aligned w.r.t.
+    * d
+    */
   def setAlignedDefaults[T <: Data](c: Connectable[T]): Connectable[T] = {
     DataMirror.collectAlignedDeep(c.base) { case member: BundleMap =>
       member.fields.foreach { f =>
@@ -128,7 +154,10 @@ object BundleMap {
     }
     c
   }
-  /** Sets the default values of all bundle map elements that are flipped w.r.t. d */
+
+  /** Sets the default values of all bundle map elements that are flipped w.r.t.
+    * d
+    */
   def setFlippedDefaults[T <: Data](c: Connectable[T]): Connectable[T] = {
     DataMirror.collectFlippedDeep(c.base) { case member: BundleMap =>
       member.fields.foreach { f =>
@@ -137,6 +166,7 @@ object BundleMap {
     }
     c
   }
+
   /** Waives all bundle map elements */
   def waive[T <: Data](c: Connectable[T]): Connectable[T] = {
     val bundleFields = DataMirror
@@ -146,13 +176,23 @@ object BundleMap {
       .flatten
     Connectable(c.base, bundleFields.toSet)
   }
-  /** Waives all bundle map elements and sets the default values of all bundle map elements that are aligned w.r.t. d */
-  def waiveAndSetAlignedDefaults[T <: Data](c: Connectable[T]): Connectable[T] = {
+
+  /** Waives all bundle map elements and sets the default values of all bundle
+    * map elements that are aligned w.r.t. d
+    */
+  def waiveAndSetAlignedDefaults[T <: Data](
+      c: Connectable[T]
+  ): Connectable[T] = {
     setAlignedDefaults(c)
     waive(c)
   }
-  /** Waives all bundle map elements and sets the default values of all bundle map elements that are flipped w.r.t. d */
-  def waiveAndSetFlippedDefaults[T <: Data](c: Connectable[T]): Connectable[T] = {
+
+  /** Waives all bundle map elements and sets the default values of all bundle
+    * map elements that are flipped w.r.t. d
+    */
+  def waiveAndSetFlippedDefaults[T <: Data](
+      c: Connectable[T]
+  ): Connectable[T] = {
     setFlippedDefaults(c)
     waive(c)
   }

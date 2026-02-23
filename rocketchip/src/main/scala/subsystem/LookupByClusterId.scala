@@ -9,11 +9,16 @@ abstract class LookupByClusterIdImpl {
   def apply[T <: Data](f: BaseClusterParams => Option[T], clusterId: UInt): T
 }
 
-case class ClustersWontDeduplicate(t: BaseClusterParams) extends LookupByClusterIdImpl {
-  def apply[T <: Data](f: BaseClusterParams => Option[T], clusterId: UInt): T = f(t).get
+case class ClustersWontDeduplicate(t: BaseClusterParams)
+    extends LookupByClusterIdImpl {
+  def apply[T <: Data](f: BaseClusterParams => Option[T], clusterId: UInt): T =
+    f(t).get
 }
 
-case class PriorityMuxClusterIdFromSeq(seq: Seq[BaseClusterParams]) extends LookupByClusterIdImpl {
+case class PriorityMuxClusterIdFromSeq(seq: Seq[BaseClusterParams])
+    extends LookupByClusterIdImpl {
   def apply[T <: Data](f: BaseClusterParams => Option[T], clusterId: UInt): T =
-    PriorityMux(seq.collect { case t if f(t).isDefined => (t.clusterId.U === clusterId) -> f(t).get })
+    PriorityMux(seq.collect {
+      case t if f(t).isDefined => (t.clusterId.U === clusterId) -> f(t).get
+    })
 }

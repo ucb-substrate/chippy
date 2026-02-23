@@ -1,6 +1,6 @@
 package sifive.blocks.ip.xilinx.ibufds_gte2
 
-import chisel3._ 
+import chisel3._
 
 //IP : xilinx unisim IBUFDS_GTE2
 //Differential Signaling Input Buffer
@@ -8,11 +8,11 @@ import chisel3._
 
 class IBUFDS_GTE2 extends BlackBox {
   val io = new Bundle {
-    val O         = Output(Bool())
-    val ODIV2     = Output(Bool())
-    val CEB       = Input(Bool())
-    val I         = Input(Bool())
-    val IB        = Input(Bool())
+    val O = Output(Bool())
+    val ODIV2 = Output(Bool())
+    val CEB = Input(Bool())
+    val I = Input(Bool())
+    val IB = Input(Bool())
   }
 }
 
@@ -30,4 +30,4 @@ class IBUFDS_GTE2 extends BlackBox {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

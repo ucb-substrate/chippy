@@ -13,7 +13,10 @@ case class HartsWontDeduplicate(t: TileParams) extends LookupByHartIdImpl {
   def apply[T <: Data](f: TileParams => Option[T], tileId: UInt): T = f(t).get
 }
 
-case class PriorityMuxHartIdFromSeq(seq: Seq[TileParams]) extends LookupByHartIdImpl {
+case class PriorityMuxHartIdFromSeq(seq: Seq[TileParams])
+    extends LookupByHartIdImpl {
   def apply[T <: Data](f: TileParams => Option[T], tileId: UInt): T =
-    PriorityMux(seq.collect { case t if f(t).isDefined => (t.tileId.U === tileId) -> f(t).get })
+    PriorityMux(seq.collect {
+      case t if f(t).isDefined => (t.tileId.U === tileId) -> f(t).get
+    })
 }

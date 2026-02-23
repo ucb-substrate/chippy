@@ -1,10 +1,15 @@
 package sifive.blocks.devices.mockaon
 
-import chisel3._ 
+import chisel3._
 import freechips.rocketchip.util.AsyncResetReg
 import freechips.rocketchip.regmapper.RegFieldDesc
 
-import sifive.blocks.util.{SlaveRegIF, GenericTimer, GenericTimerIO, DefaultGenericTimerCfgDescs}
+import sifive.blocks.util.{
+  SlaveRegIF,
+  GenericTimer,
+  GenericTimerIO,
+  DefaultGenericTimerCfgDescs
+}
 
 class RTC extends Module with GenericTimer {
 
@@ -15,22 +20,28 @@ class RTC extends Module with GenericTimer {
   protected def countEn = countAlways
   override protected lazy val ip = RegNext(elapsed)
   override protected lazy val zerocmp = false.B
-  protected lazy val countAlways = AsyncResetReg(io.regs.cfg.write.countAlways, io.regs.cfg.write_countAlways && unlocked)(0)
+  protected lazy val countAlways = AsyncResetReg(
+    io.regs.cfg.write.countAlways,
+    io.regs.cfg.write_countAlways && unlocked
+  )(0)
   protected lazy val feed = false.B
 
   override protected lazy val feed_desc = RegFieldDesc.reserved
   override protected lazy val key_desc = RegFieldDesc.reserved
-  override protected lazy val cfg_desc = DefaultGenericTimerCfgDescs("rtc", ncmp).copy(
-    sticky = RegFieldDesc.reserved,
-    zerocmp = RegFieldDesc.reserved,
-    deglitch = RegFieldDesc.reserved,
-    running = RegFieldDesc.reserved,
-    center = Seq.fill(ncmp){ RegFieldDesc.reserved },
-    extra = Seq.fill(ncmp){ RegFieldDesc.reserved },
-    gang = Seq.fill(ncmp){ RegFieldDesc.reserved }
-  )
+  override protected lazy val cfg_desc =
+    DefaultGenericTimerCfgDescs("rtc", ncmp).copy(
+      sticky = RegFieldDesc.reserved,
+      zerocmp = RegFieldDesc.reserved,
+      deglitch = RegFieldDesc.reserved,
+      running = RegFieldDesc.reserved,
+      center = Seq.fill(ncmp) { RegFieldDesc.reserved },
+      extra = Seq.fill(ncmp) { RegFieldDesc.reserved },
+      gang = Seq.fill(ncmp) { RegFieldDesc.reserved }
+    )
 
-  lazy val io = IO(new GenericTimerIO(regWidth, ncmp, maxcmp, scaleWidth, countWidth, cmpWidth))
+  lazy val io = IO(
+    new GenericTimerIO(regWidth, ncmp, maxcmp, scaleWidth, countWidth, cmpWidth)
+  )
 
 }
 
@@ -48,4 +59,4 @@ class RTC extends Module with GenericTimer {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

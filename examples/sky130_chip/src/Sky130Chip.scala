@@ -43,7 +43,9 @@ class Sky130ChipIO(implicit p: Parameters) extends Bundle {
   val clock = Input(Clock())
   val reset = Input(AsyncReset())
   val jtag = new JTAGChipIO(false)
-  val serial_tl = new DecoupledExternalSyncPhitIO(p(SerialTLKey)(0).phyParams.phitWidth)
+  val serial_tl = new DecoupledExternalSyncPhitIO(
+    p(SerialTLKey)(0).phyParams.phitWidth
+  )
   val uart = new UARTPortIO(p(PeripheryUARTKey)(0))
 }
 
@@ -61,15 +63,24 @@ class Sky130ChipTop(implicit p: Parameters) extends RawModule {
   chiptop0.jtag.TDI := Sky130GPIOCell(true, io.jtag.TDI)
   Sky130GPIOCell(false, io.jtag.TDO) := chiptop0.jtag.TDO
 
-  chiptop0.serial_tl.clock_in := Sky130GPIOCell(true, io.serial_tl.clock_in.asBool).asClock
+  chiptop0.serial_tl.clock_in := Sky130GPIOCell(
+    true,
+    io.serial_tl.clock_in.asBool
+  ).asClock
   chiptop0.serial_tl.in.valid := Sky130GPIOCell(true, io.serial_tl.in.valid)
   for (i <- 0 until io.serial_tl.in.bits.getWidth) {
-    chiptop0.serial_tl.in.bits.phit(i) := Sky130GPIOCell(true, io.serial_tl.in.bits.phit(i))
+    chiptop0.serial_tl.in.bits.phit(i) := Sky130GPIOCell(
+      true,
+      io.serial_tl.in.bits.phit(i)
+    )
   }
   Sky130GPIOCell(false, io.serial_tl.in.ready) := chiptop0.serial_tl.in.ready
   Sky130GPIOCell(false, io.serial_tl.out.valid) := chiptop0.serial_tl.out.valid
   for (i <- 0 until io.serial_tl.out.bits.getWidth) {
-    Sky130GPIOCell(false, io.serial_tl.out.bits.phit(i)):= chiptop0.serial_tl.out.bits.phit(i)
+    Sky130GPIOCell(
+      false,
+      io.serial_tl.out.bits.phit(i)
+    ) := chiptop0.serial_tl.out.bits.phit(i)
   }
   chiptop0.serial_tl.out.ready := Sky130GPIOCell(true, io.serial_tl.out.ready)
 

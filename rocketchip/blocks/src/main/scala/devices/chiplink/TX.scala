@@ -1,29 +1,42 @@
 package sifive.blocks.devices.chiplink
 
-import chisel3._ 
+import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-class TX(info: ChipLinkInfo) extends Module
-{
+class TX(info: ChipLinkInfo) extends Module {
   val io = new Bundle {
-    val c2b_clk  = Output(Clock())
-    val c2b_rst  = Output(Bool())
+    val c2b_clk = Output(Clock())
+    val c2b_rst = Output(Bool())
     val c2b_send = Output(Bool())
     val c2b_data = Output(UInt(info.params.dataBits.W))
-    val a = Flipped(new AsyncBundle(new DataLayer(info.params), info.params.crossing))
-    val b = Flipped(new AsyncBundle(new DataLayer(info.params), info.params.crossing))
-    val c = Flipped(new AsyncBundle(new DataLayer(info.params), info.params.crossing))
-    val d = Flipped(new AsyncBundle(new DataLayer(info.params), info.params.crossing))
-    val e = Flipped(new AsyncBundle(new DataLayer(info.params), info.params.crossing))
+    val a = Flipped(
+      new AsyncBundle(new DataLayer(info.params), info.params.crossing)
+    )
+    val b = Flipped(
+      new AsyncBundle(new DataLayer(info.params), info.params.crossing)
+    )
+    val c = Flipped(
+      new AsyncBundle(new DataLayer(info.params), info.params.crossing)
+    )
+    val d = Flipped(
+      new AsyncBundle(new DataLayer(info.params), info.params.crossing)
+    )
+    val e = Flipped(
+      new AsyncBundle(new DataLayer(info.params), info.params.crossing)
+    )
     val sa = Flipped(DecoupledIO(new DataLayer(info.params)))
     val sb = Flipped(DecoupledIO(new DataLayer(info.params)))
     val sc = Flipped(DecoupledIO(new DataLayer(info.params)))
     val sd = Flipped(DecoupledIO(new DataLayer(info.params)))
     val se = Flipped(DecoupledIO(new DataLayer(info.params)))
-    val rxc = Flipped(new AsyncBundle(new CreditBump(info.params), AsyncQueueParams.singleton()))
-    val txc = Flipped(new AsyncBundle(new CreditBump(info.params), AsyncQueueParams.singleton()))
+    val rxc = Flipped(
+      new AsyncBundle(new CreditBump(info.params), AsyncQueueParams.singleton())
+    )
+    val txc = Flipped(
+      new AsyncBundle(new CreditBump(info.params), AsyncQueueParams.singleton())
+    )
   }
 
   // Currently available credits
@@ -62,11 +75,15 @@ class TX(info: ChipLinkInfo) extends Module
   // Prepare RX credit update headers
   val rxQ = Module(new ShiftQueue(new DataLayer(info.params), 2)) // maybe flow?
   val (rxHeader, rxLeft) = rx.toHeader
-  rxQ.io.enq.valid := true.B 
-  rxQ.io.enq.bits.data  := rxHeader
-  rxQ.io.enq.bits.last  := true.B 
+  rxQ.io.enq.valid := true.B
+  rxQ.io.enq.bits.data := rxHeader
+  rxQ.io.enq.bits.last := true.B
   rxQ.io.enq.bits.beats := 1.U
-  rx := Mux(rxQ.io.enq.fire, rxLeft, rx) + Mux(rxInc.fire, rxInc.bits, CreditBump(info.params, 0))
+  rx := Mux(rxQ.io.enq.fire, rxLeft, rx) + Mux(
+    rxInc.fire,
+    rxInc.bits,
+    CreditBump(info.params, 0)
+  )
 
   // Include the F credit channel in arbitration
   val f = WireDefault(rxQ.io.deq)
@@ -78,12 +95,12 @@ class TX(info: ChipLinkInfo) extends Module
   val xmitBits = log2Ceil(info.params.Qdepth) / 2
   val xmit = RegInit(0.U(xmitBits.W))
   val forceXmit = xmit === 0.U
-  when (!forceXmit) { xmit := xmit - 1.U }
-  when (f.fire) { xmit := ~0.U(xmitBits.W) }
+  when(!forceXmit) { xmit := xmit - 1.U }
+  when(f.fire) { xmit := ~0.U(xmitBits.W) }
 
   // Flow control for returned credits
   val allowReturn = !ioX.map(_.valid).reduce(_ || _) || forceXmit
-  f.bits  := rxQ.io.deq.bits
+  f.bits := rxQ.io.deq.bits
   f.valid := rxQ.io.deq.valid && allowReturn
   rxQ.io.deq.ready := f.ready && allowReturn
 
@@ -97,16 +114,18 @@ class TX(info: ChipLinkInfo) extends Module
   (ioF zip allowed.asBools) foreach { case (beat, sel) => beat.ready := sel }
 
   val send = Mux(first, rxQ.io.deq.valid, (state & requests) =/= 0.U)
-  assert (send === ((grant & requests) =/= 0.U))
+  assert(send === ((grant & requests) =/= 0.U))
 
-  when (send) { first := (grant & lasts).orR }
-  when (first) { state := winner }
+  when(send) { first := (grant & lasts).orR }
+  when(first) { state := winner }
 
   // Form the output beat
-  io.c2b_clk  := clock
-  io.c2b_rst  := AsyncResetReg(false.B, clock, reset.asBool, true, None)
+  io.c2b_clk := clock
+  io.c2b_rst := AsyncResetReg(false.B, clock, reset.asBool, true, None)
   io.c2b_send := RegNext(RegNext(send, false.B), false.B)
-  io.c2b_data := RegNext(Mux1H(RegNext(grant), RegNext(VecInit(ioF.map(_.bits.data)))))
+  io.c2b_data := RegNext(
+    Mux1H(RegNext(grant), RegNext(VecInit(ioF.map(_.bits.data))))
+  )
 }
 
 /*
@@ -123,4 +142,4 @@ class TX(info: ChipLinkInfo) extends Module
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

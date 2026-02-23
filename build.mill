@@ -1,6 +1,5 @@
 //| mill-version: 1.1.2
 //| mill-allow-nested-build-mill: true
-
 package build
 
 import mill._

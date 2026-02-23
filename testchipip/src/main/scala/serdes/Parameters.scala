@@ -14,25 +14,27 @@ trait SerialPhyParams {
 }
 
 case class DecoupledInternalSyncSerialPhyParams(
-  phitWidth: Int = 4,
-  flitWidth: Int = 16,
-  freqMHz: Int = 100,
-  flitBufferSz: Int = 8) extends SerialPhyParams {
+    phitWidth: Int = 4,
+    flitWidth: Int = 16,
+    freqMHz: Int = 100,
+    flitBufferSz: Int = 8
+) extends SerialPhyParams {
   def genIO = new DecoupledInternalSyncPhitIO(phitWidth)
 }
 
 case class DecoupledExternalSyncSerialPhyParams(
-  phitWidth: Int = 4,
-  flitWidth: Int = 16,
-  flitBufferSz: Int = 8) extends SerialPhyParams {
+    phitWidth: Int = 4,
+    flitWidth: Int = 16,
+    flitBufferSz: Int = 8
+) extends SerialPhyParams {
   def genIO = new DecoupledExternalSyncPhitIO(phitWidth)
 }
 
 case class CreditedSourceSyncSerialPhyParams(
-  phitWidth: Int = 4,
-  flitWidth: Int = 16,
-  freqMHz: Int = 100,
-  flitBufferSz: Int = 16) extends SerialPhyParams {
+    phitWidth: Int = 4,
+    flitWidth: Int = 16,
+    freqMHz: Int = 100,
+    flitBufferSz: Int = 16
+) extends SerialPhyParams {
   def genIO = new CreditedSourceSyncPhitIO(phitWidth)
 }
-

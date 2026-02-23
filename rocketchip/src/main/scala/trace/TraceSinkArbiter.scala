@@ -12,21 +12,31 @@ import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.tile._
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc}
 
-class TraceSinkArbiter(nSeq : Seq[Int], use_monitor: Boolean = false, monitor_name: String = "unknown") extends Module {
+class TraceSinkArbiter(
+    nSeq: Seq[Int],
+    use_monitor: Boolean = false,
+    monitor_name: String = "unknown"
+) extends Module {
   val io = IO(new Bundle {
     val target = Input(UInt(TraceSinkTarget.width.W))
     val in = Flipped(Decoupled(UInt(8.W)))
     val out = Vec(nSeq.size, Decoupled(UInt(8.W)))
   })
   val nVec = VecInit(nSeq.map(_.U))
-  io.in.ready := Mux(nVec.contains(io.target), io.out(nVec.indexWhere(_ === io.target)).ready, true.B)
-  io.out.zipWithIndex.foreach { case (o, i) => 
+  io.in.ready := Mux(
+    nVec.contains(io.target),
+    io.out(nVec.indexWhere(_ === io.target)).ready,
+    true.B
+  )
+  io.out.zipWithIndex.foreach { case (o, i) =>
     o.valid := io.in.valid && (io.target === nVec(i))
     o.bits := io.in.bits
   }
 
   if (use_monitor) {
-    val monitor = Module(new TraceSinkMonitor(s"trace_monitor_$monitor_name.encoded.trace"))
+    val monitor = Module(
+      new TraceSinkMonitor(s"trace_monitor_$monitor_name.encoded.trace")
+    )
     monitor.io.in_fire := io.in.valid && io.in.ready
     monitor.io.in_byte := io.in.bits
     monitor.io.clk := clock

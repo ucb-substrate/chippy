@@ -1,12 +1,12 @@
 package sifive.blocks.devices.chiplink
 
-import chisel3._ 
+import chisel3._
 import chisel3.util.{UIntToOH, OHToUInt, Cat}
 import freechips.rocketchip.util.{rightOR}
 
 class WideDataLayerPortLane(val params: ChipLinkParams) extends Bundle {
-  val clk  = Output(Clock())
-  val rst  = Output(Bool())
+  val clk = Output(Clock())
+  val rst = Output(Bool())
   val send = Output(Bool())
   val data = Output(UInt(params.dataBits.W))
 }
@@ -45,8 +45,11 @@ class CreditBump(val params: ChipLinkParams) extends Bundle {
     def msb(x: UInt) = {
       val mask = rightOR(x) >> 1
       val msbOH = ~(~x | mask)
-      val msb = OHToUInt(msbOH << 1, params.creditBits + 1) // 0 = 0, 1 = 1, 2 = 4, 3 = 8, ...
-      val pad = (msb | 0.U(5.W))(4,0)
+      val msb = OHToUInt(
+        msbOH << 1,
+        params.creditBits + 1
+      ) // 0 = 0, 1 = 1, 2 = 4, 3 = 8, ...
+      val pad = (msb | 0.U(5.W))(4, 0)
       (pad, x & mask)
     }
     val (a_msb, a_rest) = msb(a)
@@ -55,9 +58,14 @@ class CreditBump(val params: ChipLinkParams) extends Bundle {
     val (d_msb, d_rest) = msb(d)
     val (e_msb, e_rest) = msb(e)
     val header = Cat(
-      e_msb, d_msb, c_msb, b_msb, a_msb,
+      e_msb,
+      d_msb,
+      c_msb,
+      b_msb,
+      a_msb,
       0.U(4.W), // padding
-      5.U(3.W))
+      5.U(3.W)
+    )
 
     val out = Wire(new CreditBump(params))
     out.a := a_rest
@@ -79,11 +87,13 @@ object CreditBump {
 
   def apply(params: ChipLinkParams, header: UInt): CreditBump = {
     def convert(x: UInt) =
-      Mux(x > params.creditBits.U,
-          ~0.U(params.creditBits.W),
-          UIntToOH(x, params.creditBits + 1) >> 1)
+      Mux(
+        x > params.creditBits.U,
+        ~0.U(params.creditBits.W),
+        UIntToOH(x, params.creditBits + 1) >> 1
+      )
     val out = Wire(new CreditBump(params))
-    out.a := convert(header(11,  7))
+    out.a := convert(header(11, 7))
     out.b := convert(header(16, 12))
     out.c := convert(header(21, 17))
     out.d := convert(header(26, 22))
@@ -106,4 +116,4 @@ object CreditBump {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

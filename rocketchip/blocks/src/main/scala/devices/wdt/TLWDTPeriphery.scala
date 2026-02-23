@@ -27,9 +27,13 @@ trait HasPeripheryWDTBundle {
   val wdt: Seq[WDTPortIO]
 }
 
-trait HasPeripheryWDTModuleImp extends LazyRawModuleImp with HasPeripheryWDTBundle{
+trait HasPeripheryWDTModuleImp
+    extends LazyRawModuleImp
+    with HasPeripheryWDTBundle {
   val outer: HasPeripheryWDT
-  val wdt = outer.wdtNodes.zipWithIndex.map  { case(n,i) => n.makeIO()(ValName(s"wdt_$i"))}
+  val wdt = outer.wdtNodes.zipWithIndex.map { case (n, i) =>
+    n.makeIO()(ValName(s"wdt_$i"))
+  }
 }
 
 /*
@@ -46,4 +50,4 @@ trait HasPeripheryWDTModuleImp extends LazyRawModuleImp with HasPeripheryWDTBund
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

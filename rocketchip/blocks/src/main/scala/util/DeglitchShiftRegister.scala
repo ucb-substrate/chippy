@@ -1,6 +1,6 @@
 package sifive.blocks.util
 
-import chisel3._ 
+import chisel3._
 import chisel3.util._
 
 //Allows us to specify a different clock for a shift register
@@ -16,9 +16,13 @@ class DeglitchShiftRegister(shift: Int) extends Module {
 }
 
 object DeglitchShiftRegister {
-  def apply (shift: Int, d: Bool, clock: Clock,
-    name: Option[String] = None): Bool = {
-    val deglitch = Module (new DeglitchShiftRegister(shift))
+  def apply(
+      shift: Int,
+      d: Bool,
+      clock: Clock,
+      name: Option[String] = None
+  ): Bool = {
+    val deglitch = Module(new DeglitchShiftRegister(shift))
     name.foreach(deglitch.suggestName(_))
     deglitch.clock := clock
     deglitch.reset := false.B
@@ -41,4 +45,4 @@ object DeglitchShiftRegister {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

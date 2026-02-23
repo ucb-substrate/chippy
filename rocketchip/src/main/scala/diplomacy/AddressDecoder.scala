@@ -4,8 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import chisel3.util.log2Ceil
 
-object AddressDecoder
-{
+object AddressDecoder {
   type Port = Seq[AddressSet]
   type Ports = Seq[Port]
   type Partition = Ports
@@ -26,15 +25,21 @@ object AddressDecoder
     } else {
       // Verify the user did not give us an impossible problem
       nonEmptyPorts.combinations(2).foreach { case Seq(x, y) =>
-        x.foreach { a => y.foreach { b =>
-          require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
-        } }
+        x.foreach { a =>
+          y.foreach { b =>
+            require(!a.overlaps(b), s"Ports cannot overlap: $a $b")
+          }
+        }
       }
 
       val maxBits = log2Ceil(1 + nonEmptyPorts.map(_.map(_.base).max).max)
-      val (bitsToTry, bitsToTake) = (0 until maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
+      val (bitsToTry, bitsToTake) = (0 until maxBits)
+        .map(BigInt(1) << _)
+        .partition(b => (givenBits & b) == 0)
       val partitions = Seq(nonEmptyPorts.map(_.sorted).sorted(portOrder))
-      val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
+      val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) =>
+        partitionPartitions(p, b)
+      }
       val selected = recurse(givenPartitions, bitsToTry.reverse.toSeq)
       val output = selected.reduceLeft(_ | _) | givenBits
 
@@ -42,9 +47,11 @@ object AddressDecoder
       val widePorts = nonEmptyPorts.map { _.map { _.widen(~output) } }
       // Verify that it remains possible to disambiguate all ports
       widePorts.combinations(2).foreach { case Seq(x, y) =>
-        x.foreach { a => y.foreach { b =>
-          require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
-        } }
+        x.foreach { a =>
+          y.foreach { b =>
+            require(!a.overlaps(b), s"Ports cannot overlap: $a $b")
+          }
+        }
       }
 
       output
@@ -72,8 +79,14 @@ object AddressDecoder
     val maxPortsPerPartition = partitions.map(_.size).max
     val maxSetsPerPartition = partitions.map(_.map(_.size).sum).max
     val sumSquarePortsPerPartition = partitions.map(p => p.size * p.size).sum
-    val sumSquareSetsPerPartition = partitions.map(_.map(p => p.size * p.size).sum).max
-    Seq(maxPortsPerPartition, maxSetsPerPartition, sumSquarePortsPerPartition, sumSquareSetsPerPartition)
+    val sumSquareSetsPerPartition =
+      partitions.map(_.map(p => p.size * p.size).sum).max
+    Seq(
+      maxPortsPerPartition,
+      maxSetsPerPartition,
+      sumSquarePortsPerPartition,
+      sumSquareSetsPerPartition
+    )
   }
 
   def partitionPort(port: Port, bit: BigInt): (Port, Port) = {
@@ -88,27 +101,33 @@ object AddressDecoder
   def partitionPorts(ports: Ports, bit: BigInt): (Ports, Ports) = {
     val partitioned_ports = ports.map(p => partitionPort(p, bit))
     // because partitionPort dropped AddresSets, the ports might no longer be sorted
-    val case_a_ports = partitioned_ports.map(_._1).filter(!_.isEmpty).sorted(portOrder)
-    val case_b_ports = partitioned_ports.map(_._2).filter(!_.isEmpty).sorted(portOrder)
+    val case_a_ports =
+      partitioned_ports.map(_._1).filter(!_.isEmpty).sorted(portOrder)
+    val case_b_ports =
+      partitioned_ports.map(_._2).filter(!_.isEmpty).sorted(portOrder)
     (case_a_ports, case_b_ports)
   }
-  
+
   def partitionPartitions(partitions: Partitions, bit: BigInt): Partitions = {
     val partitioned_partitions = partitions.map(p => partitionPorts(p, bit))
     val case_a_partitions = partitioned_partitions.map(_._1).filter(!_.isEmpty)
     val case_b_partitions = partitioned_partitions.map(_._2).filter(!_.isEmpty)
-    val new_partitions = (case_a_partitions ++ case_b_partitions).sorted(partitionOrder)
+    val new_partitions =
+      (case_a_partitions ++ case_b_partitions).sorted(partitionOrder)
     // Prevent combinational memory explosion; if two partitions are equal, keep only one
     // Note: AddressSets in a port are sorted, and ports in a partition are sorted.
     // This makes it easy to structurally compare two partitions for equality
-    val keep = (new_partitions.init zip new_partitions.tail) filter { case (a,b) => partitionOrder.compare(a,b) != 0 } map { _._2 }
+    val keep = (new_partitions.init zip new_partitions.tail) filter {
+      case (a, b) => partitionOrder.compare(a, b) != 0
+    } map { _._2 }
     new_partitions.head +: keep
   }
 
   // requirement: ports have sorted addresses and are sorted lexicographically
   val debug = false
   def recurse(partitions: Partitions, bits: Seq[BigInt]): Seq[BigInt] = {
-    if (partitions.map(_.size <= 1).reduce(_ && _)) Seq() else {
+    if (partitions.map(_.size <= 1).reduce(_ && _)) Seq()
+    else {
       if (debug) {
         println("Partitioning:")
         partitions.foreach { partition =>
@@ -127,7 +146,9 @@ object AddressDecoder
           println("  For bit %x, %s".format(bit, score.toString))
         (score, bit, result)
       }
-      val (bestScore, bestBit, bestPartitions) = candidates.min(Ordering.by[(Seq[Int], BigInt, Partitions), Seq[Int]](_._1))
+      val (bestScore, bestBit, bestPartitions) = candidates.min(
+        Ordering.by[(Seq[Int], BigInt, Partitions), Seq[Int]](_._1)
+      )
       if (debug) println("=> Selected bit 0x%x".format(bestBit))
       bestBit +: recurse(bestPartitions, bits.filter(_ != bestBit))
     }

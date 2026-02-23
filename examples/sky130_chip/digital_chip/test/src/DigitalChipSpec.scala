@@ -31,7 +31,9 @@ import os.RelPath
 import os.Path
 import chisel3.experimental.dataview._
 
-class SimTop(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit p: Parameters) extends RawModule {
+class SimTop(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit
+    p: Parameters
+) extends RawModule {
   val driver = Module(new TestDriver)
   val harness = Module(new TestHarness(chip0BinaryPath, chip1BinaryPath))
   harness.io.reset := driver.reset
@@ -71,8 +73,9 @@ class TestHarnessIO extends Bundle {
   val reset = Input(Bool())
 }
 
-class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit p: Parameters)
-    extends RawModule {
+class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit
+    p: Parameters
+) extends RawModule {
   val io = IO(new Bundle {
     val success = Output(Bool())
     val reset = Input(Bool())
@@ -138,7 +141,7 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit p: Para
         ram.io.tsi.map(_.viewAs[TSIIO]),
         digitalClock,
         io.reset,
-        chip0BinaryPath,
+        chip0BinaryPath
       )
     when(success) { io.success := true.B }
   }
@@ -195,7 +198,7 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit p: Para
         ram.io.tsi.map(_.viewAs[TSIIO]),
         digitalClock,
         io.reset,
-        chip1BinaryPath,
+        chip1BinaryPath
       )
     when(success) { io.success := true.B }
   }

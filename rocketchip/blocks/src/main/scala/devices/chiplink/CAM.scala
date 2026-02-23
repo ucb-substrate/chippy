@@ -5,16 +5,15 @@ import chisel3.util._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-class CAM(keys: Int, dataBits: Int) extends Module
-{
+class CAM(keys: Int, dataBits: Int) extends Module {
   val io = IO(new Bundle {
     // alloc.valid => allocate a key
     // alloc.ready => a key is avilable
     val alloc = Flipped(Decoupled(UInt(dataBits.W)))
-    val key   = Output(UInt(log2Ceil(keys).W))
+    val key = Output(UInt(log2Ceil(keys).W))
     // free.valid => release the key
-    val free  = Flipped(Valid(UInt(log2Ceil(keys).W)))
-    val data  = Output(UInt(dataBits.W))
+    val free = Flipped(Valid(UInt(log2Ceil(keys).W)))
+    val data = Output(UInt(dataBits.W))
   })
 
   val free = RegInit(((BigInt(1) << keys) - 1).U(keys.W))
@@ -24,7 +23,7 @@ class CAM(keys: Int, dataBits: Int) extends Module
   io.key := OHToUInt(free_sel, keys)
 
   io.alloc.ready := free.orR
-  when (io.alloc.fire) { data.write(io.key, io.alloc.bits) }
+  when(io.alloc.fire) { data.write(io.key, io.alloc.bits) }
 
   // Support free in same cycle as alloc
   val bypass = io.alloc.fire && io.free.bits === io.key
@@ -50,4 +49,4 @@ class CAM(keys: Int, dataBits: Int) extends Module
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

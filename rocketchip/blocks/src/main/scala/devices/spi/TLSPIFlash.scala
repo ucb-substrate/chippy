@@ -1,6 +1,6 @@
 package sifive.blocks.devices.spi
 
-import chisel3._ 
+import chisel3._
 import chisel3.util._
 import chisel3.experimental.dataview._
 import org.chipsalliance.cde.config.Parameters
@@ -9,8 +9,6 @@ import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.util.HeterogeneousBag
-
-
 
 import sifive.blocks.util._
 
@@ -39,20 +37,23 @@ case class SPIFlashParams(
     sampleDelayBits: Int = 5,
     defaultSampleDel: Int = 3,
     oeDisableDummy: Boolean = false
-    )
-  extends SPIFlashParamsBase with DeviceParams {
+) extends SPIFlashParamsBase
+    with DeviceParams {
   val frameBits = 8
   val insnAddrBytes = 4
   val insnPadLenBits = 4
 
   require(insnPadLenBits <= delayBits)
-  require((fineDelayBits == 0) | (fineDelayBits == 5), s"Require fine delay bits to be 0 or 5 and not $fineDelayBits")
+  require(
+    (fineDelayBits == 0) | (fineDelayBits == 5),
+    s"Require fine delay bits to be 0 or 5 and not $fineDelayBits"
+  )
   require(sampleDelayBits >= 0)
   require(defaultSampleDel >= 0)
 }
 
 class SPIFlashTopModule(c: SPIFlashParamsBase, outer: TLSPIFlashBase)
-  extends SPITopModule(c, outer) {
+    extends SPITopModule(c, outer) {
 
   val flash = Module(new SPIFlashMap(c))
   val arb = Module(new SPIArbiter(c, 2))
@@ -66,7 +67,7 @@ class SPIFlashTopModule(c: SPIFlashParamsBase, outer: TLSPIFlashBase)
   val a = Reg(new TLBundleA(fe.bundle))
   val a_msb = log2Ceil(c.fSize) - 1
 
-  when (f.a.fire) {
+  when(f.a.fire) {
     a := f.a.bits
   }
 
@@ -88,50 +89,125 @@ class SPIFlashTopModule(c: SPIFlashParamsBase, outer: TLSPIFlashBase)
   arb.io.sel := !flash_en
 
   val regmapFlash = Seq(
-    SPICRs.insnmode -> Seq(RegField(1, flash_en,
-                           RegFieldDesc("flash_en", "SPIFlash mode select", reset=Some(1)))),
+    SPICRs.insnmode -> Seq(
+      RegField(
+        1,
+        flash_en,
+        RegFieldDesc("flash_en", "SPIFlash mode select", reset = Some(1))
+      )
+    ),
     // Note that these are all in the 'ffmt' group, but are defined with seperate calls
     // because the addresses are actually byte addresses. This makes it easy to align
     // them to byte boundaries without explicitly having to add padding.
-    SPICRs.insnfmt -> RegFieldGroup("ffmt", Some("SPIFlash read instruction format"), Seq(
-      RegField(1, insn.cmd.en,
-        RegFieldDesc("cmd_en", "Enable sending of command", reset=Some(1))),
-      RegField(c.insnAddrLenBits, insn.addr.len,
-        RegFieldDesc("addr_len", "Number of address bytes", reset=Some(3))),
-      RegField(c.insnPadLenBits, insn.pad.cnt,
-        RegFieldDesc("pad_cnt", "Number of dummy cycles", reset=Some(0))))),
-    SPICRs.insnproto -> RegFieldGroup("ffmt", None, Seq(
-      RegField(SPIProtocol.width, insn.cmd.proto,
-        RegFieldDesc("cmd_proto", "Protocol for transmitting command", reset=Some(0))),
-      RegField(SPIProtocol.width, insn.addr.proto,
-        RegFieldDesc("addr_proto", "Protocol for transmitting address and padding", reset=Some(0))),
-      RegField(SPIProtocol.width, insn.data.proto,
-        RegFieldDesc("data_proto", "Protocol for transmitting receiving data", reset=Some(0))))),
-    SPICRs.insncmd -> RegFieldGroup("ffmt", None, Seq(
-      RegField(c.insnCmdBits, insn.cmd.code,
-        RegFieldDesc("cmd_code", "Value of command byte", reset=Some(3))))),
-    SPICRs.insnpad -> RegFieldGroup("ffmt", None, Seq(
-      RegField(c.frameBits, insn.pad.code,
-        RegFieldDesc("pad_code", "First 8 bits to transmit during dummy cycles", reset=Some(0)))))
+    SPICRs.insnfmt -> RegFieldGroup(
+      "ffmt",
+      Some("SPIFlash read instruction format"),
+      Seq(
+        RegField(
+          1,
+          insn.cmd.en,
+          RegFieldDesc("cmd_en", "Enable sending of command", reset = Some(1))
+        ),
+        RegField(
+          c.insnAddrLenBits,
+          insn.addr.len,
+          RegFieldDesc("addr_len", "Number of address bytes", reset = Some(3))
+        ),
+        RegField(
+          c.insnPadLenBits,
+          insn.pad.cnt,
+          RegFieldDesc("pad_cnt", "Number of dummy cycles", reset = Some(0))
+        )
+      )
+    ),
+    SPICRs.insnproto -> RegFieldGroup(
+      "ffmt",
+      None,
+      Seq(
+        RegField(
+          SPIProtocol.width,
+          insn.cmd.proto,
+          RegFieldDesc(
+            "cmd_proto",
+            "Protocol for transmitting command",
+            reset = Some(0)
+          )
+        ),
+        RegField(
+          SPIProtocol.width,
+          insn.addr.proto,
+          RegFieldDesc(
+            "addr_proto",
+            "Protocol for transmitting address and padding",
+            reset = Some(0)
+          )
+        ),
+        RegField(
+          SPIProtocol.width,
+          insn.data.proto,
+          RegFieldDesc(
+            "data_proto",
+            "Protocol for transmitting receiving data",
+            reset = Some(0)
+          )
+        )
+      )
+    ),
+    SPICRs.insncmd -> RegFieldGroup(
+      "ffmt",
+      None,
+      Seq(
+        RegField(
+          c.insnCmdBits,
+          insn.cmd.code,
+          RegFieldDesc("cmd_code", "Value of command byte", reset = Some(3))
+        )
+      )
+    ),
+    SPICRs.insnpad -> RegFieldGroup(
+      "ffmt",
+      None,
+      Seq(
+        RegField(
+          c.frameBits,
+          insn.pad.code,
+          RegFieldDesc(
+            "pad_code",
+            "First 8 bits to transmit during dummy cycles",
+            reset = Some(0)
+          )
+        )
+      )
+    )
   )
 }
 
-abstract class TLSPIFlashBase(w: Int, c: SPIFlashParamsBase)(implicit p: Parameters) extends TLSPIBase(w,c)(p) {
+abstract class TLSPIFlashBase(w: Int, c: SPIFlashParamsBase)(implicit
+    p: Parameters
+) extends TLSPIBase(w, c)(p) {
   require(isPow2(c.fSize))
-  val fnode = TLManagerNode(Seq(TLSlavePortParameters.v1(
-    managers = Seq(TLSlaveParameters.v1(
-      address     = Seq(AddressSet(c.fAddress, c.fSize-1)),
-      resources   = device.reg("mem"),
-      regionType  = RegionType.UNCACHED,
-      executable  = true,
-      supportsGet = TransferSizes(1, 1),
-      fifoId      = Some(0))),
-    beatBytes = 1)))
+  val fnode = TLManagerNode(
+    Seq(
+      TLSlavePortParameters.v1(
+        managers = Seq(
+          TLSlaveParameters.v1(
+            address = Seq(AddressSet(c.fAddress, c.fSize - 1)),
+            resources = device.reg("mem"),
+            regionType = RegionType.UNCACHED,
+            executable = true,
+            supportsGet = TransferSizes(1, 1),
+            fifoId = Some(0)
+          )
+        ),
+        beatBytes = 1
+      )
+    )
+  )
   val memXing = this.crossIn(fnode)
 }
 
 class TLSPIFlash(w: Int, c: SPIFlashParams)(implicit p: Parameters)
-    extends TLSPIFlashBase(w,c)(p)
+    extends TLSPIFlashBase(w, c)(p)
     with HasTLControlRegMap {
   lazy val module = new SPIFlashTopModule(c, this) {
 
@@ -140,7 +216,7 @@ class TLSPIFlash(w: Int, c: SPIFlashParams)(implicit p: Parameters)
     mac.io.link <> arb.io.outer
 
     val totalMapping = (regmapBase ++ regmapFlash)
-    regmap(totalMapping:_*)
+    regmap(totalMapping: _*)
   }
 }
 
@@ -158,4 +234,4 @@ class TLSPIFlash(w: Int, c: SPIFlashParams)(implicit p: Parameters)
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

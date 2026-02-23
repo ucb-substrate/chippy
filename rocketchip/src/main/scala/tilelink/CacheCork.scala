@@ -10,33 +10,61 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.diplomacy.{IdRange, RegionType, TransferSizes}
 import freechips.rocketchip.tilelink.TLMessages.{
-  AcquireBlock, AcquirePerm, Get, PutFullData, PutPartialData, Release,
-  ReleaseData, Grant, GrantData, AccessAck, AccessAckData, ReleaseAck
+  AcquireBlock,
+  AcquirePerm,
+  Get,
+  PutFullData,
+  PutPartialData,
+  Release,
+  ReleaseData,
+  Grant,
+  GrantData,
+  AccessAck,
+  AccessAckData,
+  ReleaseAck
 }
 import freechips.rocketchip.util.IDPool
 
 import freechips.rocketchip.util.DataToAugmentedData
 
-case class TLCacheCorkParams(
-  unsafe: Boolean = false,
-  sinkIds: Int = 8)
+case class TLCacheCorkParams(unsafe: Boolean = false, sinkIds: Int = 8)
 
-class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: Parameters) extends LazyModule
-{
+class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit
+    p: Parameters
+) extends LazyModule {
   val unsafe = params.unsafe
   val sinkIds = params.sinkIds
   val node = TLAdapterNode(
-    clientFn  = { case cp =>
-      cp.v1copy(clients = cp.clients.map { c => c.v1copy(
-        supportsProbe = TransferSizes.none,
-        sourceId = IdRange(c.sourceId.start*2, c.sourceId.end*2))})},
+    clientFn = { case cp =>
+      cp.v1copy(clients = cp.clients.map { c =>
+        c.v1copy(
+          supportsProbe = TransferSizes.none,
+          sourceId = IdRange(c.sourceId.start * 2, c.sourceId.end * 2)
+        )
+      })
+    },
     managerFn = { case mp =>
       mp.v1copy(
-        endSinkId = if (mp.managers.exists(_.regionType == RegionType.UNCACHED)) sinkIds else 0,
-        managers = mp.managers.map { m => m.v1copy(
-          supportsAcquireB = if (m.regionType == RegionType.UNCACHED) m.supportsGet     else m.supportsAcquireB,
-          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull.intersect(m.supportsGet) else m.supportsAcquireT,
-          alwaysGrantsT    = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.alwaysGrantsT)})})
+        endSinkId =
+          if (mp.managers.exists(_.regionType == RegionType.UNCACHED)) sinkIds
+          else 0,
+        managers = mp.managers.map { m =>
+          m.v1copy(
+            supportsAcquireB =
+              if (m.regionType == RegionType.UNCACHED) m.supportsGet
+              else m.supportsAcquireB,
+            supportsAcquireT =
+              if (m.regionType == RegionType.UNCACHED)
+                m.supportsPutFull.intersect(m.supportsGet)
+              else m.supportsAcquireT,
+            alwaysGrantsT =
+              if (m.regionType == RegionType.UNCACHED) m.supportsPutFull
+              else m.alwaysGrantsT
+          )
+        }
+      )
+    }
+  )
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -47,11 +75,20 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
       } else {
         val clients = edgeIn.client.clients
         val caches = clients.filter(_.supports.probe)
-        require (clients.size == 1 || caches.size == 0 || unsafe, s"Only one client can safely use a TLCacheCork; ${clients.map(_.name)}")
-        require (caches.size <= 1 || unsafe, s"Only one caching client allowed; ${clients.map(_.name)}")
+        require(
+          clients.size == 1 || caches.size == 0 || unsafe,
+          s"Only one client can safely use a TLCacheCork; ${clients.map(_.name)}"
+        )
+        require(
+          caches.size <= 1 || unsafe,
+          s"Only one caching client allowed; ${clients.map(_.name)}"
+        )
         edgeOut.manager.managers.foreach { case m =>
-          require (!m.supportsAcquireB || unsafe, s"Cannot support caches beyond the Cork; ${m.name}")
-          require (m.regionType <= RegionType.UNCACHED)
+          require(
+            !m.supportsAcquireB || unsafe,
+            s"Cannot support caches beyond the Cork; ${m.name}"
+          )
+          require(m.regionType <= RegionType.UNCACHED)
         }
 
         // The Cork turns [Acquire=>Get] => [AccessAckData=>GrantData]
@@ -73,9 +110,11 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         // Take requests from A to A or D (if BtoT Acquire)
         val a_a = Wire(chiselTypeOf(out.a))
         val a_d = Wire(chiselTypeOf(in.d))
-        val isPut = in.a.bits.opcode === PutFullData || in.a.bits.opcode === PutPartialData
-        val toD = (in.a.bits.opcode === AcquireBlock && in.a.bits.param === TLPermissions.BtoT) ||
-                  (in.a.bits.opcode === AcquirePerm)
+        val isPut =
+          in.a.bits.opcode === PutFullData || in.a.bits.opcode === PutPartialData
+        val toD =
+          (in.a.bits.opcode === AcquireBlock && in.a.bits.param === TLPermissions.BtoT) ||
+            (in.a.bits.opcode === AcquirePerm)
         in.a.ready := Mux(toD, a_d.ready, a_a.ready)
 
         a_a.valid := in.a.valid && !toD
@@ -83,9 +122,11 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         a_a.bits.source := in.a.bits.source << 1 | Mux(isPut, 1.U, 0.U)
 
         // Transform Acquire into Get
-        when (in.a.bits.opcode === AcquireBlock || in.a.bits.opcode === AcquirePerm) {
+        when(
+          in.a.bits.opcode === AcquireBlock || in.a.bits.opcode === AcquirePerm
+        ) {
           a_a.bits.opcode := Get
-          a_a.bits.param  := 0.U
+          a_a.bits.param := 0.U
           a_a.bits.source := in.a.bits.source << 1 | 1.U
         }
 
@@ -94,18 +135,22 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         a_d.bits := edgeIn.Grant(
           fromSink = 0.U,
           toSource = in.a.bits.source,
-          lgSize   = in.a.bits.size,
-          capPermissions = TLPermissions.toT)
+          lgSize = in.a.bits.size,
+          capPermissions = TLPermissions.toT
+        )
 
         // Take ReleaseData from C to A; Release from C to D
         val c_a = Wire(chiselTypeOf(out.a))
         c_a.valid := in.c.valid && in.c.bits.opcode === ReleaseData
-        c_a.bits := edgeOut.Put(
-          fromSource = in.c.bits.source << 1,
-          toAddress  = in.c.bits.address,
-          lgSize     = in.c.bits.size,
-          data       = in.c.bits.data,
-          corrupt    = in.c.bits.corrupt)._2
+        c_a.bits := edgeOut
+          .Put(
+            fromSource = in.c.bits.source << 1,
+            toAddress = in.c.bits.address,
+            lgSize = in.c.bits.size,
+            data = in.c.bits.data,
+            corrupt = in.c.bits.corrupt
+          )
+          ._2
         c_a.bits.user :<= in.c.bits.user
 
         // Releases without Data succeed instantly
@@ -113,7 +158,9 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         c_d.valid := in.c.valid && in.c.bits.opcode === Release
         c_d.bits := edgeIn.ReleaseAck(in.c.bits)
 
-        assert (!in.c.valid || in.c.bits.opcode === Release || in.c.bits.opcode === ReleaseData)
+        assert(
+          !in.c.valid || in.c.bits.opcode === Release || in.c.bits.opcode === ReleaseData
+        )
         in.c.ready := Mux(in.c.bits.opcode === Release, c_d.ready, c_a.ready)
 
         // Discard E
@@ -121,16 +168,17 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
 
         // Block B; should never happen
         out.b.ready := false.B
-        assert (!out.b.valid)
+        assert(!out.b.valid)
 
         // Track in-flight sinkIds
         val pool = Module(new IDPool(sinkIds))
         pool.io.free.valid := in.e.fire
-        pool.io.free.bits  := in.e.bits.sink
+        pool.io.free.bits := in.e.bits.sink
 
         val in_d = Wire(chiselTypeOf(in.d))
         val d_first = edgeOut.first(in_d)
-        val d_grant = in_d.bits.opcode === GrantData || in_d.bits.opcode === Grant
+        val d_grant =
+          in_d.bits.opcode === GrantData || in_d.bits.opcode === Grant
         pool.io.alloc.ready := in.d.fire && d_first && d_grant
         in.d.valid := in_d.valid && (pool.io.alloc.valid || !d_first || !d_grant)
         in_d.ready := in.d.ready && (pool.io.alloc.valid || !d_first || !d_grant)
@@ -145,12 +193,17 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         // Record if a target was writable and auto-promote toT if it was
         // This is structured so that the vector can be constant prop'd away
         val wSourceVec = Reg(Vec(edgeIn.client.endSourceId, Bool()))
-        val aWOk = edgeIn.manager.fastProperty(in.a.bits.address, !_.supportsPutFull.none, (b:Boolean) => b.B)
+        val aWOk = edgeIn.manager.fastProperty(
+          in.a.bits.address,
+          !_.supportsPutFull.none,
+          (b: Boolean) => b.B
+        )
         val dWOk = wSourceVec(d_d.bits.source)
-        val bypass = (edgeIn.manager.minLatency == 0).B && in.a.valid && in.a.bits.source === d_d.bits.source
+        val bypass =
+          (edgeIn.manager.minLatency == 0).B && in.a.valid && in.a.bits.source === d_d.bits.source
         val dWHeld = Mux(bypass, aWOk, dWOk) holdUnless d_first
 
-        when (in.a.fire) {
+        when(in.a.fire) {
           wSourceVec(in.a.bits.source) := aWOk
         }
 
@@ -159,17 +212,26 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
           wSourceVec(id) := edgeIn.manager.anySupportPutFull.B
         }
 
-        when (out.d.bits.opcode === AccessAckData && out.d.bits.source(0)) {
+        when(out.d.bits.opcode === AccessAckData && out.d.bits.source(0)) {
           d_d.bits.opcode := GrantData
           d_d.bits.param := Mux(dWHeld, TLPermissions.toT, TLPermissions.toB)
         }
-        when (out.d.bits.opcode === AccessAck && !out.d.bits.source(0)) {
+        when(out.d.bits.opcode === AccessAck && !out.d.bits.source(0)) {
           d_d.bits.opcode := ReleaseAck
         }
 
         // Combine the sources of messages into the channels
-        TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (edgeOut.numBeats1(c_a.bits), c_a), (edgeOut.numBeats1(a_a.bits), a_a))
-        TLArbiter(TLArbiter.lowestIndexFirst)(in_d,  (edgeIn .numBeats1(d_d.bits), d_d), (0.U, Queue(c_d, 2)), (0.U, Queue(a_d, 2)))
+        TLArbiter(TLArbiter.lowestIndexFirst)(
+          out.a,
+          (edgeOut.numBeats1(c_a.bits), c_a),
+          (edgeOut.numBeats1(a_a.bits), a_a)
+        )
+        TLArbiter(TLArbiter.lowestIndexFirst)(
+          in_d,
+          (edgeIn.numBeats1(d_d.bits), d_d),
+          (0.U, Queue(c_d, 2)),
+          (0.U, Queue(a_d, 2))
+        )
 
         // Tie off unused ports
         in.b.valid := false.B
@@ -180,15 +242,14 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
   }
 }
 
-object TLCacheCork
-{
-  def apply(params: TLCacheCorkParams)(implicit p: Parameters): TLNode =
-  {
+object TLCacheCork {
+  def apply(params: TLCacheCorkParams)(implicit p: Parameters): TLNode = {
     val cork = LazyModule(new TLCacheCork(params))
     cork.node
   }
-  def apply(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters): TLNode =
-  {
+  def apply(unsafe: Boolean = false, sinkIds: Int = 8)(implicit
+      p: Parameters
+  ): TLNode = {
     apply(TLCacheCorkParams(unsafe, sinkIds))
   }
 }

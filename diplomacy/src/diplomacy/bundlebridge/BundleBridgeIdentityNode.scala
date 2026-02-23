@@ -7,6 +7,5 @@ import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.IdentityNode
 
 case class BundleBridgeIdentityNode[T <: Data](
-)(
-  implicit valName: ValName)
+)(implicit valName: ValName)
     extends IdentityNode(new BundleBridgeImp[T])()

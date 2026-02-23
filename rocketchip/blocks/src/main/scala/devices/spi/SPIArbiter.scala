@@ -1,6 +1,6 @@
 package sifive.blocks.devices.spi
 
-import chisel3._ 
+import chisel3._
 import chisel3.util._
 
 class SPIInnerIO(c: SPIParamsBase) extends SPILinkIO(c) {
@@ -14,7 +14,7 @@ class SPIArbiter(c: SPIParamsBase, n: Int) extends Module {
     val sel = Input(UInt(log2Up(n).W))
   })
 
-  val sel = RegInit(VecInit(true.B +: Seq.fill(n-1)(false.B)))
+  val sel = RegInit(VecInit(true.B +: Seq.fill(n - 1)(false.B)))
 
   io.outer.tx.valid := Mux1H(sel, io.inner.map(_.tx.valid))
   io.outer.tx.bits := Mux1H(sel, io.inner.map(_.tx.bits))
@@ -22,7 +22,7 @@ class SPIArbiter(c: SPIParamsBase, n: Int) extends Module {
   io.outer.fmt := Mux1H(sel, io.inner.map(_.fmt))
   // Workaround for overzealous combinational loop detection
   io.outer.cs := Mux(sel(0), io.inner(0).cs, io.inner(1).cs)
-  io.outer.disableOE.foreach (_ := io.inner(0).disableOE.get)
+  io.outer.disableOE.foreach(_ := io.inner(0).disableOE.get)
   require(n == 2, "SPIArbiter currently only supports 2 clients")
 
   (io.inner zip sel).foreach { case (inner, s) =>
@@ -34,9 +34,9 @@ class SPIArbiter(c: SPIParamsBase, n: Int) extends Module {
 
   val nsel = VecInit.tabulate(n)(io.sel === _.U)
   val lock = Mux1H(sel, io.inner.map(_.lock))
-  when (!lock) {
+  when(!lock) {
     sel := nsel
-    when (sel.asUInt =/= nsel.asUInt) {
+    when(sel.asUInt =/= nsel.asUInt) {
       io.outer.cs.clear := true.B
     }
   }
@@ -56,4 +56,4 @@ class SPIArbiter(c: SPIParamsBase, n: Int) extends Module {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

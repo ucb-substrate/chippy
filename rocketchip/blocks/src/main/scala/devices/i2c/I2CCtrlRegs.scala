@@ -4,11 +4,11 @@ package sifive.blocks.devices.i2c
 // http://lxr.free-electrons.com/source/drivers/i2c/busses/i2c-ocores.c?v=4.6
 
 object I2CCtrlRegs {
-  val prescaler_lo = 0x00  // low byte clock prescaler register
-  val prescaler_hi = 0x04  // high byte clock prescaler register
-  val control      = 0x08  // control register
-  val data         = 0x0c  // write: transmit byte, read: receive byte
-  val cmd_status   = 0x10  // write: command, read: status
+  val prescaler_lo = 0x00 // low byte clock prescaler register
+  val prescaler_hi = 0x04 // high byte clock prescaler register
+  val control = 0x08 // control register
+  val data = 0x0c // write: transmit byte, read: receive byte
+  val cmd_status = 0x10 // write: command, read: status
 }
 
 /*
@@ -25,4 +25,4 @@ object I2CCtrlRegs {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

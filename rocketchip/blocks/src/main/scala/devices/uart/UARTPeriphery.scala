@@ -11,7 +11,11 @@ trait HasPeripheryUART { this: BaseSubsystem =>
     UARTAttachParams(ps).attachTo(this)
   }
   val uartNodes = uarts.map(_.ioNode.makeSink())
-  val uart = InModuleBody { uartNodes.zipWithIndex.map { case(n,i) => n.makeIO()(ValName(s"uart_$i")) } }
+  val uart = InModuleBody {
+    uartNodes.zipWithIndex.map { case (n, i) =>
+      n.makeIO()(ValName(s"uart_$i"))
+    }
+  }
 }
 
 /*
@@ -28,4 +32,4 @@ trait HasPeripheryUART { this: BaseSubsystem =>
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

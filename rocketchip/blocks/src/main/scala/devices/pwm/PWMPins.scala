@@ -1,24 +1,31 @@
 package sifive.blocks.devices.pwm
 
-import chisel3._ 
+import chisel3._
 import sifive.blocks.devices.pinctrl.{Pin}
 
-class PWMSignals[T <: Data](private val pingen: () => T, val c: PWMParams) extends Bundle {
+class PWMSignals[T <: Data](private val pingen: () => T, val c: PWMParams)
+    extends Bundle {
   val pwm: Vec[T] = Vec(c.ncmp, pingen())
 }
 
-class PWMPins[T <: Pin](pingen: () => T, c: PWMParams) extends PWMSignals[T](pingen, c)
+class PWMPins[T <: Pin](pingen: () => T, c: PWMParams)
+    extends PWMSignals[T](pingen, c)
 
 object PWMPinsFromPort {
-  def apply[T <: Pin] (pins: PWMSignals[T], port: PWMPortIO, clock: Clock, reset: Bool): Unit = {
-    withClockAndReset(clock, reset){
+  def apply[T <: Pin](
+      pins: PWMSignals[T],
+      port: PWMPortIO,
+      clock: Clock,
+      reset: Bool
+  ): Unit = {
+    withClockAndReset(clock, reset) {
       (pins.pwm zip port.gpio) foreach { case (pin, port) =>
         pin.outputPin(port)
       }
     }
   }
 
-  def apply[T <: Pin] (pins: PWMSignals[T], port: PWMPortIO): Unit = {
+  def apply[T <: Pin](pins: PWMSignals[T], port: PWMPortIO): Unit = {
     (pins.pwm zip port.gpio) foreach { case (pin, port) =>
       pin.outputPin(port)
     }
@@ -39,4 +46,4 @@ object PWMPinsFromPort {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

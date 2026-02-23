@@ -9,32 +9,49 @@ import freechips.rocketchip.rocket.{DecodeLogic}
 
 import constellation.channel._
 import constellation.noc.{HasNoCParams}
-import constellation.routing.{FlowRoutingBundle, FlowRoutingInfo, ChannelRoutingInfo}
+import constellation.routing.{
+  FlowRoutingBundle,
+  FlowRoutingInfo,
+  ChannelRoutingInfo
+}
 
 class VCAllocReq(
-  val inParam: BaseChannelParams,
-  val outParams: Seq[ChannelParams],
-  val egressParams: Seq[EgressChannelParams])
-  (implicit val p: Parameters) extends Bundle
+    val inParam: BaseChannelParams,
+    val outParams: Seq[ChannelParams],
+    val egressParams: Seq[EgressChannelParams]
+)(implicit val p: Parameters)
+    extends Bundle
     with HasRouterOutputParams
     with HasNoCParams {
   val flow = new FlowRoutingBundle
   val in_vc = UInt(log2Ceil(inParam.nVirtualChannels).W)
-  val vc_sel = MixedVec(allOutParams.map { u => Vec(u.nVirtualChannels, Bool()) })
+  val vc_sel = MixedVec(allOutParams.map { u =>
+    Vec(u.nVirtualChannels, Bool())
+  })
 }
 
-class VCAllocResp(val outParams: Seq[ChannelParams], val egressParams: Seq[EgressChannelParams])(implicit val p: Parameters) extends Bundle with HasRouterOutputParams {
-  val vc_sel = MixedVec(allOutParams.map { u => Vec(u.nVirtualChannels, Bool()) })
+class VCAllocResp(
+    val outParams: Seq[ChannelParams],
+    val egressParams: Seq[EgressChannelParams]
+)(implicit val p: Parameters)
+    extends Bundle
+    with HasRouterOutputParams {
+  val vc_sel = MixedVec(allOutParams.map { u =>
+    Vec(u.nVirtualChannels, Bool())
+  })
 }
 
 case class VCAllocatorParams(
-  routerParams: RouterParams,
-  inParams: Seq[ChannelParams],
-  outParams: Seq[ChannelParams],
-  ingressParams: Seq[IngressChannelParams],
-  egressParams: Seq[EgressChannelParams])
+    routerParams: RouterParams,
+    inParams: Seq[ChannelParams],
+    outParams: Seq[ChannelParams],
+    ingressParams: Seq[IngressChannelParams],
+    egressParams: Seq[EgressChannelParams]
+)
 
-abstract class VCAllocator(val vP: VCAllocatorParams)(implicit val p: Parameters) extends Module
+abstract class VCAllocator(val vP: VCAllocatorParams)(implicit
+    val p: Parameters
+) extends Module
     with HasRouterParams
     with HasRouterInputParams
     with HasRouterOutputParams
@@ -55,17 +72,26 @@ abstract class VCAllocator(val vP: VCAllocatorParams)(implicit val p: Parameters
     })
 
     val channel_status = MixedVec(allOutParams.map { u =>
-      Vec(u.nVirtualChannels, Input(new OutputChannelStatus)) })
+      Vec(u.nVirtualChannels, Input(new OutputChannelStatus))
+    })
     val out_allocs = MixedVec(allOutParams.map { u =>
-      Vec(u.nVirtualChannels, Output(new OutputChannelAlloc)) })
+      Vec(u.nVirtualChannels, Output(new OutputChannelAlloc))
+    })
   })
   val nOutChannels = allOutParams.map(_.nVirtualChannels).sum
 
   def inputAllocPolicy(
-    flow: FlowRoutingBundle, vc_sel: MixedVec[Vec[Bool]],
-    inId: UInt, inVId: UInt, fire: Bool): MixedVec[Vec[Bool]]
+      flow: FlowRoutingBundle,
+      vc_sel: MixedVec[Vec[Bool]],
+      inId: UInt,
+      inVId: UInt,
+      fire: Bool
+  ): MixedVec[Vec[Bool]]
   def outputAllocPolicy(
-    out: ChannelRoutingInfo,
-    flows: Seq[FlowRoutingBundle], reqs: Seq[Bool], fire: Bool): Vec[Bool]
+      out: ChannelRoutingInfo,
+      flows: Seq[FlowRoutingBundle],
+      reqs: Seq[Bool],
+      fire: Bool
+  ): Vec[Bool]
 
 }

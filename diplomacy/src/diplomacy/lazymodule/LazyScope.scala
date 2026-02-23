@@ -5,7 +5,9 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.ValName
 
-/** Allows dynamic creation of [[Module]] hierarchy and "shoving" logic into a [[LazyModule]]. */
+/** Allows dynamic creation of [[Module]] hierarchy and "shoving" logic into a
+  * [[LazyModule]].
+  */
 trait LazyScope {
   this: LazyModule =>
   override def toString: String = s"LazyScope named $name"
@@ -18,9 +20,12 @@ trait LazyScope {
     // [[LazyModule.scope]] stack push.
     LazyModule.scope = Some(this)
     // Evaluate [[body]] in the current `scope`, saving the result to [[out]].
-    val out   = body
+    val out = body
     // Check that the `scope` after evaluating `body` is the same as when we started.
-    require(LazyModule.scope.isDefined, s"LazyScope $name tried to exit, but scope was empty!")
+    require(
+      LazyModule.scope.isDefined,
+      s"LazyScope $name tried to exit, but scope was empty!"
+    )
     require(
       LazyModule.scope.get eq this,
       s"LazyScope $name exited before LazyModule ${LazyModule.scope.get.name} was closed"
@@ -31,11 +36,12 @@ trait LazyScope {
   }
 }
 
-/** Used to automatically create a level of module hierarchy (a [[SimpleLazyModule]]) within which [[LazyModule]]s can
-  * be instantiated and connected.
+/** Used to automatically create a level of module hierarchy (a
+  * [[SimpleLazyModule]]) within which [[LazyModule]]s can be instantiated and
+  * connected.
   *
-  * It will instantiate a [[SimpleLazyModule]] to manage evaluation of `body` and evaluate `body` code snippets in this
-  * scope.
+  * It will instantiate a [[SimpleLazyModule]] to manage evaluation of `body`
+  * and evaluate `body` code snippets in this scope.
   */
 object LazyScope {
 
@@ -49,10 +55,10 @@ object LazyScope {
     *   [[Parameters]] propagated to [[SimpleLazyModule]].
     */
   def apply[T](
-    body:             => T
-  )(
-    implicit valName: ValName,
-    p:                Parameters
+      body: => T
+  )(implicit
+      valName: ValName,
+      p: Parameters
   ): T = {
     apply(valName.value, "SimpleLazyModule", None)(body)(p)
   }
@@ -67,15 +73,15 @@ object LazyScope {
     *   [[Parameters]] propagated to [[SimpleLazyModule]].
     */
   def apply[T](
-    name:       String
-  )(body:       => T
-  )(
-    implicit p: Parameters
+      name: String
+  )(body: => T)(implicit
+      p: Parameters
   ): T = {
     apply(name, "SimpleLazyModule", None)(body)(p)
   }
 
-  /** Create a [[LazyScope]] with an explicit instance and class name, and control inlining.
+  /** Create a [[LazyScope]] with an explicit instance and class name, and
+    * control inlining.
     *
     * @param name
     *   instance name of generated [[SimpleLazyModule]].
@@ -89,25 +95,27 @@ object LazyScope {
     *   [[Parameters]] propagated to [[SimpleLazyModule]].
     */
   def apply[T](
-    name:              String,
-    desiredModuleName: String,
-    overrideInlining:  Option[Boolean] = None
-  )(body:              => T
-  )(
-    implicit p:        Parameters
+      name: String,
+      desiredModuleName: String,
+      overrideInlining: Option[Boolean] = None
+  )(body: => T)(implicit
+      p: Parameters
   ): T = {
     val scope = LazyModule(new SimpleLazyModule with LazyScope {
       override lazy val desiredName = desiredModuleName
-      override def shouldBeInlined  = overrideInlining.getOrElse(super.shouldBeInlined)
+      override def shouldBeInlined =
+        overrideInlining.getOrElse(super.shouldBeInlined)
     }).suggestName(name)
     scope {
       body
     }
   }
 
-  /** Create a [[LazyScope]] to temporarily group children for some reason, but tell Firrtl to inline it.
+  /** Create a [[LazyScope]] to temporarily group children for some reason, but
+    * tell Firrtl to inline it.
     *
-    * For example, we might want to control a set of children's clocks but then not keep the parent wrapper.
+    * For example, we might want to control a set of children's clocks but then
+    * not keep the parent wrapper.
     *
     * @param body
     *   code executed within the generated `SimpleLazyModule`
@@ -115,9 +123,9 @@ object LazyScope {
     *   [[Parameters]] propagated to [[SimpleLazyModule]].
     */
   def inline[T](
-    body:       => T
-  )(
-    implicit p: Parameters
+      body: => T
+  )(implicit
+      p: Parameters
   ): T = {
     apply("noname", "ShouldBeInlined", Some(false))(body)(p)
   }

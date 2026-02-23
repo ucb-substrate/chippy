@@ -16,10 +16,13 @@ import constellation.router.{HasRouterCtrlConsts}
 
 import scala.collection.immutable.ListMap
 
-class TrafficEvalIngress(ingress_id: Int, config_str: String) extends BlackBox(Map(
-  "INGRESS_ID" -> IntParam(ingress_id),
-  "CONFIG_STR" -> config_str
-))
+class TrafficEvalIngress(ingress_id: Int, config_str: String)
+    extends BlackBox(
+      Map(
+        "INGRESS_ID" -> IntParam(ingress_id),
+        "CONFIG_STR" -> config_str
+      )
+    )
     with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clock = Input(Clock())
@@ -41,10 +44,13 @@ class TrafficEvalIngress(ingress_id: Int, config_str: String) extends BlackBox(M
   addResource("/csrc/TrafficEval.h")
 }
 
-class TrafficEvalEgress(egress_id: Int, config_str: String) extends BlackBox(Map(
-  "EGRESS_ID" -> IntParam(egress_id),
-  "CONFIG_STR" -> config_str
-))
+class TrafficEvalEgress(egress_id: Int, config_str: String)
+    extends BlackBox(
+      Map(
+        "EGRESS_ID" -> IntParam(egress_id),
+        "CONFIG_STR" -> config_str
+      )
+    )
     with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clock = Input(Clock())
@@ -68,21 +74,20 @@ class TrafficEvalEgress(egress_id: Int, config_str: String) extends BlackBox(Map
   addResource("/csrc/TrafficEval.h")
 }
 
-
 case class NoCEvalParams(
-  nocParams: NoCParams = NoCParams(),
-  warmupCycles: Int = 5000,
-  measurementCycles: Int = 20000,
-  drainTimeoutCycles: Int = 100000,
-  flitsPerPacket: Int = 4,
-  flows: (Int, Int) => Double = (a: Int, b: Int) => 0.0,
-  requiredThroughput: Double = 0.0,
-  requiredMedianLatency: Int = 99999,
-  requiredMaxLatency: Int = 99999,
-  netraceEnable: Boolean = false,
-  netraceRegion: Int = 2, // this is the PARSEC region-of-interest
-  netraceTrace: String = "blackscholes_64c_simsmall.tra.bz2",
-  netraceIgnoreDependencies: Boolean = false
+    nocParams: NoCParams = NoCParams(),
+    warmupCycles: Int = 5000,
+    measurementCycles: Int = 20000,
+    drainTimeoutCycles: Int = 100000,
+    flitsPerPacket: Int = 4,
+    flows: (Int, Int) => Double = (a: Int, b: Int) => 0.0,
+    requiredThroughput: Double = 0.0,
+    requiredMedianLatency: Int = 99999,
+    requiredMaxLatency: Int = 99999,
+    netraceEnable: Boolean = false,
+    netraceRegion: Int = 2, // this is the PARSEC region-of-interest
+    netraceTrace: String = "blackscholes_64c_simsmall.tra.bz2",
+    netraceIgnoreDependencies: Boolean = false
 ) {
   def toConfigStr = s"""# Default generated trafficeval config
 warmup                  $warmupCycles
@@ -96,9 +101,11 @@ netrace_enable          $netraceEnable
 netrace_trace           $netraceTrace
 netrace_region          $netraceRegion
 netrace_ignore_dependencies $netraceIgnoreDependencies
-""" + nocParams.flows.map { f =>
-    s"flow             ${f.ingressId} ${f.egressId} ${flows(f.ingressId, f.egressId)}"
-  }.mkString("\n")
+""" + nocParams.flows
+    .map { f =>
+      s"flow             ${f.ingressId} ${f.egressId} ${flows(f.ingressId, f.egressId)}"
+    }
+    .mkString("\n")
 }
 
 case object NoCEvalKey extends Field[NoCEvalParams](NoCEvalParams())
@@ -109,7 +116,7 @@ class EvalHarness(implicit val p: Parameters) extends Module with HasSuccessIO {
   noc.io.router_clocks.foreach(_.clock := clock)
   noc.io.router_clocks.foreach(_.reset := reset)
 
-  noc.io.router_ctrl.foreach{ ctrl =>
+  noc.io.router_ctrl.foreach { ctrl =>
     ctrl.enable := false.B
     ctrl.write := DontCare
     ctrl.addr := DontCare
@@ -122,7 +129,7 @@ class EvalHarness(implicit val p: Parameters) extends Module with HasSuccessIO {
   val configStr = p(NoCEvalKey).toConfigStr
   ElaborationArtefacts.add("noceval.cfg", configStr)
 
-  noc.io.ingress.zipWithIndex.map { case (in,i) =>
+  noc.io.ingress.zipWithIndex.map { case (in, i) =>
     val ingress = Module(new TrafficEvalIngress(i, configStr))
     ingress.io.clock := clock
     ingress.io.reset := reset
@@ -130,7 +137,8 @@ class EvalHarness(implicit val p: Parameters) extends Module with HasSuccessIO {
 
     // This queue handles the delayed response from the ingress unit
     // and restores the decoupled handshake
-    val flit_q = Module(new Queue(in.flit.bits.cloneType, 1, flow=true, pipe=true))
+    val flit_q =
+      Module(new Queue(in.flit.bits.cloneType, 1, flow = true, pipe = true))
     ingress.io.flit_out.ready := flit_q.io.count === 0.U && in.flit.ready
     flit_q.io.enq.valid := ingress.io.flit_out.valid
     flit_q.io.enq.bits.head := ingress.io.flit_out.head
@@ -140,7 +148,7 @@ class EvalHarness(implicit val p: Parameters) extends Module with HasSuccessIO {
 
     in.flit <> flit_q.io.deq
   }
-  noc.io.egress.zipWithIndex.map { case (out,i) =>
+  noc.io.egress.zipWithIndex.map { case (out, i) =>
     val egress = Module(new TrafficEvalEgress(i, configStr))
     egress.io.clock := clock
     egress.io.reset := reset
@@ -152,7 +160,7 @@ class EvalHarness(implicit val p: Parameters) extends Module with HasSuccessIO {
     egress.io.flit_in.ingress_id := out.flit.bits.ingress_id
     egress.io.flit_in.unique_id := out.flit.bits.payload
 
-    when (egress.io.success) { io.success := true.B }
+    when(egress.io.success) { io.success := true.B }
     assert(!egress.io.fatal)
   }
 

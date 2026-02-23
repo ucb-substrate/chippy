@@ -21,15 +21,18 @@ class TraceEncoderControlInterface() extends Bundle {
   val target = UInt(TraceSinkTarget.width.W)
   val bp_mode = UInt(32.W)
 }
-class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameters) extends LazyModule {
+class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit
+    p: Parameters
+) extends LazyModule {
 
-  val device = new SimpleDevice("trace-encoder-controller", Seq("ucbbar,trace0"))
+  val device =
+    new SimpleDevice("trace-encoder-controller", Seq("ucbbar,trace0"))
   val node = TLRegisterNode(
-    address = Seq(AddressSet(addr, 0xFF)),
+    address = Seq(AddressSet(addr, 0xff)),
     device = device,
     beatBytes = beatBytes
   )
-  
+
   override lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -52,7 +55,7 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameter
 
     def traceEncoderControlRegWrite(valid: Bool, bits: UInt): Bool = {
       control_reg_write_valid := valid
-      when (control_reg_write_valid) {
+      when(control_reg_write_valid) {
         control_reg_bits := bits
       }
       true.B
@@ -65,22 +68,35 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameter
     val regmap = node.regmap(
       Seq(
         0x00 -> Seq(
-          RegField(2, traceEncoderControlRegRead(_), traceEncoderControlRegWrite(_, _),
-            RegFieldDesc("control", "Control trace encoder"))
+          RegField(
+            2,
+            traceEncoderControlRegRead(_),
+            traceEncoderControlRegWrite(_, _),
+            RegFieldDesc("control", "Control trace encoder")
+          )
         ),
         0x04 -> Seq(
-          RegField.r(32, trace_encoder_impl,
-            RegFieldDesc("impl", "Trace encoder implementation"))
+          RegField.r(
+            32,
+            trace_encoder_impl,
+            RegFieldDesc("impl", "Trace encoder implementation")
+          )
         ),
         0x20 -> Seq(
-          RegField(1, trace_sink_target,
-            RegFieldDesc("target", "Trace sink target"))
+          RegField(
+            1,
+            trace_sink_target,
+            RegFieldDesc("target", "Trace sink target")
+          )
         ),
         0x24 -> Seq(
-          RegField(32, trace_bp_mode,
-            RegFieldDesc("bp_mode", "Trace branch predictor mode"))
+          RegField(
+            32,
+            trace_bp_mode,
+            RegFieldDesc("bp_mode", "Trace branch predictor mode")
+          )
         )
-      ):_*
+      ): _*
     )
   }
 }

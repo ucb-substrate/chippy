@@ -6,7 +6,9 @@ import org.chipsalliance.cde.config.{Parameters}
 import freechips.rocketchip.devices.debug.{DMIIO, ClockedDMIIO}
 
 /** BlackBox to export DMI interface */
-class TestchipSimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
+class TestchipSimDTM(implicit p: Parameters)
+    extends BlackBox
+    with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clk = Input(Clock())
     val reset = Input(Bool())
@@ -14,7 +16,12 @@ class TestchipSimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxRe
     val exit = Output(UInt(32.W))
   })
 
-  def connect(tbclk: Clock, tbreset: Bool, dutio: ClockedDMIIO, tbsuccess: Bool) = {
+  def connect(
+      tbclk: Clock,
+      tbreset: Bool,
+      dutio: ClockedDMIIO,
+      tbsuccess: Bool
+  ) = {
     io.clk := tbclk
     io.reset := tbreset
     dutio.dmi <> io.debug

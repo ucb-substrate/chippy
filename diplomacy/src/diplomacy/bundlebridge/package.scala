@@ -6,21 +6,28 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.lazymodule.LazyModule
-import org.chipsalliance.diplomacy.nodes.{InwardNodeHandle, NodeHandle, OutwardNodeHandle}
+import org.chipsalliance.diplomacy.nodes.{
+  InwardNodeHandle,
+  NodeHandle,
+  OutwardNodeHandle
+}
 
 package object bundlebridge {
 
-  def BundleBridgeNameNode[T <: Data](name: String): BundleBridgeIdentityNode[T] =
+  def BundleBridgeNameNode[T <: Data](
+      name: String
+  ): BundleBridgeIdentityNode[T] =
     BundleBridgeIdentityNode[T]()(ValName(name))
 
   def BundleBroadcast[T <: Data](
-    name:                Option[String] = None,
-    registered:          Boolean = false,
-    default:             Option[() => T] = None,
-    inputRequiresOutput: Boolean = false, // when false, connecting a source does not mandate connecting a sink
-    shouldBeInlined:     Boolean = true
-  )(
-    implicit p:          Parameters
+      name: Option[String] = None,
+      registered: Boolean = false,
+      default: Option[() => T] = None,
+      inputRequiresOutput: Boolean =
+        false, // when false, connecting a source does not mandate connecting a sink
+      shouldBeInlined: Boolean = true
+  )(implicit
+      p: Parameters
   ): BundleBridgeNexusNode[T] = {
     val broadcast = LazyModule(
       new BundleBridgeNexus[T](
@@ -36,20 +43,27 @@ package object bundlebridge {
     broadcast.node
   }
 
-  private[bundlebridge] def getElements[T <: Data](x: T): Seq[Element] = x match {
-    case e: Element   => Seq(e)
-    case a: Aggregate => a.getElements.flatMap(getElements)
-  }
+  private[bundlebridge] def getElements[T <: Data](x: T): Seq[Element] =
+    x match {
+      case e: Element   => Seq(e)
+      case a: Aggregate => a.getElements.flatMap(getElements)
+    }
 
-  type BundleBridgeInwardNode[T <: Data] = InwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[
-    T
-  ], BundleBridgeEdgeParams[T], T]
+  type BundleBridgeInwardNode[T <: Data] =
+    InwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[
+      T
+    ], BundleBridgeEdgeParams[T], T]
 
-  type BundleBridgeOutwardNode[T <: Data] = OutwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[
-    T
-  ], BundleBridgeEdgeParams[T], T]
+  type BundleBridgeOutwardNode[T <: Data] =
+    OutwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[
+      T
+    ], BundleBridgeEdgeParams[T], T]
 
-  type BundleBridgeNode[T <: Data] = NodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[
+  type BundleBridgeNode[T <: Data] = NodeHandle[BundleBridgeParams[
     T
-  ], T, BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
+  ], BundleBridgeParams[T], BundleBridgeEdgeParams[
+    T
+  ], T, BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[
+    T
+  ], T]
 }

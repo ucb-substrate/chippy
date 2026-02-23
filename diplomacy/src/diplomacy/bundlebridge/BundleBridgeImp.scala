@@ -9,16 +9,26 @@ import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.nodes.{RenderedEdge, SimpleNodeImp}
 
 class BundleBridgeImp[T <: Data]()
-    extends SimpleNodeImp[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T] {
-  def edge(pd: BundleBridgeParams[T], pu: BundleBridgeParams[T], p: Parameters, sourceInfo: SourceInfo) =
+    extends SimpleNodeImp[BundleBridgeParams[T], BundleBridgeParams[
+      T
+    ], BundleBridgeEdgeParams[T], T] {
+  def edge(
+      pd: BundleBridgeParams[T],
+      pu: BundleBridgeParams[T],
+      p: Parameters,
+      sourceInfo: SourceInfo
+  ) =
     BundleBridgeEdgeParams(pd, pu)
   def bundle(e: BundleBridgeEdgeParams[T]): T = {
     val sourceOpt = e.source.genOpt.map(_())
-    val sinkOpt   = e.sink.genOpt.map(_())
+    val sinkOpt = e.sink.genOpt.map(_())
     (sourceOpt, sinkOpt) match {
-      case (None, None)       => throw new Exception("BundleBridge needs source or sink to provide bundle generator function")
-      case (Some(a), None)    => chiselTypeClone(a)
-      case (None, Some(b))    => chiselTypeClone(b)
+      case (None, None) =>
+        throw new Exception(
+          "BundleBridge needs source or sink to provide bundle generator function"
+        )
+      case (Some(a), None) => chiselTypeClone(a)
+      case (None, Some(b)) => chiselTypeClone(b)
       case (Some(a), Some(b)) => {
         require(
           DataMirror.checkTypeEquivalence(a, b),
@@ -28,5 +38,6 @@ class BundleBridgeImp[T <: Data]()
       }
     }
   }
-  def render(e: BundleBridgeEdgeParams[T]) = RenderedEdge(colour = "#cccc00" /* yellow */ )
+  def render(e: BundleBridgeEdgeParams[T]) =
+    RenderedEdge(colour = "#cccc00" /* yellow */ )
 }

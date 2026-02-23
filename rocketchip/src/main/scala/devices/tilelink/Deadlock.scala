@@ -9,12 +9,17 @@ import freechips.rocketchip.resources.{SimpleDevice}
 
 /** Adds a /dev/null slave that does not raise ready for any incoming traffic.
   * !!! WARNING: This device WILL cause your bus to deadlock for as long as you
-  *              continue to send traffic to it !!!
+  * continue to send traffic to it !!!
   */
-class TLDeadlock(params: DevNullParams, beatBytes: Int = 4)(implicit p: Parameters)
-    extends DevNullDevice(params, minLatency = 1, // technically not true but we don't want to add extra logic to handle minLatency = 0
-      beatBytes, new SimpleDevice("deadlock-device", Seq("sifive,deadlock0")))
-{
+class TLDeadlock(params: DevNullParams, beatBytes: Int = 4)(implicit
+    p: Parameters
+) extends DevNullDevice(
+      params,
+      minLatency =
+        1, // technically not true but we don't want to add extra logic to handle minLatency = 0
+      beatBytes,
+      new SimpleDevice("deadlock-device", Seq("sifive,deadlock0"))
+    ) {
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val (in, _) = node.in(0)

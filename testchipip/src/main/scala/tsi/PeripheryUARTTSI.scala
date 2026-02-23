@@ -12,10 +12,9 @@ import sifive.blocks.devices.uart._
 import testchipip.serdes._
 import testchipip.uart.{UARTToSerial}
 
-
 case class UARTTSIClientParams(
-  uartParams: UARTParams = UARTParams(0),
-  tlbus: TLBusWrapperLocation = FBUS
+    uartParams: UARTParams = UARTParams(0),
+    tlbus: TLBusWrapperLocation = FBUS
 )
 
 case object UARTTSIClientKey extends Field[Option[UARTTSIClientParams]](None)
@@ -35,17 +34,20 @@ trait CanHavePeripheryUARTTSI { this: BaseSubsystem =>
     val uartParams = params.uartParams
     val tsi2tl = tlbus { LazyModule(new TSIToTileLink) }
     tlbus.coupleFrom("uart_tsi") { _ := tsi2tl.node }
-    val uart_bus_io = tlbus { InModuleBody {
-      val uart_to_serial = Module(new UARTToSerial(tlbus.dtsFrequency.get, uartParams))
-      val width_adapter = Module(new SerialWidthAdapter(8, TSI.WIDTH))
-      tsi2tl.module.io.tsi.flipConnect(width_adapter.io.wide)
-      width_adapter.io.narrow.flipConnect(uart_to_serial.io.serial)
-      val uart_tsi_io = IO(new UARTTSIIO(uartParams))
-      uart_tsi_io.uart <> uart_to_serial.io.uart
-      uart_tsi_io.dropped := uart_to_serial.io.dropped
-      uart_tsi_io.tsi2tl_state := tsi2tl.module.io.state
-      uart_tsi_io
-    } }
+    val uart_bus_io = tlbus {
+      InModuleBody {
+        val uart_to_serial =
+          Module(new UARTToSerial(tlbus.dtsFrequency.get, uartParams))
+        val width_adapter = Module(new SerialWidthAdapter(8, TSI.WIDTH))
+        tsi2tl.module.io.tsi.flipConnect(width_adapter.io.wide)
+        width_adapter.io.narrow.flipConnect(uart_to_serial.io.serial)
+        val uart_tsi_io = IO(new UARTTSIIO(uartParams))
+        uart_tsi_io.uart <> uart_to_serial.io.uart
+        uart_tsi_io.dropped := uart_to_serial.io.dropped
+        uart_tsi_io.tsi2tl_state := tsi2tl.module.io.state
+        uart_tsi_io
+      }
+    }
 
     val uart_tsi_io = InModuleBody {
       val uart_tsi_io = IO(new UARTTSIIO(uartParams))

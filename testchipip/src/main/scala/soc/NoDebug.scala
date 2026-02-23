@@ -5,8 +5,7 @@ import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.devices.debug.HasPeripheryDebug
 import org.chipsalliance.cde.config.Parameters
 
-trait HasNoDebug extends HasPeripheryDebug { this: BaseSubsystem =>
-}
+trait HasNoDebug extends HasPeripheryDebug { this: BaseSubsystem => }
 
 trait HasNoDebugModuleImp {
   implicit val p: Parameters

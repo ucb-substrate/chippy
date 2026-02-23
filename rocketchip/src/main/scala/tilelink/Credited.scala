@@ -13,11 +13,12 @@ import freechips.rocketchip.prci.{CreditedCrossing}
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util.{CreditedDelay, CreditedIO}
 
-class TLCreditedBuffer(delay: TLCreditedDelay)(implicit p: Parameters) extends LazyModule
-{
+class TLCreditedBuffer(delay: TLCreditedDelay)(implicit p: Parameters)
+    extends LazyModule {
   val node = TLCreditedAdapterNode(
-    clientFn  = p => p.copy(delay = delay + p.delay),
-    managerFn = p => p.copy(delay = delay + p.delay))
+    clientFn = p => p.copy(delay = delay + p.delay),
+    managerFn = p => p.copy(delay = delay + p.delay)
+  )
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -32,16 +33,22 @@ class TLCreditedBuffer(delay: TLCreditedDelay)(implicit p: Parameters) extends L
 }
 
 object TLCreditedBuffer {
-  def apply(delay: TLCreditedDelay)(implicit p: Parameters): TLCreditedAdapterNode = {
+  def apply(
+      delay: TLCreditedDelay
+  )(implicit p: Parameters): TLCreditedAdapterNode = {
     val buffer = LazyModule(new TLCreditedBuffer(delay))
     buffer.node
   }
-  def apply(delay: CreditedDelay)(implicit p: Parameters): TLCreditedAdapterNode = apply(TLCreditedDelay(delay))
-  def apply()(implicit p: Parameters): TLCreditedAdapterNode = apply(CreditedDelay(1, 1))
+  def apply(delay: CreditedDelay)(implicit
+      p: Parameters
+  ): TLCreditedAdapterNode = apply(TLCreditedDelay(delay))
+  def apply()(implicit p: Parameters): TLCreditedAdapterNode = apply(
+    CreditedDelay(1, 1)
+  )
 }
 
-class TLCreditedSource(delay: TLCreditedDelay)(implicit p: Parameters) extends LazyModule
-{
+class TLCreditedSource(delay: TLCreditedDelay)(implicit p: Parameters)
+    extends LazyModule {
   val node = TLCreditedSourceNode(delay)
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -57,16 +64,22 @@ class TLCreditedSource(delay: TLCreditedDelay)(implicit p: Parameters) extends L
 }
 
 object TLCreditedSource {
-  def apply(delay: TLCreditedDelay)(implicit p: Parameters): TLCreditedSourceNode = {
+  def apply(
+      delay: TLCreditedDelay
+  )(implicit p: Parameters): TLCreditedSourceNode = {
     val source = LazyModule(new TLCreditedSource(delay))
     source.node
   }
-  def apply(delay: CreditedDelay)(implicit p: Parameters): TLCreditedSourceNode = apply(TLCreditedDelay(delay))
-  def apply()(implicit p: Parameters): TLCreditedSourceNode = apply(CreditedDelay(1, 1))
+  def apply(delay: CreditedDelay)(implicit
+      p: Parameters
+  ): TLCreditedSourceNode = apply(TLCreditedDelay(delay))
+  def apply()(implicit p: Parameters): TLCreditedSourceNode = apply(
+    CreditedDelay(1, 1)
+  )
 }
 
-class TLCreditedSink(delay: TLCreditedDelay)(implicit p: Parameters) extends LazyModule
-{
+class TLCreditedSink(delay: TLCreditedDelay)(implicit p: Parameters)
+    extends LazyModule {
   val node = TLCreditedSinkNode(delay)
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -82,24 +95,33 @@ class TLCreditedSink(delay: TLCreditedDelay)(implicit p: Parameters) extends Laz
 }
 
 object TLCreditedSink {
-  def apply(delay: TLCreditedDelay)(implicit p: Parameters): TLCreditedSinkNode = {
+  def apply(
+      delay: TLCreditedDelay
+  )(implicit p: Parameters): TLCreditedSinkNode = {
     val sink = LazyModule(new TLCreditedSink(delay))
     sink.node
   }
-  def apply(delay: CreditedDelay)(implicit p: Parameters): TLCreditedSinkNode = apply(TLCreditedDelay(delay))
-  def apply()(implicit p: Parameters): TLCreditedSinkNode = apply(CreditedDelay(1, 1))
+  def apply(delay: CreditedDelay)(implicit p: Parameters): TLCreditedSinkNode =
+    apply(TLCreditedDelay(delay))
+  def apply()(implicit p: Parameters): TLCreditedSinkNode = apply(
+    CreditedDelay(1, 1)
+  )
 }
 
 // Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
-class TLRAMCreditedCrossing(txns: Int, params: CreditedCrossing)(implicit p: Parameters) extends LazyModule {
+class TLRAMCreditedCrossing(txns: Int, params: CreditedCrossing)(implicit
+    p: Parameters
+) extends LazyModule {
   val model = LazyModule(new TLRAMModel("CreditedCrossing"))
   val fuzz = LazyModule(new TLFuzzer(txns))
   val island = LazyModule(new CrossingWrapper(params))
-  val ram  = island { LazyModule(new TLRAM(AddressSet(0x0, 0x3ff))) }
+  val ram = island { LazyModule(new TLRAM(AddressSet(0x0, 0x3ff))) }
 
-  island.crossTLIn(ram.node) := TLFragmenter(4, 256) := TLDelayer(0.1) := model.node := fuzz.node
+  island.crossTLIn(ram.node) := TLFragmenter(4, 256) := TLDelayer(
+    0.1
+  ) := model.node := fuzz.node
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) with UnitTestModule {
@@ -107,12 +129,49 @@ class TLRAMCreditedCrossing(txns: Int, params: CreditedCrossing)(implicit p: Par
   }
 }
 
-class TLRAMCreditedCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  val dut_1000 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(1, 0), CreditedDelay(0, 0)))).module)
-  val dut_0100 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(0, 1), CreditedDelay(0, 0)))).module)
-  val dut_0010 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(0, 0), CreditedDelay(1, 0)))).module)
-  val dut_0001 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(0, 0), CreditedDelay(0, 1)))).module)
-  val dut_1111 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(1, 1), CreditedDelay(1, 1)))).module)
+class TLRAMCreditedCrossingTest(txns: Int = 5000, timeout: Int = 500000)(
+    implicit p: Parameters
+) extends UnitTest(timeout) {
+  val dut_1000 = Module(
+    LazyModule(
+      new TLRAMCreditedCrossing(
+        txns,
+        CreditedCrossing(CreditedDelay(1, 0), CreditedDelay(0, 0))
+      )
+    ).module
+  )
+  val dut_0100 = Module(
+    LazyModule(
+      new TLRAMCreditedCrossing(
+        txns,
+        CreditedCrossing(CreditedDelay(0, 1), CreditedDelay(0, 0))
+      )
+    ).module
+  )
+  val dut_0010 = Module(
+    LazyModule(
+      new TLRAMCreditedCrossing(
+        txns,
+        CreditedCrossing(CreditedDelay(0, 0), CreditedDelay(1, 0))
+      )
+    ).module
+  )
+  val dut_0001 = Module(
+    LazyModule(
+      new TLRAMCreditedCrossing(
+        txns,
+        CreditedCrossing(CreditedDelay(0, 0), CreditedDelay(0, 1))
+      )
+    ).module
+  )
+  val dut_1111 = Module(
+    LazyModule(
+      new TLRAMCreditedCrossing(
+        txns,
+        CreditedCrossing(CreditedDelay(1, 1), CreditedDelay(1, 1))
+      )
+    ).module
+  )
 
   val duts = Seq(dut_1000, dut_0100, dut_0010, dut_0001, dut_1111)
   duts.foreach { _.io.start := true.B }

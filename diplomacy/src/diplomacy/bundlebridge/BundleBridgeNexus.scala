@@ -7,13 +7,12 @@ import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyRawModuleImp}
 
 class BundleBridgeNexus[T <: Data](
-  inputFn:                      Seq[T] => T,
-  outputFn:                     (T, Int) => Seq[T],
-  default:                      Option[() => T] = None,
-  inputRequiresOutput:          Boolean = false,
-  override val shouldBeInlined: Boolean = true
-)(
-  implicit p:                   Parameters)
+    inputFn: Seq[T] => T,
+    outputFn: (T, Int) => Seq[T],
+    default: Option[() => T] = None,
+    inputRequiresOutput: Boolean = false,
+    override val shouldBeInlined: Boolean = true
+)(implicit p: Parameters)
     extends LazyModule {
   val node = BundleBridgeNexusNode[T](default, inputRequiresOutput)
 
@@ -31,13 +30,18 @@ class BundleBridgeNexus[T <: Data](
       DataMirror.directionOf(elt) match {
         case ActualDirection.Output      => ()
         case ActualDirection.Unspecified => ()
-        case _                           => require(false, s"${node.context} can only be used with Output-directed Bundles")
+        case _ =>
+          require(
+            false,
+            s"${node.context} can only be used with Output-directed Bundles"
+          )
       }
     }
 
     val outputs: Seq[T] =
       if (node.out.size > 0) {
-        val broadcast: T = if (inputs.size >= 1) inputFn(inputs) else defaultWireOpt.get
+        val broadcast: T =
+          if (inputs.size >= 1) inputFn(inputs) else defaultWireOpt.get
         outputFn(broadcast, node.out.size)
       } else { Nil }
 
@@ -77,20 +81,29 @@ object BundleBridgeNexus {
     if (registered) safeRegNext(x) else x
   }
 
-  def fillN[T <: Data](registered: Boolean)(x: T, n: Int): Seq[T] = Seq.fill(n) {
-    if (registered) safeRegNext(x) else x
-  }
+  def fillN[T <: Data](registered: Boolean)(x: T, n: Int): Seq[T] =
+    Seq.fill(n) {
+      if (registered) safeRegNext(x) else x
+    }
 
   def apply[T <: Data](
-    inputFn:             Seq[T] => T = orReduction[T](false) _,
-    outputFn:            (T, Int) => Seq[T] = fillN[T](false) _,
-    default:             Option[() => T] = None,
-    inputRequiresOutput: Boolean = false,
-    shouldBeInlined:     Boolean = true
-  )(
-    implicit p:          Parameters
+      inputFn: Seq[T] => T = orReduction[T](false) _,
+      outputFn: (T, Int) => Seq[T] = fillN[T](false) _,
+      default: Option[() => T] = None,
+      inputRequiresOutput: Boolean = false,
+      shouldBeInlined: Boolean = true
+  )(implicit
+      p: Parameters
   ): BundleBridgeNexusNode[T] = {
-    val nexus = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default, inputRequiresOutput, shouldBeInlined))
+    val nexus = LazyModule(
+      new BundleBridgeNexus[T](
+        inputFn,
+        outputFn,
+        default,
+        inputRequiresOutput,
+        shouldBeInlined
+      )
+    )
     nexus.node
   }
 }

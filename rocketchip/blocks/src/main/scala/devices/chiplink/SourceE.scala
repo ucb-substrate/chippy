@@ -1,12 +1,11 @@
 package sifive.blocks.devices.chiplink
 
-import chisel3._ 
+import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-class SourceE(info: ChipLinkInfo) extends Module
-{
+class SourceE(info: ChipLinkInfo) extends Module {
   val io = new Bundle {
     val e = Decoupled(new TLBundleE(info.edgeOut.bundle))
     val q = Flipped(Decoupled(UInt(info.params.dataBits.W)))
@@ -34,4 +33,4 @@ class SourceE(info: ChipLinkInfo) extends Module
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

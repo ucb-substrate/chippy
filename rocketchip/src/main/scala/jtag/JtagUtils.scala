@@ -12,6 +12,7 @@ class JTAGIdcodeBundle extends Bundle {
 }
 
 object JtagIdcode {
+
   /** Generates a JTAG IDCODE as a 32-bit integer, using the format in 12.1.1d.
     */
   def apply(version: Int, partNumber: Int, mfrId: Int): BigInt = {
@@ -21,8 +22,8 @@ object JtagIdcode {
     BigInt(version) << 28 | BigInt(partNumber) << 12 | BigInt(mfrId) << 1 | 1
   }
 
-  /** A dummy manufacturer ID, not to be used per 12.2.1b since bus masters may shift this out to
-    * determine the end of a bus.
+  /** A dummy manufacturer ID, not to be used per 12.2.1b since bus masters may
+    * shift this out to determine the end of a bus.
     */
   def dummyMfrId: Int = 0x7f
 }

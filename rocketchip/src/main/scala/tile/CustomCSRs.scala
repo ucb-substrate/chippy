@@ -9,18 +9,27 @@ import org.chipsalliance.cde.config.Parameters
 case class CustomCSR(id: Int, mask: BigInt, init: Option[BigInt])
 
 object CustomCSR {
-  def constant(id: Int, value: BigInt): CustomCSR = CustomCSR(id, BigInt(0), Some(value))
+  def constant(id: Int, value: BigInt): CustomCSR =
+    CustomCSR(id, BigInt(0), Some(value))
 }
 
 class CustomCSRIO(implicit p: Parameters) extends CoreBundle {
-  val ren = Output(Bool())          // set by CSRFile, indicates an instruction is reading the CSR
-  val wen = Output(Bool())          // set by CSRFile, indicates an instruction is writing the CSR
-  val wdata = Output(UInt(xLen.W))  // wdata provided by instruction writing CSR
-  val value = Output(UInt(xLen.W))  // current value of CSR in CSRFile
+  val ren = Output(
+    Bool()
+  ) // set by CSRFile, indicates an instruction is reading the CSR
+  val wen = Output(
+    Bool()
+  ) // set by CSRFile, indicates an instruction is writing the CSR
+  val wdata = Output(UInt(xLen.W)) // wdata provided by instruction writing CSR
+  val value = Output(UInt(xLen.W)) // current value of CSR in CSRFile
 
-  val stall = Input(Bool())         // reads and writes to this CSR should stall (must be bounded)
+  val stall = Input(
+    Bool()
+  ) // reads and writes to this CSR should stall (must be bounded)
 
-  val set = Input(Bool())           // set/sdata enables external agents to set the value of this CSR
+  val set = Input(
+    Bool()
+  ) // set/sdata enables external agents to set the value of this CSR
   val sdata = Input(UInt(xLen.W))
 }
 
@@ -43,7 +52,8 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
   def disableDCacheClockGate = getOrElse(chickenCSR, _.value(0), false.B)
   def disableICacheClockGate = getOrElse(chickenCSR, _.value(1), false.B)
   def disableCoreClockGate = getOrElse(chickenCSR, _.value(2), false.B)
-  def disableSpeculativeICacheRefill = getOrElse(chickenCSR, _.value(3), false.B)
+  def disableSpeculativeICacheRefill =
+    getOrElse(chickenCSR, _.value(3), false.B)
   def suppressCorruptOnGrantData = getOrElse(chickenCSR, _.value(9), false.B)
 
   protected def getByIdOrElse[T](id: Int, f: CustomCSRIO => T, alt: T): T = {
@@ -51,6 +61,10 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
     if (idx < 0) alt else f(csrs(idx))
   }
 
-  protected def getOrElse[T](csr: Option[CustomCSR], f: CustomCSRIO => T, alt: T): T =
+  protected def getOrElse[T](
+      csr: Option[CustomCSR],
+      f: CustomCSRIO => T,
+      alt: T
+  ): T =
     csr.map(c => getByIdOrElse(c.id, f, alt)).getOrElse(alt)
 }

@@ -23,7 +23,6 @@ class DecoupledFlitIO(val flitWidth: Int) extends Bundle {
   val out = Decoupled(new Flit(flitWidth))
 }
 
-
 trait HasClockOut { this: Bundle =>
   val clock_out = Output(Clock())
 }
@@ -34,11 +33,15 @@ trait HasClockIn { this: Bundle =>
 
 // A decoupled flow-control serial interface where all signals are synchronous to
 // a locally-produced clock
-class DecoupledInternalSyncPhitIO(phitWidth: Int) extends DecoupledPhitIO(phitWidth) with HasClockOut
+class DecoupledInternalSyncPhitIO(phitWidth: Int)
+    extends DecoupledPhitIO(phitWidth)
+    with HasClockOut
 
 // A decoupled flow-control serial interface where all signals are synchronous to
 // an externally produced clock
-class DecoupledExternalSyncPhitIO(phitWidth: Int) extends DecoupledPhitIO(phitWidth) with HasClockIn
+class DecoupledExternalSyncPhitIO(phitWidth: Int)
+    extends DecoupledPhitIO(phitWidth)
+    with HasClockIn
 
 class ValidPhitIO(val phitWidth: Int) extends Bundle {
   val in = Input(Valid(new Phit(phitWidth)))

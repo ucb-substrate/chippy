@@ -7,19 +7,21 @@ import scala.collection.mutable.{Set => MSet, Map => MMap}
 import org.chipsalliance.cde.config.Parameters
 import scala.util.control.Breaks._
 
-
-/**
- * CustomGraph: A utility class for layered routing over an arbitrary directed topology
- * 
- * This class helps perform some computations to generate a deadlock-free routing configuration:
- *   - generateSSPs: Computes all-pairs single-source shortest paths using BFS.
- *   - deduplicateSSPs: Removes duplicate paths with the same edge sequences.
- *   - pruneSubpaths: Eliminates paths that are strict subsets of other paths.
- *   - packLayersMinimal: Packs flows into the minimum number of VC layers ensuring each layer is a DAG.
- * 
- * The final output is a list of layers (each a list of flows and their edge paths) which are suitable for safe routing.
- * These layers are then enforced through VC constraints during path traversal.
- */
+/** CustomGraph: A utility class for layered routing over an arbitrary directed
+  * topology
+  *
+  * This class helps perform some computations to generate a deadlock-free
+  * routing configuration:
+  *   - generateSSPs: Computes all-pairs single-source shortest paths using BFS.
+  *   - deduplicateSSPs: Removes duplicate paths with the same edge sequences.
+  *   - pruneSubpaths: Eliminates paths that are strict subsets of other paths.
+  *   - packLayersMinimal: Packs flows into the minimum number of VC layers
+  *     ensuring each layer is a DAG.
+  *
+  * The final output is a list of layers (each a list of flows and their edge
+  * paths) which are suitable for safe routing. These layers are then enforced
+  * through VC constraints during path traversal.
+  */
 class CustomGraph(val nNodes: Int, val edges: Seq[(Int, Int)]) {
 
   def generateSSPs(): List[((Int, Int), List[(Int, Int)])] = {
@@ -55,7 +57,8 @@ class CustomGraph(val nNodes: Int, val edges: Seq[(Int, Int)]) {
         val edgePath: List[(Int, Int)] = path.sliding(2).toList.map { pair =>
           pair.toSeq match {
             case Seq(a, b) => (a, b)
-            case other => throw new RuntimeException(s"Custom Graph Error: $other")
+            case other =>
+              throw new RuntimeException(s"Custom Graph Error: $other")
           }
         }
 
@@ -66,12 +69,14 @@ class CustomGraph(val nNodes: Int, val edges: Seq[(Int, Int)]) {
     result.toList
   }
 
-  def deduplicateSSPs(ssps: List[((Int, Int), List[(Int, Int)])]): List[((Int, Int), List[(Int, Int)])] = {
+  def deduplicateSSPs(
+      ssps: List[((Int, Int), List[(Int, Int)])]
+  ): List[((Int, Int), List[(Int, Int)])] = {
     val seen = mutable.HashSet[Seq[(Int, Int)]]()
     val result = mutable.ListBuffer[((Int, Int), List[(Int, Int)])]()
 
     for ((label, path) <- ssps) {
-      val edgeSeq = path.toIndexedSeq  // Ordered sequence
+      val edgeSeq = path.toIndexedSeq // Ordered sequence
       if (!seen.contains(edgeSeq)) {
         seen += edgeSeq
         result.append((label, path))
@@ -81,21 +86,27 @@ class CustomGraph(val nNodes: Int, val edges: Seq[(Int, Int)]) {
     result.toList
   }
 
-  def pruneSubpaths(ssps: List[((Int, Int), List[(Int, Int)])]): List[((Int, Int), List[(Int, Int)])] = {
+  def pruneSubpaths(
+      ssps: List[((Int, Int), List[(Int, Int)])]
+  ): List[((Int, Int), List[(Int, Int)])] = {
     val edgeSets = ssps.map { case (_, path) => path.toSet }
 
-    val pruned = ssps.zipWithIndex.filterNot { case ((labelI, pathI), i) =>
-      val setI = pathI.toSet
-      val isSubpath = edgeSets.zipWithIndex.exists { case (setJ, j) =>
-        i != j && setI.subsetOf(setJ) && setI != setJ // strict subset only
+    val pruned = ssps.zipWithIndex
+      .filterNot { case ((labelI, pathI), i) =>
+        val setI = pathI.toSet
+        val isSubpath = edgeSets.zipWithIndex.exists { case (setJ, j) =>
+          i != j && setI.subsetOf(setJ) && setI != setJ // strict subset only
+        }
+        isSubpath
       }
-      isSubpath
-    }.map(_._1)
+      .map(_._1)
 
     pruned
   }
 
-  def packLayersMinimal(ssps: List[((Int, Int), List[(Int, Int)])]): List[List[((Int, Int), List[(Int, Int)])]] = {
+  def packLayersMinimal(
+      ssps: List[((Int, Int), List[(Int, Int)])]
+  ): List[List[((Int, Int), List[(Int, Int)])]] = {
     for (k <- 1 to ssps.length) {
       val result = solve(ssps, k)
       if (result.nonEmpty) return result
@@ -103,8 +114,12 @@ class CustomGraph(val nNodes: Int, val edges: Seq[(Int, Int)]) {
     List()
   }
 
-  def solve(ssps: List[((Int, Int), List[(Int, Int)])], k: Int): List[List[((Int, Int), List[(Int, Int)])]] = {
-    val layers = Array.fill(k)(mutable.ListBuffer[((Int, Int), List[(Int, Int)])]())
+  def solve(
+      ssps: List[((Int, Int), List[(Int, Int)])],
+      k: Int
+  ): List[List[((Int, Int), List[(Int, Int)])]] = {
+    val layers =
+      Array.fill(k)(mutable.ListBuffer[((Int, Int), List[(Int, Int)])]())
     val dags = Array.fill(k)(mutable.Map[(Int, Int), Int]())
     val dagGraphs = Array.fill(k)(mutable.Map[Int, mutable.Set[Int]]())
 
@@ -116,7 +131,7 @@ class CustomGraph(val nNodes: Int, val edges: Seq[(Int, Int)]) {
         visited.get(u) match {
           case Some(1) => return false // cycle
           case Some(2) => return true
-          case _ => // proceed
+          case _       => // proceed
         }
 
         visited(u) = 1
@@ -190,28 +205,30 @@ class CustomGraph(val nNodes: Int, val edges: Seq[(Int, Int)]) {
 
 }
 
-/**
- * DatelineAnalyzer identifies cycles in the channel dependency graph (CDG)
- * for a given physical topology and selects a minimal set of "dateline" edges
- * to break these cycles, enabling deadlock-free routing.
- *
- * This is done by:
- * 1. Computing all shortest paths between node pairs.
- * 2. Building a CDG from edges used in shortest paths.
- * 3. Detecting all simple cycles in the CDG.
- * 4. Selecting one edge per cycle to act as a dateline (breaking the cycle).
- * 5. Estimating the number of required virtual channels (VCs), based on the
- *    maximum number of dateline crossings on any shortest path.
- *
- * It returns:
- *  - datelineEdges: Set of selected (u, v) edges to act as datelines.
- *  - vcCount: Minimum number of VCs needed to support these crossings.
- *  - nextHop: Map from (src, dst) to possible next-hop nodes.
- */
+/** DatelineAnalyzer identifies cycles in the channel dependency graph (CDG) for
+  * a given physical topology and selects a minimal set of "dateline" edges to
+  * break these cycles, enabling deadlock-free routing.
+  *
+  * This is done by:
+  *   1. Computing all shortest paths between node pairs. 2. Building a CDG from
+  *      edges used in shortest paths. 3. Detecting all simple cycles in the
+  *      CDG. 4. Selecting one edge per cycle to act as a dateline (breaking the
+  *      cycle). 5. Estimating the number of required virtual channels (VCs),
+  *      based on the maximum number of dateline crossings on any shortest path.
+  *
+  * It returns:
+  *   - datelineEdges: Set of selected (u, v) edges to act as datelines.
+  *   - vcCount: Minimum number of VCs needed to support these crossings.
+  *   - nextHop: Map from (src, dst) to possible next-hop nodes.
+  */
 
 object DatelineAnalyzer {
 
-  case class DatelineResult(datelineEdges: Set[(Int, Int)], vcCount: Int, nextHop: Map[(Int, Int), Set[Int]])
+  case class DatelineResult(
+      datelineEdges: Set[(Int, Int)],
+      vcCount: Int,
+      nextHop: Map[(Int, Int), Set[Int]]
+  )
 
   def analyze(topo: PhysicalTopology): DatelineResult = {
     val nodes = 0 until topo.nNodes
@@ -263,21 +280,32 @@ object DatelineAnalyzer {
       }
     }
 
-    cdgEdges.foreach { case ((u1, u2), (v1, v2)) => println(s"  ($u1->$u2) -> ($v1->$v2)") }
+    cdgEdges.foreach { case ((u1, u2), (v1, v2)) =>
+      println(s"  ($u1->$u2) -> ($v1->$v2)")
+    }
 
-    def findCycles(edges: Iterable[((Int, Int), (Int, Int))]): Seq[List[(Int, Int)]] = {
-      val graph = mutable.Map[(Int, Int), List[(Int, Int)]]().withDefaultValue(Nil)
+    def findCycles(
+        edges: Iterable[((Int, Int), (Int, Int))]
+    ): Seq[List[(Int, Int)]] = {
+      val graph =
+        mutable.Map[(Int, Int), List[(Int, Int)]]().withDefaultValue(Nil)
       edges.foreach { case (u, v) => graph(u) ::= v }
 
       val result = mutable.Buffer[List[(Int, Int)]]()
 
-      def dfs(current: (Int, Int), path: List[(Int, Int)], visited: Set[(Int, Int)]): Unit = {
+      def dfs(
+          current: (Int, Int),
+          path: List[(Int, Int)],
+          visited: Set[(Int, Int)]
+      ): Unit = {
         for (neighbor <- graph(current)) {
           if (path.contains(neighbor)) {
             val cycleStart = path.indexOf(neighbor)
             if (cycleStart != -1) {
               val cycle = path.drop(cycleStart) :+ neighbor
-              val rotated = cycle.dropWhile(_ != cycle.min) ++ cycle.takeWhile(_ != cycle.min)
+              val rotated = cycle.dropWhile(_ != cycle.min) ++ cycle.takeWhile(
+                _ != cycle.min
+              )
               if (!result.exists(_.toSet == rotated.toSet)) {
                 result += rotated
               }
@@ -298,15 +326,20 @@ object DatelineAnalyzer {
     val cycles = findCycles(cdgEdges)
     println(s"[DatelineAnalyzer] Detected ${cycles.length} cycles")
     for ((cycle, idx) <- cycles.zipWithIndex) {
-      println(s"  Cycle $idx: ${cycle.map(e => s"(${e._1}->${e._2})").mkString(" -> ")}")
+      println(
+        s"  Cycle $idx: ${cycle.map(e => s"(${e._1}->${e._2})").mkString(" -> ")}"
+      )
     }
 
     // Greedy Approach for Minimum Datelines
     val cycleEdgeSets = cycles.map { cycle =>
       val extended = cycle :+ cycle.head
-      extended.sliding(2).map {
-        case Seq((_, _), (v1, v2)) => (v1, v2)
-      }.toSet
+      extended
+        .sliding(2)
+        .map { case Seq((_, _), (v1, v2)) =>
+          (v1, v2)
+        }
+        .toSet
     }
 
     val uncovered = mutable.Set() ++ cycleEdgeSets.indices
@@ -327,9 +360,10 @@ object DatelineAnalyzer {
       datelineEdges += bestEdge
       uncovered --= hitCycles
 
-      println(s"[DatelineAnalyzer] Selected dateline edge: (${bestEdge._1} -> ${bestEdge._2})")
+      println(
+        s"[DatelineAnalyzer] Selected dateline edge: (${bestEdge._1} -> ${bestEdge._2})"
+      )
     }
-
 
     val datelinePhysicalEdges = datelineEdges.toSet
 
@@ -341,8 +375,14 @@ object DatelineAnalyzer {
 
     val vcCount = maxDatelineCrossings + 1
     println(s"[DatelineAnalyzer] Selected ${datelineEdges.size} dateline edges")
-    println(s"[DatelineAnalyzer] Max dateline crossings: $maxDatelineCrossings, Required VCs: $vcCount")
+    println(
+      s"[DatelineAnalyzer] Max dateline crossings: $maxDatelineCrossings, Required VCs: $vcCount"
+    )
 
-    DatelineResult(datelinePhysicalEdges, vcCount, nextHopMap.map { case (k, v) => k -> v.toSet }.toMap)
+    DatelineResult(
+      datelinePhysicalEdges,
+      vcCount,
+      nextHopMap.map { case (k, v) => k -> v.toSet }.toMap
+    )
   }
 }

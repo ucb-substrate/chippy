@@ -1,6 +1,6 @@
 package sifive.blocks.util
 
-import chisel3._ 
+import chisel3._
 
 import org.chipsalliance.cde.config.{Field, Parameters}
 
@@ -10,7 +10,8 @@ import freechips.rocketchip.prci._
 import freechips.rocketchip.regmapper.RegisterRouter
 import freechips.rocketchip.subsystem._
 
-case class DevicesLocated(loc: HierarchicalLocation) extends Field[Seq[DeviceAttachParams]](Nil)
+case class DevicesLocated(loc: HierarchicalLocation)
+    extends Field[Seq[DeviceAttachParams]](Nil)
 
 trait CanHaveDevices { this: Attachable =>
   def location: HierarchicalLocation
@@ -19,8 +20,9 @@ trait CanHaveDevices { this: Attachable =>
   val devicesConfigs: Seq[DeviceAttachParams] = p(DevicesLocated(location)) ++
     devicesSubhierarchies.map(_.map(_.devicesConfigs)).getOrElse(Nil).flatten
 
-  val devices: Seq[LazyModule] = p(DevicesLocated(location)).map(_.attachTo(this)) ++
-    devicesSubhierarchies.map(_.map(_.devices)).getOrElse(Nil).flatten
+  val devices: Seq[LazyModule] =
+    p(DevicesLocated(location)).map(_.attachTo(this)) ++
+      devicesSubhierarchies.map(_.map(_.devices)).getOrElse(Nil).flatten
 }
 
 trait DeviceParams
@@ -48,4 +50,4 @@ trait DeviceAttachParams {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

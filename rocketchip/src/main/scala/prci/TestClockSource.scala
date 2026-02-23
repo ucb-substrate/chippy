@@ -13,13 +13,20 @@ class ClockSourceIO extends Bundle {
   val clk = Output(Clock())
 }
 
-/** This clock source is only intended to be used in test harnesses, and does not work correctly in verilator. */
-class ClockSourceAtFreq(val freqMHz: Double) extends BlackBox(Map(
-  "PERIOD_PS" -> DoubleParam(1000000/freqMHz)
-)) with HasBlackBoxInline {
+/** This clock source is only intended to be used in test harnesses, and does
+  * not work correctly in verilator.
+  */
+class ClockSourceAtFreq(val freqMHz: Double)
+    extends BlackBox(
+      Map(
+        "PERIOD_PS" -> DoubleParam(1000000 / freqMHz)
+      )
+    )
+    with HasBlackBoxInline {
   val io = IO(new ClockSourceIO)
 
-  setInline("ClockSourceAtFreq.v",
+  setInline(
+    "ClockSourceAtFreq.v",
     s"""
       |module ClockSourceAtFreq #(parameter PERIOD_PS="") (
       |    input power,
@@ -35,17 +42,22 @@ class ClockSourceAtFreq(val freqMHz: Double) extends BlackBox(Map(
       |  assign
       |    clk = clk_i;
       |endmodule
-      |""".stripMargin)
+      |""".stripMargin
+  )
 }
 
-/** This clock source is only intended to be used in test harnesses, and does not work correctly in verilator. */
-class ClockSourceAtFreqFromPlusArg(val plusArgName: String) extends BlackBox
+/** This clock source is only intended to be used in test harnesses, and does
+  * not work correctly in verilator.
+  */
+class ClockSourceAtFreqFromPlusArg(val plusArgName: String)
+    extends BlackBox
     with HasBlackBoxInline {
   val io = IO(new ClockSourceIO)
 
   override def desiredName = s"ClockSourceAtFreqFromPlusArg$plusArgName"
 
-  setInline(s"$desiredName.v",
+  setInline(
+    s"$desiredName.v",
     s"""
       |module $desiredName (
       |    input power,
@@ -66,23 +78,32 @@ class ClockSourceAtFreqFromPlusArg(val plusArgName: String) extends BlackBox
       |  end
       |  assign clk = clk_i;
       |endmodule
-      |""".stripMargin)
+      |""".stripMargin
+  )
 }
 
-/** This clock source is only intended to be used in test harnesses, and does not work correctly in verilator. */
-class TestClockSource(freqs: Seq[Option[Double]])(implicit p: Parameters) extends LazyModule {
+/** This clock source is only intended to be used in test harnesses, and does
+  * not work correctly in verilator.
+  */
+class TestClockSource(freqs: Seq[Option[Double]])(implicit p: Parameters)
+    extends LazyModule {
 
-  val node = ClockSourceNode(freqs.map(f =>
-    ClockSourceParameters(give = f.map(ff => ClockParameters(freqMHz = ff)))))
+  val node = ClockSourceNode(
+    freqs.map(f =>
+      ClockSourceParameters(give = f.map(ff => ClockParameters(freqMHz = ff)))
+    )
+  )
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     node.out.zipWithIndex.foreach { case ((bundle, edge), i) =>
-      val source = edge.source.give.map(f =>
-        Module(new ClockSourceAtFreq(f.freqMHz)).io
-      ).getOrElse(Module(new ClockSourceAtFreqFromPlusArg(s"CLOCKFREQMHZ$i")).io)
+      val source = edge.source.give
+        .map(f => Module(new ClockSourceAtFreq(f.freqMHz)).io)
+        .getOrElse(
+          Module(new ClockSourceAtFreqFromPlusArg(s"CLOCKFREQMHZ$i")).io
+        )
       source.power := true.B
-      source.gate  := false.B
+      source.gate := false.B
       bundle.clock := source.clk
       bundle.reset := reset
     }

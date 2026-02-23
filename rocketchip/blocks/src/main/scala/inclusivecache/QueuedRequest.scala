@@ -19,28 +19,28 @@ package sifive.blocks.inclusivecache
 
 import chisel3._
 
-class QueuedRequest(params: InclusiveCacheParameters) extends InclusiveCacheBundle(params)
-{
-  val prio    = Vec(3, Bool()) // A=001, B=010, C=100
+class QueuedRequest(params: InclusiveCacheParameters)
+    extends InclusiveCacheBundle(params) {
+  val prio = Vec(3, Bool()) // A=001, B=010, C=100
   val control = new Bundle {
-    val flush      = Bool()
+    val flush = Bool()
     val invalidate = Bool()
   }
   val opcode = UInt(3.W)
-  val param  = UInt(3.W)
-  val size   = UInt(params.inner.bundle.sizeBits.W)
+  val param = UInt(3.W)
+  val size = UInt(params.inner.bundle.sizeBits.W)
   val source = UInt(params.inner.bundle.sourceBits.W)
-  val tag    = UInt(params.tagBits.W)
+  val tag = UInt(params.tagBits.W)
   val offset = UInt(params.offsetBits.W)
-  val put    = UInt(params.putBits.W)
+  val put = UInt(params.putBits.W)
 }
 
-class FullRequest(params: InclusiveCacheParameters) extends QueuedRequest(params)
-{
+class FullRequest(params: InclusiveCacheParameters)
+    extends QueuedRequest(params) {
   val set = UInt(params.setBits.W)
 }
 
-class AllocateRequest(params: InclusiveCacheParameters) extends FullRequest(params)
-{
+class AllocateRequest(params: InclusiveCacheParameters)
+    extends FullRequest(params) {
   val repeat = Bool() // set is the same
 }

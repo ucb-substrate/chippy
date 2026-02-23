@@ -1,8 +1,8 @@
 package sifive.blocks.devices.stream
 
 object PseudoStreamCtrlRegs {
-  val txfifo  = 0x00
-  val rxfifo  = 0x08
+  val txfifo = 0x00
+  val rxfifo = 0x08
   val txfifob = 0x10
   val rxfifob = 0x18
 }
@@ -21,4 +21,4 @@ object PseudoStreamCtrlRegs {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

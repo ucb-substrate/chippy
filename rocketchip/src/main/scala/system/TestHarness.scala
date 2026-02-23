@@ -20,14 +20,16 @@ class TestHarness()(implicit p: Parameters) extends Module {
 
   ldut.io_clocks.get.elements.values.foreach(_.clock := clock)
   // Allow the debug ndreset to reset the dut, but not until the initial reset has completed
-  val dut_reset = (reset.asBool | ldut.debug.map { debug => AsyncResetReg(debug.ndreset) }.getOrElse(false.B)).asBool
+  val dut_reset = (reset.asBool | ldut.debug
+    .map { debug => AsyncResetReg(debug.ndreset) }
+    .getOrElse(false.B)).asBool
   ldut.io_clocks.get.elements.values.foreach(_.reset := dut_reset)
 
   dut.dontTouchPorts()
   dut.tieOffInterrupts()
   SimAXIMem.connectMem(ldut)
   SimAXIMem.connectMMIO(ldut)
-  ldut.l2_frontend_bus_axi4.foreach( a => {
+  ldut.l2_frontend_bus_axi4.foreach(a => {
     a.ar.valid := false.B
     a.ar.bits := DontCare
     a.aw.valid := false.B
@@ -37,6 +39,13 @@ class TestHarness()(implicit p: Parameters) extends Module {
     a.r.ready := false.B
     a.b.ready := false.B
   })
-  //ldut.l2_frontend_bus_axi4.foreach(_.tieoff)
-  Debug.connectDebug(ldut.debug, ldut.resetctrl, ldut.psd, clock, reset.asBool, io.success)
+  // ldut.l2_frontend_bus_axi4.foreach(_.tieoff)
+  Debug.connectDebug(
+    ldut.debug,
+    ldut.resetctrl,
+    ldut.psd,
+    clock,
+    reset.asBool,
+    io.success
+  )
 }

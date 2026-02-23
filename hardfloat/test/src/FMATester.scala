@@ -476,4 +476,3 @@ class RecFNToRecFNSpec extends FMATester {
     check(test(64, 32))
   }
 }
-

@@ -33,16 +33,18 @@ class SPIFIFO(c: SPIParamsBase) extends Module {
   rxq.io.enq.bits := io.link.rx.bits
   io.rx <> rxq.io.deq
 
-  when (fire_rx) {
+  when(fire_rx) {
     rxen := false.B
   }
-  when (fire_tx) {
+  when(fire_tx) {
     rxen := (io.link.fmt.iodir === SPIDirection.Rx)
   }
 
   val proto = SPIProtocol.decode(io.link.fmt.proto).zipWithIndex
   val cnt_quot = Mux1H(proto.map { case (s, i) => s -> (io.ctrl.fmt.len >> i) })
-  val cnt_rmdr = Mux1H(proto.map { case (s, i) => s -> (if (i > 0) io.ctrl.fmt.len(i-1, 0).orR else 0.U) })
+  val cnt_rmdr = Mux1H(proto.map { case (s, i) =>
+    s -> (if (i > 0) io.ctrl.fmt.len(i - 1, 0).orR else 0.U)
+  })
   io.link.fmt <> io.ctrl.fmt.viewAsSupertype(new SPIFormat(c))
   io.link.cnt := cnt_quot + cnt_rmdr
 
@@ -76,4 +78,4 @@ class SPIFIFO(c: SPIParamsBase) extends Module {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

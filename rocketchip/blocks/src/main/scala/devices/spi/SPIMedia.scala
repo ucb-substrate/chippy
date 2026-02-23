@@ -1,6 +1,6 @@
 package sifive.blocks.devices.spi
 
-import chisel3._ 
+import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util._
 
@@ -16,7 +16,9 @@ class SPILinkIO(c: SPIParamsBase) extends SPIBundle(c) {
     val hold = Output(Bool()) // Supress automatic CS deactivation
   }
   val active = Input(Bool())
-  val disableOE = c.oeDisableDummy.option(Output(Bool())) // disable oe during dummy cycles in flash mode
+  val disableOE = c.oeDisableDummy.option(
+    Output(Bool())
+  ) // disable oe during dummy cycles in flash mode
 }
 
 class SPIMedia(c: SPIParamsBase) extends Module {
@@ -70,33 +72,33 @@ class SPIMedia(c: SPIParamsBase) extends Module {
   val (s_main :: s_interxfr :: s_intercs :: Nil) = Enum(3)
   val state = RegInit(s_main)
 
-  switch (state) {
-    is (s_main) {
-      when (cs_assert) {
-        when (cs_deassert) {
+  switch(state) {
+    is(s_main) {
+      when(cs_assert) {
+        when(cs_deassert) {
           op.bits.cnt := io.ctrl.dla.sckcs
-          when (op.ready) {
+          when(op.ready) {
             state := s_intercs
           }
-        } .otherwise {
+        }.otherwise {
           op.bits.fn := SPIMicroOp.Transfer
           op.bits.stb := true.B
 
           op.valid := io.link.tx.valid
           io.link.tx.ready := op.ready
-          when (op.fire) {
+          when(op.fire) {
             state := s_interxfr
           }
         }
-      } .elsewhen (io.link.tx.valid) {
+      }.elsewhen(io.link.tx.valid) {
         // Assert CS
         op.bits.cnt := io.ctrl.dla.cssck
-        when (op.ready) {
+        when(op.ready) {
           cs_assert := true.B
           cs_set := io.link.cs.set
           cs.dflt := cs_active
         }
-      } .otherwise {
+      }.otherwise {
         // Idle
         op.bits.cnt := 0.U
         op.bits.stb := true.B
@@ -104,22 +106,22 @@ class SPIMedia(c: SPIParamsBase) extends Module {
       }
     }
 
-    is (s_interxfr) {
+    is(s_interxfr) {
       // Skip if interxfr delay is zero
       op.valid := !continuous
       op.bits.cnt := io.ctrl.dla.interxfr
-      when (op.ready || continuous) {
+      when(op.ready || continuous) {
         state := s_main
       }
     }
 
-    is (s_intercs) {
+    is(s_intercs) {
       // Deassert CS
       op.bits.cnt := io.ctrl.dla.intercs
       op.bits.stb := true.B
       cs_assert := false.B
       clear := false.B
-      when (op.ready) {
+      when(op.ready) {
         cs.dflt := cs.toggle(cs_set)
         state := s_main
       }
@@ -141,4 +143,4 @@ class SPIMedia(c: SPIParamsBase) extends Module {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

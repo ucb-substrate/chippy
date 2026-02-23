@@ -21,13 +21,12 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink._
 
-class SinkEResponse(params: InclusiveCacheParameters) extends InclusiveCacheBundle(params)
-{
+class SinkEResponse(params: InclusiveCacheParameters)
+    extends InclusiveCacheBundle(params) {
   val sink = UInt(params.inner.bundle.sinkBits.W)
 }
 
-class SinkE(params: InclusiveCacheParameters) extends Module
-{
+class SinkE(params: InclusiveCacheParameters) extends Module {
   val io = IO(new Bundle {
     val resp = Valid(new SinkEResponse(params))
     val e = Flipped(Decoupled(new TLBundleE(params.inner.bundle)))

@@ -21,20 +21,19 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink._
 
-class SourceERequest(params: InclusiveCacheParameters) extends InclusiveCacheBundle(params)
-{
+class SourceERequest(params: InclusiveCacheParameters)
+    extends InclusiveCacheBundle(params) {
   val sink = UInt(params.outer.bundle.sinkBits.W)
 }
 
-class SourceE(params: InclusiveCacheParameters) extends Module
-{
+class SourceE(params: InclusiveCacheParameters) extends Module {
   val io = IO(new Bundle {
     val req = Flipped(Decoupled(new SourceERequest(params)))
     val e = Decoupled(new TLBundleE(params.outer.bundle))
   })
 
   // ready must be a register, because we derive valid from ready
-  require (!params.micro.outerBuf.e.pipe && params.micro.outerBuf.e.isDefined)
+  require(!params.micro.outerBuf.e.pipe && params.micro.outerBuf.e.isDefined)
 
   val e = Wire(chiselTypeOf(io.e))
   io.e <> params.micro.outerBuf.e(e)

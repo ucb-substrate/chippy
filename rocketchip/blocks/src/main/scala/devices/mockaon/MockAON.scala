@@ -1,6 +1,6 @@
 package sifive.blocks.devices.mockaon
 
-import chisel3._ 
+import chisel3._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
@@ -11,7 +11,8 @@ import sifive.blocks.util.GenericTimer
 
 case class MockAONParams(
     address: BigInt = BigInt(0x10000000),
-    nBackupRegs: Int = 16) {
+    nBackupRegs: Int = 16
+) {
   def size: Int = 0x1000
   def regBytes: Int = 4
   def wdogOffset: Int = 0
@@ -51,7 +52,16 @@ trait HasMockAONBundleContents extends Bundle {
 }
 
 class TLMockAON(w: Int, c: MockAONParams)(implicit p: Parameters)
-  extends RegisterRouter(RegisterRouterParams("aon", Seq("sifive,aon0"), c.address, beatBytes=w, size=c.size, concurrency=1))(p)
+    extends RegisterRouter(
+      RegisterRouterParams(
+        "aon",
+        Seq("sifive,aon0"),
+        c.address,
+        beatBytes = w,
+        size = c.size,
+        concurrency = 1
+      )
+    )(p)
     with HasTLControlRegMap
     with HasInterruptSources {
   override def nInterrupts = 2
@@ -73,9 +83,14 @@ class TLMockAON(w: Int, c: MockAONParams)(implicit p: Parameters)
     pmu.io.resetCauses := io.resetCauses
     val pmuRegMap = {
       val regs = pmu.io.regs.wakeupProgram ++ pmu.io.regs.sleepProgram ++
-      Seq(pmu.io.regs.ie, pmu.io.regs.cause, pmu.io.regs.sleep, pmu.io.regs.key)
+        Seq(
+          pmu.io.regs.ie,
+          pmu.io.regs.cause,
+          pmu.io.regs.sleep,
+          pmu.io.regs.key
+        )
       for ((r, i) <- regs.zipWithIndex)
-      yield (c.pmuOffset + c.regBytes*i) -> Seq(r.toRegField())
+        yield (c.pmuOffset + c.regBytes * i) -> Seq(r.toRegField())
     }
     interrupts(1) := rtc.io.ip(0)
 
@@ -90,13 +105,16 @@ class TLMockAON(w: Int, c: MockAONParams)(implicit p: Parameters)
     val backupRegs = Seq.fill(c.nBackupRegs)(Reg(UInt((c.regBytes * 8).W)))
     val backupRegMap =
       for ((reg, i) <- backupRegs.zipWithIndex)
-      yield (c.backupRegOffset + c.regBytes*i) -> Seq(RegField(reg.getWidth, RegReadFn(reg), RegWriteFn(reg)))
+        yield (c.backupRegOffset + c.regBytes * i) -> Seq(
+          RegField(reg.getWidth, RegReadFn(reg), RegWriteFn(reg))
+        )
 
-    regmap((backupRegMap ++
-      GenericTimer.timerRegMap(wdog, c.wdogOffset, c.regBytes) ++
-      GenericTimer.timerRegMap(rtc, c.rtcOffset, c.regBytes) ++
-      pmuRegMap):_*)
-
+    regmap(
+      (backupRegMap ++
+        GenericTimer.timerRegMap(wdog, c.wdogOffset, c.regBytes) ++
+        GenericTimer.timerRegMap(rtc, c.rtcOffset, c.regBytes) ++
+        pmuRegMap): _*
+    )
 
   }
 }
@@ -113,4 +131,4 @@ class TLMockAON(w: Int, c: MockAONParams)(implicit p: Parameters)
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

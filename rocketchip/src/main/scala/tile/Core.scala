@@ -101,9 +101,9 @@ trait HasCoreParameters extends HasTileParameters {
 
   val fetchBytes = coreParams.fetchBytes
   val coreInstBits = coreParams.instBits
-  val coreInstBytes = coreInstBits/8
+  val coreInstBytes = coreInstBits / 8
   val coreDataBits = xLen max fLen max vMemDataBits
-  val coreDataBytes = coreDataBits/8
+  val coreDataBytes = coreDataBits / 8
   def coreMaxAddrBits = paddrBits max vaddrBitsExtended
 
   val nBreakpoints = coreParams.nBreakpoints
@@ -123,7 +123,10 @@ trait HasCoreParameters extends HasTileParameters {
 
   if (usingVector) {
     require(isPow2(vLen), s"vLen ($vLen) must be a power of 2")
-    require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")
+    require(
+      eLen >= 32 && vLen % eLen == 0,
+      s"eLen must divide vLen ($vLen) and be no less than 32"
+    )
     require(eLen == 32 || eLen == 64)
     require(vfLen <= eLen)
     require(!coreParams.vfh || (vfLen >= 32 && coreParams.minFLen <= 16))
@@ -140,8 +143,14 @@ trait HasCoreParameters extends HasTileParameters {
   lazy val hartIdLen: Int = p(MaxHartIdBits)
   lazy val resetVectorLen: Int = {
     val externalLen = paddrBits
-    require(externalLen <= xLen, s"External reset vector length ($externalLen) must be <= XLEN ($xLen)")
-    require(externalLen <= vaddrBitsExtended, s"External reset vector length ($externalLen) must be <= virtual address bit width ($vaddrBitsExtended)")
+    require(
+      externalLen <= xLen,
+      s"External reset vector length ($externalLen) must be <= XLEN ($xLen)"
+    )
+    require(
+      externalLen <= vaddrBitsExtended,
+      s"External reset vector length ($externalLen) must be <= virtual address bit width ($vaddrBitsExtended)"
+    )
     externalLen
   }
 
@@ -151,14 +160,18 @@ trait HasCoreParameters extends HasTileParameters {
 
 }
 
-abstract class CoreModule(implicit val p: Parameters) extends Module
-  with HasCoreParameters
+abstract class CoreModule(implicit val p: Parameters)
+    extends Module
+    with HasCoreParameters
 
-abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
-  with HasCoreParameters
+abstract class CoreBundle(implicit val p: Parameters)
+    extends ParameterizedBundle()(p)
+    with HasCoreParameters
 
 // This is a raw commit trace from the core, not the TraceCoreInterface
-class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParameters {
+class TraceBundle(implicit val p: Parameters)
+    extends Bundle
+    with HasCoreParameters {
   val insns = Vec(coreParams.retireWidth, new TracedInstruction)
   val time = UInt(64.W)
   val custom = coreParams.traceCustom

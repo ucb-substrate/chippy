@@ -13,7 +13,10 @@ import org.chipsalliance.diplomacy.lazymodule._
   */
 class ResetStretcher(cycles: Int)(implicit p: Parameters) extends LazyModule {
   val node = ClockAdapterNode()(ValName("reset_stretcher"))
-  require(cycles > 1, s"ResetStretcher only supports cycles > 1 but got ${cycles}")
+  require(
+    cycles > 1,
+    s"ResetStretcher only supports cycles > 1 but got ${cycles}"
+  )
   override lazy val desiredName = s"ResetStretcher$cycles"
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -22,9 +25,9 @@ class ResetStretcher(cycles: Int)(implicit p: Parameters) extends LazyModule {
       out.reset := withClockAndReset(in.clock, in.reset) {
         val count = RegInit(0.U(log2Ceil(cycles).W))
         val resetout = RegInit(true.B)
-        when (resetout) {
+        when(resetout) {
           count := count + 1.U
-          resetout := (count < (cycles-1).U)
+          resetout := (count < (cycles - 1).U)
         }
         resetout
       }

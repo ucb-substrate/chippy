@@ -6,9 +6,17 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.prci.{
-  AsynchronousCrossing, CrossingType, ClockCrossingType, NoCrossing,
-  RationalCrossing, CreditedCrossing, SynchronousCrossing,
-  ResetCrossingType, NoResetCrossing, StretchedResetCrossing}
+  AsynchronousCrossing,
+  CrossingType,
+  ClockCrossingType,
+  NoCrossing,
+  RationalCrossing,
+  CreditedCrossing,
+  SynchronousCrossing,
+  ResetCrossingType,
+  NoResetCrossing,
+  StretchedResetCrossing
+}
 
 trait TLOutwardCrossingHelper {
   type HelperCrossingType <: CrossingType
@@ -20,27 +28,41 @@ trait TLInwardCrossingHelper {
   def apply(xing: HelperCrossingType)(implicit p: Parameters): TLInwardNode
 }
 
-case class TLInwardClockCrossingHelper(name: String, scope: LazyScope, node: TLInwardNode)
-    extends TLInwardCrossingHelper
-{
+case class TLInwardClockCrossingHelper(
+    name: String,
+    scope: LazyScope,
+    node: TLInwardNode
+) extends TLInwardCrossingHelper {
   type HelperCrossingType = ClockCrossingType
-  def apply(xing: ClockCrossingType = NoCrossing)(implicit p: Parameters): TLInwardNode = {
+  def apply(
+      xing: ClockCrossingType = NoCrossing
+  )(implicit p: Parameters): TLInwardNode = {
     xing match {
       case x: AsynchronousCrossing =>
-        node :*=* scope { TLAsyncCrossingSink(x.asSinkParams) :*=* TLAsyncNameNode(name) } :*=* TLAsyncNameNode(name) :*=* TLAsyncCrossingSource(x.sourceSync)
+        node :*=* scope {
+          TLAsyncCrossingSink(x.asSinkParams) :*=* TLAsyncNameNode(name)
+        } :*=* TLAsyncNameNode(name) :*=* TLAsyncCrossingSource(x.sourceSync)
       case RationalCrossing(direction) =>
-        node :*=* scope { TLRationalCrossingSink(direction.flip) :*=* TLRationalNameNode(name) } :*=* TLRationalNameNode(name) :*=* TLRationalCrossingSource()
+        node :*=* scope {
+          TLRationalCrossingSink(direction.flip) :*=* TLRationalNameNode(name)
+        } :*=* TLRationalNameNode(name) :*=* TLRationalCrossingSource()
       case SynchronousCrossing(buffer) =>
-        node :*=* scope { TLBuffer(buffer) :*=* TLNameNode(name) } :*=* TLNameNode(name)
+        node :*=* scope {
+          TLBuffer(buffer) :*=* TLNameNode(name)
+        } :*=* TLNameNode(name)
       case CreditedCrossing(sourceDelay, sinkDelay) =>
-        node :*=* scope { TLCreditedSink(sinkDelay) :*=* TLCreditedNameNode(name) } :*=* TLCreditedNameNode(name) :*=* TLCreditedSource(sourceDelay)
+        node :*=* scope {
+          TLCreditedSink(sinkDelay) :*=* TLCreditedNameNode(name)
+        } :*=* TLCreditedNameNode(name) :*=* TLCreditedSource(sourceDelay)
     }
   }
 }
 
-case class TLInwardResetCrossingHelper(name: String, scope: LazyScope, node: TLInwardNode)
-    extends TLInwardCrossingHelper
-{
+case class TLInwardResetCrossingHelper(
+    name: String,
+    scope: LazyScope,
+    node: TLInwardNode
+) extends TLInwardCrossingHelper {
   type HelperCrossingType = ResetCrossingType
   def apply(xing: ResetCrossingType)(implicit p: Parameters): TLInwardNode = {
     xing match {
@@ -51,27 +73,45 @@ case class TLInwardResetCrossingHelper(name: String, scope: LazyScope, node: TLI
   }
 }
 
-case class TLOutwardClockCrossingHelper(name: String, scope: LazyScope, node: TLOutwardNode)
-    extends TLOutwardCrossingHelper
-{
+case class TLOutwardClockCrossingHelper(
+    name: String,
+    scope: LazyScope,
+    node: TLOutwardNode
+) extends TLOutwardCrossingHelper {
   type HelperCrossingType = ClockCrossingType
-  def apply(xing: ClockCrossingType = NoCrossing)(implicit p: Parameters): TLOutwardNode = {
+  def apply(
+      xing: ClockCrossingType = NoCrossing
+  )(implicit p: Parameters): TLOutwardNode = {
     xing match {
       case x: AsynchronousCrossing =>
-        TLAsyncCrossingSink(x.asSinkParams) :*=* TLAsyncNameNode(name) :*=* scope { TLAsyncNameNode(name) :*=* TLAsyncCrossingSource(x.sourceSync) } :*=* node
+        TLAsyncCrossingSink(x.asSinkParams) :*=* TLAsyncNameNode(
+          name
+        ) :*=* scope {
+          TLAsyncNameNode(name) :*=* TLAsyncCrossingSource(x.sourceSync)
+        } :*=* node
       case RationalCrossing(direction) =>
-        TLRationalCrossingSink(direction) :*=* TLRationalNameNode(name) :*=* scope { TLRationalNameNode(name) :*=* TLRationalCrossingSource() } :*=* node
+        TLRationalCrossingSink(direction) :*=* TLRationalNameNode(
+          name
+        ) :*=* scope {
+          TLRationalNameNode(name) :*=* TLRationalCrossingSource()
+        } :*=* node
       case SynchronousCrossing(buffer) =>
-        TLNameNode(name) :*=* scope { TLNameNode(name) :*=* TLBuffer(buffer) } :*=* node
+        TLNameNode(name) :*=* scope {
+          TLNameNode(name) :*=* TLBuffer(buffer)
+        } :*=* node
       case CreditedCrossing(sourceDelay, sinkDelay) =>
-        TLCreditedSink(sinkDelay) :*=* TLCreditedNameNode(name) :*=* scope { TLCreditedNameNode(name) :*=* TLCreditedSource(sourceDelay) } :*=* node
+        TLCreditedSink(sinkDelay) :*=* TLCreditedNameNode(name) :*=* scope {
+          TLCreditedNameNode(name) :*=* TLCreditedSource(sourceDelay)
+        } :*=* node
     }
   }
 }
 
-case class TLOutwardResetCrossingHelper(name: String, scope: LazyScope, node: TLOutwardNode)
-    extends TLOutwardCrossingHelper
-{
+case class TLOutwardResetCrossingHelper(
+    name: String,
+    scope: LazyScope,
+    node: TLOutwardNode
+) extends TLOutwardCrossingHelper {
   type HelperCrossingType = ResetCrossingType
   def apply(xing: ResetCrossingType)(implicit p: Parameters): TLOutwardNode = {
     xing match {

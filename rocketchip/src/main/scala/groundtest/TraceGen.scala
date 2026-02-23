@@ -7,18 +7,18 @@
 // This software was partly developed by the University of Cambridge
 // Computer Laboratory under DARPA/AFRL contract FA8750-10-C-0237
 // ("CTSRD"), as part of the DARPA CRASH research programme.
-// 
+//
 // This software was partly developed by the University of Cambridge
 // Computer Laboratory under DARPA/AFRL contract FA8750-11-C-0249
 // ("MRC2"), as part of the DARPA MRC research programme.
-// 
+//
 // This software was partly developed by the University of Cambridge
 // Computer Laboratory as part of the Rigorous Engineering of
 // Mainstream Systems (REMS) project, funded by EPSRC grant
 // EP/K008528/1.
 
 package freechips.rocketchip.groundtest
- 
+
 import chisel3._
 import chisel3.util._
 
@@ -27,7 +27,10 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.subsystem.{HierarchicalElementCrossingParamsLike, CanAttachTile}
+import freechips.rocketchip.subsystem.{
+  HierarchicalElementCrossingParamsLike,
+  CanAttachTile
+}
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci.{ClockSinkParameters, ClockCrossingType}
 
@@ -70,9 +73,12 @@ case class TraceGenParams(
     numGens: Int,
     dcache: Option[DCacheParams] = Some(DCacheParams()),
     tileId: Int = 0
-) extends InstantiableTileParams[TraceGenTile] with GroundTestTileParams
-{
-  def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): TraceGenTile = {
+) extends InstantiableTileParams[TraceGenTile]
+    with GroundTestTileParams {
+  def instantiate(
+      crossing: HierarchicalElementCrossingParamsLike,
+      lookup: LookupByHartIdImpl
+  )(implicit p: Parameters): TraceGenTile = {
     new TraceGenTile(this, crossing, lookup)
   }
   val blockerCtrlAddr = None
@@ -84,34 +90,33 @@ case class TraceGenParams(
 trait HasTraceGenParams {
   implicit val p: Parameters
   val params: TraceGenParams
-  val pAddrBits           = params.addrBits
-  val numGens             = params.numGens
-  val numReqsPerGen       = params.maxRequests
-  val memStart            = params.memStart
-  val memRespTimeout      = 8192
-  val numBitsInWord       = params.wordBits
-  val numBytesInWord      = numBitsInWord / 8
+  val pAddrBits = params.addrBits
+  val numGens = params.numGens
+  val numReqsPerGen = params.maxRequests
+  val memStart = params.memStart
+  val memRespTimeout = 8192
+  val numBitsInWord = params.wordBits
+  val numBytesInWord = numBitsInWord / 8
   val numBitsInWordOffset = log2Up(numBytesInWord)
-  val addressBag          = params.addrBag
-  val addressBagLen       = addressBag.length
-  val logAddressBagLen    = log2Up(addressBagLen)
-  val genExtraAddrs       = false
-  val logNumExtraAddrs    = 1
-  val numExtraAddrs       = 1 << logNumExtraAddrs
-  val maxTags             = 8
+  val addressBag = params.addrBag
+  val addressBagLen = addressBag.length
+  val logAddressBagLen = log2Up(addressBagLen)
+  val genExtraAddrs = false
+  val logNumExtraAddrs = 1
+  val numExtraAddrs = 1 << logNumExtraAddrs
+  val maxTags = 8
 
   require(numBytesInWord * 8 == numBitsInWord)
   require((1 << logAddressBagLen) == addressBagLen)
 }
 
 case class TraceGenTileAttachParams(
-  tileParams: TraceGenParams,
-  crossingParams: HierarchicalElementCrossingParamsLike
+    tileParams: TraceGenParams,
+    crossingParams: HierarchicalElementCrossingParamsLike
 ) extends CanAttachTile {
   type TileType = TraceGenTile
   val lookup: LookupByHartIdImpl = HartsWontDeduplicate(tileParams)
 }
-
 
 // ============
 // Trace format
@@ -159,18 +164,18 @@ case class TraceGenTileAttachParams(
 //  a tag out of the set (if there is one available) and later put it
 //  back.
 
-class TagMan(val logNumTags : Int) extends Module {
+class TagMan(val logNumTags: Int) extends Module {
   val io = IO(new Bundle {
     // Is there a tag available?
     val available = Output(Bool())
     // If so, which one?
-    val tagOut    = Output(UInt(logNumTags.W))
+    val tagOut = Output(UInt(logNumTags.W))
     // User pulses this to take the currently available tag
-    val take      = Input(Bool())
+    val take = Input(Bool())
     // User pulses this to put a tag back
-    val put       = Input(Bool())
+    val put = Input(Bool())
     // And the tag put back is
-    val tagIn     = Input(UInt((logNumTags.W)))
+    val tagIn = Input(UInt((logNumTags.W)))
   })
 
   // Total number of tags available
@@ -180,7 +185,7 @@ class TagMan(val logNumTags : Int) extends Module {
   val inUse = List.fill(numTags)(RegInit(false.B))
 
   // Mapping from each tag to its 'inUse' bit
-  val inUseMap = (0 to numTags-1).map(i => i.U).zip(inUse)
+  val inUseMap = (0 to numTags - 1).map(i => i.U).zip(inUse)
 
   // Next tag to offer
   val nextTag = RegInit(0.U(logNumTags.W))
@@ -190,17 +195,17 @@ class TagMan(val logNumTags : Int) extends Module {
   io.available := ~MuxLookup(nextTag, true.B)(inUseMap)
 
   // When user takes a tag
-  when (io.take) {
+  when(io.take) {
     for ((i, b) <- inUseMap) {
-      when (i === nextTag) { b := true.B }
+      when(i === nextTag) { b := true.B }
     }
     nextTag := nextTag + 1.U
   }
 
   // When user puts a tag back
-  when (io.put) {
+  when(io.put) {
     for ((i, b) <- inUseMap) {
-      when (i === io.tagIn) { b := false.B }
+      when(i === io.tagIn) { b := false.B }
     }
   }
 }
@@ -209,7 +214,8 @@ class TagMan(val logNumTags : Int) extends Module {
 // Trace generator
 // ===============
 
-class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) extends Module
+class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters)
+    extends Module
     with HasTraceGenParams {
   val io = IO(new Bundle {
     val finished = Output(Bool())
@@ -221,7 +227,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 
   val totalNumAddrs = addressBag.size + numExtraAddrs
   val initCount = RegInit(0.U(log2Up(totalNumAddrs).W))
-  val initDone  = RegInit(false.B)
+  val initDone = RegInit(false.B)
 
   val reqTimer = Module(new Timer(8192, maxTags))
   reqTimer.io.start.valid := io.mem.req.fire
@@ -238,7 +244,8 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val bagOfAddrs = addressBag.map(x => (memStart + x).U(pAddrBits.W))
 
   val extraAddrs = Seq.fill(numExtraAddrs) {
-    (memStart + SeededRandom.fromSeed.nextInt(1 << 16) * numBytesInWord).U(pAddrBits.W)
+    (memStart + SeededRandom.fromSeed.nextInt(1 << 16) * numBytesInWord)
+      .U(pAddrBits.W)
   }
 
   // A random index into the address bag.
@@ -247,41 +254,39 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 
   // A random address from the address bag.
 
-  val addrBagIndices = (0 to addressBagLen-1).
-                    map(i => i.U(logAddressBagLen.W))
+  val addrBagIndices =
+    (0 to addressBagLen - 1).map(i => i.U(logAddressBagLen.W))
 
-  val randAddrFromBag = MuxLookup(randAddrBagIndex, 0.U)(
-                          addrBagIndices.zip(bagOfAddrs))
+  val randAddrFromBag =
+    MuxLookup(randAddrBagIndex, 0.U)(addrBagIndices.zip(bagOfAddrs))
 
   // Random address from the address bag or the extra addresses.
 
-  val extraAddrIndices = (0 to numExtraAddrs-1)
-                          .map(i => i.U(logNumExtraAddrs.W))
+  val extraAddrIndices = (0 to numExtraAddrs - 1)
+    .map(i => i.U(logNumExtraAddrs.W))
 
   val randAddr =
-        if (! genExtraAddrs) {
-          randAddrFromBag
-        }
-        else {
-          // A random index into the extra addresses.
+    if (!genExtraAddrs) {
+      randAddrFromBag
+    } else {
+      // A random index into the extra addresses.
 
-          val randExtraAddrIndex = LCG(logNumExtraAddrs)
+      val randExtraAddrIndex = LCG(logNumExtraAddrs)
 
-          // A random address from the extra addresses.
-          val randAddrFromExtra = Cat(0.U,
-                MuxLookup(randExtraAddrIndex, 0.U)(
-                  extraAddrIndices.zip(extraAddrs)), 0.U(3.W))
+      // A random address from the extra addresses.
+      val randAddrFromExtra = Cat(
+        0.U,
+        MuxLookup(randExtraAddrIndex, 0.U)(extraAddrIndices.zip(extraAddrs)),
+        0.U(3.W)
+      )
 
-          Frequency(List(
-            (1, randAddrFromBag),
-            (1, randAddrFromExtra)))
-        }
+      Frequency(List((1, randAddrFromBag), (1, randAddrFromExtra)))
+    }
 
   val allAddrs = extraAddrs ++ bagOfAddrs
   val allAddrIndices = (0 until totalNumAddrs)
     .map(i => i.U(log2Ceil(totalNumAddrs).W))
-  val initAddr = MuxLookup(initCount, 0.U)(
-    allAddrIndices.zip(allAddrs))
+  val initAddr = MuxLookup(initCount, 0.U)(allAddrIndices.zip(allAddrs))
 
   // Random opcodes
   // --------------
@@ -290,20 +295,23 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   // given frequency distribution.
 
   // Opcodes
-  val (opNop   :: opLoad :: opStore ::
-       opFence :: opLRSC :: opSwap  ::
-       opDelay :: Nil) = Enum(7)
+  val (opNop :: opLoad :: opStore ::
+    opFence :: opLRSC :: opSwap ::
+    opDelay :: Nil) = Enum(7)
 
   // Distribution specified as a list of (frequency,value) pairs.
   // NOTE: frequencies must sum to a power of two.
 
-  val randOp = Frequency(List(
-    (10, opLoad),
-    (10, opStore),
-    (4,  opFence),
-    (3,  opLRSC),
-    (3,  opSwap),
-    (2,  opDelay)))
+  val randOp = Frequency(
+    List(
+      (10, opLoad),
+      (10, opStore),
+      (4, opFence),
+      (3, opLRSC),
+      (3, opSwap),
+      (2, opDelay)
+    )
+  )
 
   // Request/response tags
   // ---------------------
@@ -316,8 +324,8 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val tagMan = Module(new TagMan(log2Ceil(maxTags)))
 
   // Default inputs
-  tagMan.io.take  := false.B;
-  tagMan.io.put   := false.B;
+  tagMan.io.take := false.B;
+  tagMan.io.put := false.B;
   tagMan.io.tagIn := 0.U;
 
   // Cycle counter
@@ -342,14 +350,17 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val randDelayBase = LCG16()
 
   // Random delay period: usually small, occasionally big
-  val randDelay = Frequency(List(
-    (14, 0.U(13.W) ## randDelayBase(2, 0)),
-    (2,  0.U(11.W) ## randDelayBase(5, 0))))
+  val randDelay = Frequency(
+    List(
+      (14, 0.U(13.W) ## randDelayBase(2, 0)),
+      (2, 0.U(11.W) ## randDelayBase(5, 0))
+    )
+  )
 
   // Default inputs
-  delayTimer.io.start  := false.B
+  delayTimer.io.start := false.B
   delayTimer.io.period := randDelay
-  delayTimer.io.stop   := false.B
+  delayTimer.io.stop := false.B
 
   // Operation dispatch
   // ------------------
@@ -358,7 +369,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val tid = io.hartid
 
   // Request & response count
-  val reqCount  = RegInit(0.U(32.W))
+  val reqCount = RegInit(0.U(32.W))
   val respCount = RegInit(0.U(32.W))
 
   // Current operation being executed
@@ -373,85 +384,87 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   sendFreshReq := false.B
 
   // Used to generate unique data values
-  val nextData = RegInit(1.U((numBitsInWord-tid.getWidth).W))
+  val nextData = RegInit(1.U((numBitsInWord - tid.getWidth).W))
 
   // Registers for all the interesting parts of a request
   val reqValid = RegInit(false.B)
-  val reqAddr  = RegInit(0.U(numBitsInWord.W))
-  val reqData  = RegInit(0.U(numBitsInWord.W))
-  val reqCmd   = RegInit(0.U(5.W))
-  val reqTag   = RegInit(0.U(7.W))
+  val reqAddr = RegInit(0.U(numBitsInWord.W))
+  val reqData = RegInit(0.U(numBitsInWord.W))
+  val reqCmd = RegInit(0.U(5.W))
+  val reqTag = RegInit(0.U(7.W))
 
-   // Condition on being allowed to send a fresh request
+  // Condition on being allowed to send a fresh request
   val canSendFreshReq = (!reqValid || io.mem.req.fire) &&
-                          tagMan.io.available
+    tagMan.io.available
 
   // Operation dispatch
-  when (reqCount < numReqsPerGen.U) {
+  when(reqCount < numReqsPerGen.U) {
 
     // No-op
-    when (currentOp === opNop) {
+    when(currentOp === opNop) {
       // Move on to a new operation
       currentOp := Mux(initDone, randOp, opStore)
     }
 
     // Fence
-    when (currentOp === opFence) {
-      when (opInProgress === 0.U && !reqValid) {
+    when(currentOp === opFence) {
+      when(opInProgress === 0.U && !reqValid) {
         // Emit fence request
         printf("%d: fence-req @%d\n", tid, cycleCount)
         // Multi-cycle operation now in progress
         opInProgress := 1.U
       }
-      // Wait until all requests have had a response
-      .elsewhen (reqCount === respCount && io.fence_rdy) {
-        // Emit fence response
-        printf("%d: fence-resp @%d\n", tid, cycleCount)
-        // Move on to a new operation
-        currentOp := randOp
-        // Operation finished
-        opInProgress := 0.U
-      }
+        // Wait until all requests have had a response
+        .elsewhen(reqCount === respCount && io.fence_rdy) {
+          // Emit fence response
+          printf("%d: fence-resp @%d\n", tid, cycleCount)
+          // Move on to a new operation
+          currentOp := randOp
+          // Operation finished
+          opInProgress := 0.U
+        }
     }
 
     // Delay
-    when (currentOp === opDelay) {
-      when (opInProgress === 0.U) {
+    when(currentOp === opDelay) {
+      when(opInProgress === 0.U) {
         // Start timer
         delayTimer.io.start := true.B
         // Multi-cycle operation now in progress
         opInProgress := 1.U
       }
-      .elsewhen (delayTimer.io.timeout) {
-        // Move on to a new operation
-        currentOp := randOp
-        // Operation finished
-        opInProgress := 0.U
-      }
+        .elsewhen(delayTimer.io.timeout) {
+          // Move on to a new operation
+          currentOp := randOp
+          // Operation finished
+          opInProgress := 0.U
+        }
     }
 
     // Load, store, or atomic swap
-    when (currentOp === opLoad  ||
-          currentOp === opStore ||
-          currentOp === opSwap) {
-      when (canSendFreshReq) {
+    when(
+      currentOp === opLoad ||
+        currentOp === opStore ||
+        currentOp === opSwap
+    ) {
+      when(canSendFreshReq) {
         // Set address
         reqAddr := Mux(initDone, randAddr, initAddr)
         // Set command
-        when (currentOp === opLoad) {
+        when(currentOp === opLoad) {
           reqCmd := M_XRD
-        } .elsewhen (currentOp === opStore) {
+        }.elsewhen(currentOp === opStore) {
           reqCmd := M_XWR
-        } .elsewhen (currentOp === opSwap) {
+        }.elsewhen(currentOp === opSwap) {
           reqCmd := M_XA_SWAP
         }
         // Send request
         sendFreshReq := true.B
         // Move on to a new operation
-        when (!initDone && initCount =/= (totalNumAddrs - 1).U) {
+        when(!initDone && initCount =/= (totalNumAddrs - 1).U) {
           initCount := initCount + 1.U
           currentOp := opStore
-        } .otherwise {
+        }.otherwise {
           currentOp := randOp
           initDone := true.B
         }
@@ -460,13 +473,13 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 
     // Load-reserve and store-conditional
     // First issue an LR, then delay, then issue an SC
-    when (currentOp === opLRSC) {
+    when(currentOp === opLRSC) {
       // LR request has not yet been sent
-      when (opInProgress === 0.U) {
-        when (canSendFreshReq) {
+      when(opInProgress === 0.U) {
+        when(canSendFreshReq) {
           // Set address and command
           reqAddr := randAddr
-          reqCmd  := M_XLR
+          reqCmd := M_XLR
           // Send request
           sendFreshReq := true.B
           // Multi-cycle operation now in progress
@@ -474,25 +487,25 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
         }
       }
       // LR request has been sent, start delay timer
-      when (opInProgress === 1.U) {
+      when(opInProgress === 1.U) {
         // Start timer
         delayTimer.io.start := true.B
         // Indicate that delay has started
         opInProgress := 2.U
       }
       // Delay in progress
-      when (opInProgress === 2.U) {
-        when (delayTimer.io.timeout) {
+      when(opInProgress === 2.U) {
+        when(delayTimer.io.timeout) {
           // Delay finished
           opInProgress := 3.U
         }
       }
       // Delay finished, send SC request
-      when (opInProgress === 3.U) {
-        when (canSendFreshReq) {
+      when(opInProgress === 3.U) {
+        when(canSendFreshReq) {
           // Set command, but leave address
           // i.e. use same address as LR did
-          reqCmd  := M_XSC
+          reqCmd := M_XSC
           // Send request
           sendFreshReq := true.B
           // Multi-cycle operation finished
@@ -507,7 +520,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   // Sending of requests
   // -------------------
 
-  when (sendFreshReq) {
+  when(sendFreshReq) {
     // Grab a unique tag for the request
     reqTag := tagMan.io.tagOut
     tagMan.io.take := true.B
@@ -519,19 +532,19 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
     // Increment request count
     reqCount := reqCount + 1.U
   }
-  .elsewhen (io.mem.req.fire) {
-    // Request has been sent and there is no new request ready
-    reqValid := false.B
-  }
+    .elsewhen(io.mem.req.fire) {
+      // Request has been sent and there is no new request ready
+      reqValid := false.B
+    }
 
   // Wire up interface to memory
-  io.mem.req.valid     := reqValid
+  io.mem.req.valid := reqValid
   io.mem.req.bits.addr := reqAddr
   io.mem.req.bits.data := reqData
   io.mem.req.bits.size := log2Ceil(numBytesInWord).U
   io.mem.req.bits.signed := false.B
-  io.mem.req.bits.cmd  := reqCmd
-  io.mem.req.bits.tag  := reqTag
+  io.mem.req.bits.cmd := reqCmd
+  io.mem.req.bits.tag := reqTag
   io.mem.req.bits.no_alloc := false.B
   io.mem.req.bits.no_xcpt := false.B
   io.mem.req.bits.no_resp := false.B
@@ -548,25 +561,25 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   io.mem.s2_kill := false.B
 
   // On cycle when request is actually sent, print it
-  when (io.mem.req.fire) {
+  when(io.mem.req.fire) {
     // Short-hand for address
     val addr = io.mem.req.bits.addr
     // Print thread id
     printf("%d:", tid)
     // Print command
-    when (reqCmd === M_XRD) {
+    when(reqCmd === M_XRD) {
       printf(" load-req 0x%x", addr)
     }
-    when (reqCmd === M_XLR) {
+    when(reqCmd === M_XLR) {
       printf(" load-reserve-req 0x%x", addr)
     }
-    when (reqCmd === M_XWR) {
+    when(reqCmd === M_XWR) {
       printf(" store-req %d 0x%x", reqData, addr)
     }
-    when (reqCmd === M_XSC) {
+    when(reqCmd === M_XSC) {
       printf(" store-cond-req %d 0x%x", reqData, addr)
     }
-    when (reqCmd === M_XA_SWAP) {
+    when(reqCmd === M_XA_SWAP) {
       printf(" swap-req %d 0x%x", reqData, addr)
     }
     // Print tag
@@ -579,13 +592,18 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   // ---------------------
 
   // When a response is received
-  when (io.mem.resp.valid) {
+  when(io.mem.resp.valid) {
     // Put tag back in tag set
     tagMan.io.tagIn := io.mem.resp.bits.tag
-    tagMan.io.put   := true.B
+    tagMan.io.put := true.B
     // Print response
-    printf("%d: resp %d #%d @%d\n", tid,
-      io.mem.resp.bits.data, io.mem.resp.bits.tag, cycleCount)
+    printf(
+      "%d: resp %d #%d @%d\n",
+      tid,
+      io.mem.resp.bits.data,
+      io.mem.resp.bits.tag,
+      cycleCount
+    )
     // Increment response count
     respCount := respCount + 1.U
   }
@@ -593,13 +611,13 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   // Termination condition
   // ---------------------
 
-  val done = reqCount  === numReqsPerGen.U &&
-             respCount === numReqsPerGen.U
+  val done = reqCount === numReqsPerGen.U &&
+    respCount === numReqsPerGen.U
 
   val donePulse = done && !RegNext(done, false.B)
 
   // Emit that this thread has completed
-  when (donePulse) {
+  when(donePulse) {
     printf(s"FINISHED ${numGens}\n")
   }
 
@@ -607,27 +625,33 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   io.timeout := reqTimer.io.timeout.valid
 }
 
-
 // =======================
 // Trace-generator wrapper
 // =======================
 
-class TraceGenTile private(
-  val params: TraceGenParams,
-  crossing: ClockCrossingType,
-  lookup: LookupByHartIdImpl,
-  q: Parameters
-) extends GroundTestTile(params, crossing, lookup, q)
-{
-  def this(params: TraceGenParams, crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
+class TraceGenTile private (
+    val params: TraceGenParams,
+    crossing: ClockCrossingType,
+    lookup: LookupByHartIdImpl,
+    q: Parameters
+) extends GroundTestTile(params, crossing, lookup, q) {
+  def this(
+      params: TraceGenParams,
+      crossing: HierarchicalElementCrossingParamsLike,
+      lookup: LookupByHartIdImpl
+  )(implicit p: Parameters) =
     this(params, crossing.crossingType, lookup, p)
 
-  val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := dcacheOpt.map(_.node).getOrElse(TLTempNode())
+  val masterNode: TLOutwardNode =
+    TLIdentityNode() := visibilityNode := dcacheOpt
+      .map(_.node)
+      .getOrElse(TLTempNode())
 
   override lazy val module = new TraceGenTileModuleImp(this)
 }
 
-class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp(outer) {
+class TraceGenTileModuleImp(outer: TraceGenTile)
+    extends GroundTestTileModuleImp(outer) {
 
   val tracegen = Module(new TraceGenerator(outer.params))
   tracegen.io.hartid := outer.hartIdSinkNode.bundle
@@ -646,5 +670,8 @@ class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp
   status.timeout.bits := 0.U
   status.error.valid := false.B
 
-  assert(!tracegen.io.timeout, s"TraceGen tile ${outer.tileParams.tileId}: request timed out")
+  assert(
+    !tracegen.io.timeout,
+    s"TraceGen tile ${outer.tileParams.tileId}: request timed out"
+  )
 }

@@ -10,14 +10,26 @@ import freechips.rocketchip.tilelink.{TLRAM}
 import freechips.rocketchip.rocket.{TracedInstruction}
 import freechips.rocketchip.util._
 import freechips.rocketchip.tile.{BaseTile, TraceBundle}
-import freechips.rocketchip.diplomacy.{BundleBridgeSource, BundleBroadcast, BundleBridgeNexusNode}
+import freechips.rocketchip.diplomacy.{
+  BundleBridgeSource,
+  BundleBroadcast,
+  BundleBridgeNexusNode
+}
 
 //***************************************************************************
 // Trace Instruction Utilities:
 // used to connect the TracerV or Dromajo bridges (in FireSim and normal sim)
 //***************************************************************************
 
-case class TraceBundleWidths(retireWidth: Int, iaddr: Int, insn: Int, wdata: Option[Int], cause: Int, tval: Int, custom: Option[Int])
+case class TraceBundleWidths(
+    retireWidth: Int,
+    iaddr: Int,
+    insn: Int,
+    wdata: Option[Int],
+    cause: Int,
+    tval: Int,
+    custom: Option[Int]
+)
 
 object TraceBundleWidths {
   def apply(t: TraceBundle): TraceBundleWidths = TraceBundleWidths(
@@ -27,7 +39,8 @@ object TraceBundleWidths {
     wdata = t.insns.head.wdata.map(_.getWidth),
     cause = t.insns.head.cause.getWidth,
     tval = t.insns.head.tval.getWidth,
-    custom = t.custom.map(_.getWidth))
+    custom = t.custom.map(_.getWidth)
+  )
 }
 
 // A TracedInstruction that can have its parameters serialized (insnWidths is serializable)
@@ -49,7 +62,6 @@ class SerializableTraceBundle(val widths: TraceBundleWidths) extends Bundle {
   val custom = widths.custom.map { w => UInt(w.W) }
 }
 
-
 class SerializableTileTraceIO(val widths: TraceBundleWidths) extends Bundle {
   val clock = Clock()
   val reset = Bool()
@@ -69,7 +81,7 @@ class TileTraceIO(_traceType: TraceBundle) extends Bundle {
     val serializable_trace = Wire(serializableType)
     serializable_trace.clock := clock
     serializable_trace.reset := reset
-    serializable_trace.trace.insns.zip(trace.insns).map{ case (l, r) =>
+    serializable_trace.trace.insns.zip(trace.insns).map { case (l, r) =>
       l.valid := r.valid
       l.iaddr := r.iaddr
       l.insn := r.insn
@@ -81,7 +93,9 @@ class TileTraceIO(_traceType: TraceBundle) extends Bundle {
       l.tval := r.tval
     }
     serializable_trace.trace.time := trace.time
-    serializable_trace.trace.custom.zip(trace.custom).map { case (l, r) => l := r.asTypeOf(l) }
+    serializable_trace.trace.custom.zip(trace.custom).map { case (l, r) =>
+      l := r.asTypeOf(l)
+    }
     serializable_trace
   }
 }
@@ -89,7 +103,9 @@ class TileTraceIO(_traceType: TraceBundle) extends Bundle {
 // The IO matched on by the TracerV bridge: a wrapper around a heterogenous
 // bag of vectors. Each entry is trace associated with a single tile (vector of committed instructions + clock + reset)
 class TraceOutputTop(coreTraces: Seq[TraceBundle]) extends Bundle {
-  val traces = Output(HeterogeneousBag.apply(coreTraces.map(t => new TileTraceIO(t))))
+  val traces = Output(
+    HeterogeneousBag.apply(coreTraces.map(t => new TileTraceIO(t)))
+  )
 }
 
 //**********************************************
@@ -98,37 +114,44 @@ class TraceOutputTop(coreTraces: Seq[TraceBundle]) extends Bundle {
 //**********************************************
 
 case class TracePortParams(
-  print: Boolean = false
+    print: Boolean = false
 )
 
 object TracePortKey extends Field[Option[TracePortParams]](None)
 
-trait CanHaveTraceIO { this: HasHierarchicalElementsRootContext with InstantiatesHierarchicalElements =>
+trait CanHaveTraceIO {
+  this: HasHierarchicalElementsRootContext
+    with InstantiatesHierarchicalElements =>
   implicit val p: Parameters
 
   val tileTraceNodes = traceNodes.values
 
-  val traceIO = InModuleBody { p(TracePortKey) map ( traceParams => {
-    val tileTraces = tileTraceNodes.map(_.in(0)._1).toSeq
-    val tio = IO(Output(new TraceOutputTop(tileTraces)))
+  val traceIO = InModuleBody {
+    p(TracePortKey) map (traceParams => {
+      val tileTraces = tileTraceNodes.map(_.in(0)._1).toSeq
+      val tio = IO(Output(new TraceOutputTop(tileTraces)))
 
-    // Since clock & reset are not included with the traced instruction, plumb that out manually
-    (tio.traces zip (tile_prci_domains.values zip tileTraces)).foreach { case (port, (prci, trace)) =>
-      port.clock := prci.module.clock
-      port.reset := prci.module.reset.asBool
-      port.trace := trace
-    }
+      // Since clock & reset are not included with the traced instruction, plumb that out manually
+      (tio.traces zip (tile_prci_domains.values zip tileTraces)).foreach {
+        case (port, (prci, trace)) =>
+          port.clock := prci.module.clock
+          port.reset := prci.module.reset.asBool
+          port.trace := trace
+      }
 
-
-    if (traceParams.print) {
-      for ((trace, idx) <- tio.traces.zipWithIndex ) {
-        withClockAndReset(trace.clock, trace.reset) {
-          // The reverse is here to match the behavior the Cat used in the bridge
-          printf(s"TRACEPORT ${idx}: %x\n", trace.trace.insns.reverse.asUInt.pad(512))
+      if (traceParams.print) {
+        for ((trace, idx) <- tio.traces.zipWithIndex) {
+          withClockAndReset(trace.clock, trace.reset) {
+            // The reverse is here to match the behavior the Cat used in the bridge
+            printf(
+              s"TRACEPORT ${idx}: %x\n",
+              trace.trace.insns.reverse.asUInt.pad(512)
+            )
+          }
         }
       }
-    }
 
-    tio
-  })}
+      tio
+    })
+  }
 }

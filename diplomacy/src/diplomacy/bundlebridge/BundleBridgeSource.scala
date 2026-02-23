@@ -10,10 +10,11 @@ import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.SourceNode
 
 case class BundleBridgeSource[T <: Data](
-  genOpt:           Option[() => T] = None
-)(
-  implicit valName: ValName)
-    extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(genOpt))) {
+    genOpt: Option[() => T] = None
+)(implicit valName: ValName)
+    extends SourceNode(new BundleBridgeImp[T])(
+      Seq(BundleBridgeParams(genOpt))
+    ) {
   def bundle: T = out(0)._1
 
   private def inferInput = getElements(bundle).forall { elt =>
@@ -21,8 +22,8 @@ case class BundleBridgeSource[T <: Data](
   }
 
   def makeIO(
-  )(
-    implicit valName: ValName
+  )(implicit
+      valName: ValName
   ): T = {
     val io: T = IO(
       if (inferInput) Input(chiselTypeOf(bundle))
@@ -36,8 +37,8 @@ case class BundleBridgeSource[T <: Data](
 
   private var doneSink = false
   def makeSink(
-  )(
-    implicit p: Parameters
+  )(implicit
+      p: Parameters
   ) = {
     require(!doneSink, "Can only call makeSink() once")
     doneSink = true
@@ -49,15 +50,15 @@ case class BundleBridgeSource[T <: Data](
 
 object BundleBridgeSource {
   def apply[T <: Data](
-  )(
-    implicit valName: ValName
+  )(implicit
+      valName: ValName
   ): BundleBridgeSource[T] = {
     BundleBridgeSource(None)
   }
   def apply[T <: Data](
-    gen:              () => T
-  )(
-    implicit valName: ValName
+      gen: () => T
+  )(implicit
+      valName: ValName
   ): BundleBridgeSource[T] = {
     BundleBridgeSource(Some(gen))
   }

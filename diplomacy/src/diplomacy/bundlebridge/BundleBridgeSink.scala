@@ -9,9 +9,8 @@ import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.SinkNode
 
 case class BundleBridgeSink[T <: Data](
-  genOpt:           Option[() => T] = None
-)(
-  implicit valName: ValName)
+    genOpt: Option[() => T] = None
+)(implicit valName: ValName)
     extends SinkNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(genOpt))) {
   def bundle: T = in(0)._1
 
@@ -20,8 +19,8 @@ case class BundleBridgeSink[T <: Data](
   }
 
   def makeIO(
-  )(
-    implicit valName: ValName
+  )(implicit
+      valName: ValName
   ): T = {
     val io: T = IO(
       if (inferOutput) Output(chiselTypeOf(bundle))
@@ -36,8 +35,8 @@ case class BundleBridgeSink[T <: Data](
 
 object BundleBridgeSink {
   def apply[T <: Data](
-  )(
-    implicit valName: ValName
+  )(implicit
+      valName: ValName
   ): BundleBridgeSink[T] = {
     BundleBridgeSink(None)
   }

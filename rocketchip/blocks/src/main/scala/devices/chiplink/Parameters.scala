@@ -1,32 +1,39 @@
 package sifive.blocks.devices.chiplink
 
-import chisel3._ 
+import chisel3._
 import chisel3.util.{log2Ceil, log2Up, UIntToOH, Cat, DecoupledIO}
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.AsyncQueueParams
 
-case class ChipLinkParams(TLUH: Seq[AddressSet], TLC: Seq[AddressSet], sourceBits: Int = 6, sinkBits: Int = 5, syncTX: Boolean = false, fpgaReset: Boolean = false)
-{
+case class ChipLinkParams(
+    TLUH: Seq[AddressSet],
+    TLC: Seq[AddressSet],
+    sourceBits: Int = 6,
+    sinkBits: Int = 5,
+    syncTX: Boolean = false,
+    fpgaReset: Boolean = false
+) {
   val domains = 8 // hard-wired into chiplink protocol
-  require (sourceBits >= log2Ceil(domains))
-  require (sinkBits >= 0)
+  require(sourceBits >= log2Ceil(domains))
+  require(sinkBits >= 0)
   val sources = 1 << sourceBits
   val sinks = 1 << sinkBits
   val sourcesPerDomain = sources / domains
   val latency = 8 // ChipLink has at least 4 cycles of synchronization per side
   val dataBytes = 4
-  val dataBits = dataBytes*8
+  val dataBits = dataBytes * 8
   val clSourceBits = 16
   val clSinkBits = 16
   val crossing = AsyncQueueParams()
   val Qdepth = 8192 / dataBytes
   val maxXfer = 4096
   val xferBits = log2Ceil(maxXfer)
-  val creditBits = 20 // use saturating addition => we can exploit at most 1MB of buffers
+  val creditBits =
+    20 // use saturating addition => we can exploit at most 1MB of buffers
   val addressBits = 64
-  require (log2Ceil(Qdepth + 1) <= creditBits)
+  require(log2Ceil(Qdepth + 1) <= creditBits)
 
   // Protocol supported operations:
   val noXfer = TransferSizes.none
@@ -39,8 +46,12 @@ case class ChipLinkParams(TLUH: Seq[AddressSet], TLC: Seq[AddressSet], sourceBit
 case object ChipLinkKey extends Field[Seq[ChipLinkParams]](Nil)
 
 case class TXN(domain: Int, source: Int)
-case class ChipLinkInfo(params: ChipLinkParams, edgeIn: TLEdge, edgeOut: TLEdge, errorDev: AddressSet)
-{
+case class ChipLinkInfo(
+    params: ChipLinkParams,
+    edgeIn: TLEdge,
+    edgeOut: TLEdge,
+    errorDev: AddressSet
+) {
   // TL source => CL TXN
   val sourceMap: Map[Int, TXN] = {
     var alloc = 1
@@ -50,7 +61,9 @@ case class ChipLinkInfo(params: ChipLinkParams, edgeIn: TLEdge, edgeOut: TLEdge,
       // If the client needs order, pick a domain for it
       val domain = if (c.requestFifo) alloc else 0
       val offset = domains(domain)
-      println(s"\t${domain} [${offset}, ${offset + c.sourceId.size}) <= [${c.sourceId.start}, ${c.sourceId.end}):\t${c.name}")
+      println(
+        s"\t${domain} [${offset}, ${offset + c.sourceId.size}) <= [${c.sourceId.start}, ${c.sourceId.end}):\t${c.name}"
+      )
       if (c.requestFifo) {
         alloc = alloc + 1
         if (alloc == params.domains) alloc = 1
@@ -75,22 +88,30 @@ case class ChipLinkInfo(params: ChipLinkParams, edgeIn: TLEdge, edgeOut: TLEdge,
   }
 
   // Packet format; little-endian
-  def encode(format: UInt, opcode: UInt, param: UInt, size: UInt, domain: UInt, source: UInt): UInt = {
-    def fmt(x: UInt, w: Int) = (x | 0.U(w.W))(w-1, 0)
+  def encode(
+      format: UInt,
+      opcode: UInt,
+      param: UInt,
+      size: UInt,
+      domain: UInt,
+      source: UInt
+  ): UInt = {
+    def fmt(x: UInt, w: Int) = (x | 0.U(w.W))(w - 1, 0)
     Cat(
       fmt(source, 16),
       fmt(domain, 3),
-      fmt(size,   4),
-      fmt(param,  3),
+      fmt(size, 4),
+      fmt(param, 3),
       fmt(opcode, 3),
-      fmt(format, 3))
+      fmt(format, 3)
+    )
   }
 
   def decode(x: UInt): Seq[UInt] = {
-    val format = x( 2,  0)
-    val opcode = x( 5,  3)
-    val param  = x( 8,  6)
-    val size   = x(12,  9)
+    val format = x(2, 0)
+    val opcode = x(5, 3)
+    val param = x(8, 6)
+    val size = x(12, 9)
     val domain = x(15, 13)
     val source = x(31, 16)
     Seq(format, opcode, param, size, domain, source)
@@ -98,12 +119,18 @@ case class ChipLinkInfo(params: ChipLinkParams, edgeIn: TLEdge, edgeOut: TLEdge,
 
   def size2beats(size: UInt): UInt = {
     val shift = log2Ceil(params.dataBytes)
-    Cat(UIntToOH(size|0.U(4.W), params.xferBits + 1) >> (shift + 1), size <= shift.U)
+    Cat(
+      UIntToOH(size | 0.U(4.W), params.xferBits + 1) >> (shift + 1),
+      size <= shift.U
+    )
   }
 
   def mask2beats(size: UInt): UInt = {
-    val shift = log2Ceil(params.dataBytes*8)
-    Cat(UIntToOH(size|0.U(4.W), params.xferBits + 1) >> (shift + 1), size <= shift.U)
+    val shift = log2Ceil(params.dataBytes * 8)
+    Cat(
+      UIntToOH(size | 0.U(4.W), params.xferBits + 1) >> (shift + 1),
+      size <= shift.U
+    )
   }
 
   def beats1(x: UInt, forceFormat: Option[UInt] = None): UInt = {
@@ -121,12 +148,15 @@ case class ChipLinkInfo(params: ChipLinkParams, edgeIn: TLEdge, edgeOut: TLEdge,
     VecInit(a, b, c, d, e, f)(forceFormat.getOrElse(format))
   }
 
-  def firstlast(x: DecoupledIO[UInt], forceFormat: Option[UInt] = None): (Bool, Bool) = {
+  def firstlast(
+      x: DecoupledIO[UInt],
+      forceFormat: Option[UInt] = None
+  ): (Bool, Bool) = {
     val count = RegInit(0.U)
     val beats = beats1(x.bits, forceFormat)
     val first = count === 0.U
-    val last  = count === 1.U || (first && beats === 0.U)
-    when (x.fire) { count := Mux(first, beats, count - 1.U) }
+    val last = count === 1.U || (first && beats === 0.U)
+    when(x.fire) { count := Mux(first, beats, count - 1.U) }
     (first, last)
   }
 
@@ -134,8 +164,9 @@ case class ChipLinkInfo(params: ChipLinkParams, edgeIn: TLEdge, edgeOut: TLEdge,
   def makeError(legal: Bool, address: UInt): UInt = {
     val alignBits = log2Ceil(errorDev.alignment)
     Cat(
-      Mux(legal, address, errorDev.base.U)(params.addressBits-1, alignBits),
-      address(alignBits-1, 0))
+      Mux(legal, address, errorDev.base.U)(params.addressBits - 1, alignBits),
+      address(alignBits - 1, 0)
+    )
   }
 }
 
@@ -153,4 +184,4 @@ case class ChipLinkInfo(params: ChipLinkParams, edgeIn: TLEdge, edgeOut: TLEdge,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

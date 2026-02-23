@@ -9,11 +9,12 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.HellaPeekingArbiter
 
 case class TLNetworkBufferParams(
-  a: BufferParams,
-  b: BufferParams,
-  c: BufferParams,
-  d: BufferParams,
-  e: BufferParams)
+    a: BufferParams,
+    b: BufferParams,
+    c: BufferParams,
+    d: BufferParams,
+    e: BufferParams
+)
 
 object TLNetworkBufferParams {
   def apply(x: BufferParams): TLNetworkBufferParams = apply(x, x)
@@ -23,8 +24,7 @@ object TLNetworkBufferParams {
   val default = apply(BufferParams.default)
 }
 
-class NetworkBundle[T <: Data](
-    nNodes: Int, payloadTyp: T) extends Bundle {
+class NetworkBundle[T <: Data](nNodes: Int, payloadTyp: T) extends Bundle {
   val netId = UInt(log2Ceil(nNodes).W)
   val payload = payloadTyp.cloneType
   val last = Bool()
@@ -32,9 +32,11 @@ class NetworkBundle[T <: Data](
 }
 
 class NetworkIO[T <: Data](
-    nIn: Int, nOut: Int,
-    payloadTyp: T, netIdRange: Option[Int] = None)
-    extends Bundle {
+    nIn: Int,
+    nOut: Int,
+    payloadTyp: T,
+    netIdRange: Option[Int] = None
+) extends Bundle {
   val nNodes = netIdRange.getOrElse(nOut)
   def bundleType(dummy: Int = 0) = new NetworkBundle(nNodes, payloadTyp)
 
@@ -51,21 +53,25 @@ trait HasTLNetwork {
   val edgesIn: Seq[TLEdgeIn]
   val edgesOut: Seq[TLEdgeOut]
 
-  lazy val commonBundle = TLBundleParameters.union(
-    edgesIn.map(_.bundle) ++ edgesOut.map(_.bundle))
+  lazy val commonBundle =
+    TLBundleParameters.union(edgesIn.map(_.bundle) ++ edgesOut.map(_.bundle))
 
   def filter[T](data: Seq[T], mask: Seq[Boolean]) =
     (data zip mask).filter(_._2).map(_._1)
 
   lazy val inputIdRanges = TLXbar.mapInputIds(edgesIn.map(_.client))
   lazy val outputIdRanges = TLXbar.mapOutputIds(edgesOut.map(_.manager))
-  lazy val reachabilityMatrix = edgesIn.map(
-    edgeIn => edgesOut.map(
-      edgeOut => edgeIn.client.clients.exists(
-        client => edgeOut.manager.managers.exists(
-          man => client.visibility.exists(
-            caddr => man.address.exists(
-              maddr => caddr.overlaps(maddr)))))))
+  lazy val reachabilityMatrix = edgesIn.map(edgeIn =>
+    edgesOut.map(edgeOut =>
+      edgeIn.client.clients.exists(client =>
+        edgeOut.manager.managers.exists(man =>
+          client.visibility.exists(caddr =>
+            man.address.exists(maddr => caddr.overlaps(maddr))
+          )
+        )
+      )
+    )
+  )
   lazy val canRelease = edgesIn.map(_.client.anySupportProbe)
   lazy val canProbe = edgesOut.map(_.manager.anySupportAcquireB)
 
@@ -73,41 +79,53 @@ trait HasTLNetwork {
   def backwardIds: Seq[UInt]
   def networkName: String
 
-  def connectInput(i: Int, in: TLBundle,
+  def connectInput(
+      i: Int,
+      in: TLBundle,
       anet: DecoupledIO[NetworkBundle[TLBundleA]],
       bnet: DecoupledIO[NetworkBundle[TLBundleB]],
       cnet: DecoupledIO[NetworkBundle[TLBundleC]],
       dnet: DecoupledIO[NetworkBundle[TLBundleD]],
-      enet: DecoupledIO[NetworkBundle[TLBundleE]]) {
+      enet: DecoupledIO[NetworkBundle[TLBundleE]]
+  ) {
 
     val edgeIn = edgesIn(i)
     val inRange = inputIdRanges(i)
     val reachable = reachabilityMatrix(i)
-    val probing = reachable.zip(canProbe).map { case (r, p) => r && p}
+    val probing = reachable.zip(canProbe).map { case (r, p) => r && p }
 
     val portAddrs = edgesOut.map(_.manager.managers.flatMap(_.address))
     val routingMask = AddressDecoder(filter(portAddrs, reachable))
     val routeAddrs = portAddrs.map(seq =>
-        AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
+      AddressSet.unify(seq.map(_.widen(~routingMask)).distinct)
+    )
     val routeFuncs = routeAddrs.map(seq =>
-        (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _))
+      (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _)
+    )
 
-    val aMatches = filter(routeFuncs, reachable).map(
-      route => route(in.a.bits.address))
-    val cMatches = filter(routeFuncs, probing).map(
-      route => route(in.c.bits.address))
-    val eMatches = filter(outputIdRanges, probing).map(
-      range => range.contains(in.e.bits.sink))
+    val aMatches =
+      filter(routeFuncs, reachable).map(route => route(in.a.bits.address))
+    val cMatches =
+      filter(routeFuncs, probing).map(route => route(in.c.bits.address))
+    val eMatches = filter(outputIdRanges, probing).map(range =>
+      range.contains(in.e.bits.sink)
+    )
 
     val acquireIds = filter(forwardIds, reachable)
     val releaseIds = filter(forwardIds, probing)
 
-    assert(!in.a.valid || PopCount(aMatches) === 1.U,
-      s"$networkName: Multiple or no matching routes for A channel $i")
-    assert(!in.c.valid || PopCount(cMatches) === 1.U,
-      s"$networkName: Multiple or no matching routes for C channel $i")
-    assert(!in.e.valid || PopCount(eMatches) === 1.U,
-      s"$networkName: Multiple or no matching routes for E channel $i")
+    assert(
+      !in.a.valid || PopCount(aMatches) === 1.U,
+      s"$networkName: Multiple or no matching routes for A channel $i"
+    )
+    assert(
+      !in.c.valid || PopCount(cMatches) === 1.U,
+      s"$networkName: Multiple or no matching routes for C channel $i"
+    )
+    assert(
+      !in.e.valid || PopCount(eMatches) === 1.U,
+      s"$networkName: Multiple or no matching routes for E channel $i"
+    )
 
     val connectBCE = canRelease(i)
 
@@ -117,7 +135,8 @@ trait HasTLNetwork {
       selects = aMatches,
       ids = acquireIds,
       edge = edgeIn,
-      sourceStart = inRange.start)
+      sourceStart = inRange.start
+    )
 
     unwrap(in.b, bnet, inRange.size, connectBCE)
 
@@ -128,7 +147,8 @@ trait HasTLNetwork {
       ids = releaseIds,
       edge = edgeIn,
       sourceStart = inRange.start,
-      connect = connectBCE)
+      connect = connectBCE
+    )
 
     unwrap(in.d, dnet, inRange.size)
 
@@ -138,32 +158,39 @@ trait HasTLNetwork {
       selects = eMatches,
       ids = releaseIds,
       edge = edgeIn,
-      connect = connectBCE)
+      connect = connectBCE
+    )
   }
 
-
-  def connectOutput(i: Int, out: TLBundle,
+  def connectOutput(
+      i: Int,
+      out: TLBundle,
       anet: DecoupledIO[NetworkBundle[TLBundleA]],
       bnet: DecoupledIO[NetworkBundle[TLBundleB]],
       cnet: DecoupledIO[NetworkBundle[TLBundleC]],
       dnet: DecoupledIO[NetworkBundle[TLBundleD]],
-      enet: DecoupledIO[NetworkBundle[TLBundleE]]) {
+      enet: DecoupledIO[NetworkBundle[TLBundleE]]
+  ) {
     val edgeOut = edgesOut(i)
     val outRange = outputIdRanges(i)
     val reachable = reachabilityMatrix.map(seq => seq(i))
     val probeable = reachable.zip(canRelease).map { case (r, p) => r && p }
-    val routeFuncs = inputIdRanges.map(range =>
-        (source: UInt) => range.contains(source))
+    val routeFuncs =
+      inputIdRanges.map(range => (source: UInt) => range.contains(source))
 
-    val bMatches = filter(routeFuncs, probeable).map(
-      route => route(out.b.bits.source))
-    val dMatches = filter(routeFuncs, reachable).map(
-      route => route(out.d.bits.source))
+    val bMatches =
+      filter(routeFuncs, probeable).map(route => route(out.b.bits.source))
+    val dMatches =
+      filter(routeFuncs, reachable).map(route => route(out.d.bits.source))
 
-    assert(!out.b.valid || PopCount(bMatches) === 1.U,
-      s"TLRingNetwork: Multiple or no matching routes for B channel $i")
-    assert(!out.d.valid || PopCount(dMatches) === 1.U,
-      s"TLRingNetwork: Multiple or no matching routes for D channel $i")
+    assert(
+      !out.b.valid || PopCount(bMatches) === 1.U,
+      s"TLRingNetwork: Multiple or no matching routes for B channel $i"
+    )
+    assert(
+      !out.d.valid || PopCount(dMatches) === 1.U,
+      s"TLRingNetwork: Multiple or no matching routes for D channel $i"
+    )
 
     val grantIds = filter(backwardIds, reachable)
     val probeIds = filter(backwardIds, probeable)
@@ -178,7 +205,8 @@ trait HasTLNetwork {
       selects = bMatches,
       ids = probeIds,
       edge = edgeOut,
-      connect = connectBCE)
+      connect = connectBCE
+    )
 
     unwrap(out.c, cnet, connect = connectBCE)
 
@@ -188,16 +216,22 @@ trait HasTLNetwork {
       selects = dMatches,
       ids = grantIds,
       edge = edgeOut,
-      sinkStart = outRange.start)
+      sinkStart = outRange.start
+    )
 
     unwrap(out.e, enet, outRange.size, connectBCE)
   }
 
   def wrap[T <: TLChannel](
-      net: DecoupledIO[NetworkBundle[T]], tl: DecoupledIO[T],
-      selects: Seq[Bool], ids: Seq[UInt], edge: TLEdge,
-      sourceStart: BigInt = -1, sinkStart: BigInt = -1,
-      connect: Boolean = true) {
+      net: DecoupledIO[NetworkBundle[T]],
+      tl: DecoupledIO[T],
+      selects: Seq[Bool],
+      ids: Seq[UInt],
+      edge: TLEdge,
+      sourceStart: BigInt = -1,
+      sinkStart: BigInt = -1,
+      connect: Boolean = true
+  ) {
     if (connect) {
       net.valid := tl.valid
       net.bits.netId := Mux1H(selects, ids)
@@ -225,12 +259,14 @@ trait HasTLNetwork {
   }
 
   def trim(id: UInt, size: Int) =
-    if (size <= 1) 0.U else id(log2Ceil(size)-1, 0)
+    if (size <= 1) 0.U else id(log2Ceil(size) - 1, 0)
 
   def unwrap[T <: TLChannel](
-      tl: DecoupledIO[T], net: DecoupledIO[NetworkBundle[T]],
+      tl: DecoupledIO[T],
+      net: DecoupledIO[NetworkBundle[T]],
       idSize: Int = 0,
-      connect: Boolean = true) {
+      connect: Boolean = true
+  ) {
     if (connect) {
       tl.valid := net.valid
       tl.bits := net.bits.payload
@@ -254,8 +290,12 @@ trait HasTLNetwork {
   }
 }
 
-class NetworkXbar[T <: Data](nInputs: Int, nOutputs: Int, payloadTyp: T, rr: Boolean = false)
-    extends NetworkInterconnect[T] {
+class NetworkXbar[T <: Data](
+    nInputs: Int,
+    nOutputs: Int,
+    payloadTyp: T,
+    rr: Boolean = false
+) extends NetworkInterconnect[T] {
   val io = IO(new NetworkIO(nInputs, nOutputs, payloadTyp))
 
   val fanout = if (nOutputs > 1) {
@@ -274,8 +314,14 @@ class NetworkXbar[T <: Data](nInputs: Int, nOutputs: Int, payloadTyp: T, rr: Boo
   }
 
   val arbiters = Seq.fill(nOutputs) {
-    Module(new HellaPeekingArbiter(
-      io.bundleType(), nInputs, (b: NetworkBundle[T]) => b.last, rr = rr))
+    Module(
+      new HellaPeekingArbiter(
+        io.bundleType(),
+        nInputs,
+        (b: NetworkBundle[T]) => b.last,
+        rr = rr
+      )
+    )
   }
 
   io.out <> arbiters.zipWithIndex.map { case (arb, i) =>

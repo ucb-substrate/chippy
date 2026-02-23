@@ -16,19 +16,20 @@ import freechips.rocketchip.tilelink.TLMessages
   * Response data is always 0. Reequests to write data have no effect.
   */
 class TLZero(address: AddressSet, beatBytes: Int = 4)(implicit p: Parameters)
-  extends DevNullDevice(
-    params = DevNullParams(
-      address = List(address),
-      maxAtomic = beatBytes,
-      maxTransfer = beatBytes,
-      region = RegionType.UNCACHED,
-      executable = true,
-      mayDenyGet = false,
-      mayDenyPut = false),
-    minLatency = 1,
-    beatBytes = beatBytes,
-    device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0")))
-{
+    extends DevNullDevice(
+      params = DevNullParams(
+        address = List(address),
+        maxAtomic = beatBytes,
+        maxTransfer = beatBytes,
+        region = RegionType.UNCACHED,
+        executable = true,
+        mayDenyGet = false,
+        mayDenyPut = false
+      ),
+      minLatency = 1,
+      beatBytes = beatBytes,
+      device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0"))
+    ) {
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val (in, edge) = node.in(0)

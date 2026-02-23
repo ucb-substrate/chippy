@@ -33,8 +33,7 @@ class PMUInstruction extends Bundle {
   val dt = UInt(4.W)
 }
 
-class PMUConfig(wakeupProgramIn: Seq[Int],
-                sleepProgramIn: Seq[Int]) {
+class PMUConfig(wakeupProgramIn: Seq[Int], sleepProgramIn: Seq[Int]) {
   val programLength = 8
   val nWakeupCauses = new WakeupCauses().elements.size
   val wakeupProgram = wakeupProgramIn.padTo(programLength, wakeupProgramIn.last)
@@ -43,9 +42,11 @@ class PMUConfig(wakeupProgramIn: Seq[Int],
   require(sleepProgram.length == programLength)
 }
 
-class DevKitPMUConfig extends PMUConfig( // TODO
-  Seq(0x1f0, 0x0f8, 0x030),
-  Seq(0x0f0, 0x1f0, 0x1d0, 0x1c0))
+class DevKitPMUConfig
+    extends PMUConfig( // TODO
+      Seq(0x1f0, 0x0f8, 0x030),
+      Seq(0x0f0, 0x1f0, 0x1d0, 0x1c0)
+    )
 
 class PMURegs(c: PMUConfig) extends Bundle {
   val ie = new SlaveRegIF(c.nWakeupCauses)
@@ -68,12 +69,20 @@ class PMUCore(c: PMUConfig)(resetIn: Bool) extends Module() {
     val awake = RegInit(true.B)
     val unlocked = {
       val writeAny = WatchdogTimer.writeAnyExceptKey(io.regs, io.regs.key)
-      RegEnable(io.regs.key.write.bits === WatchdogTimer.key.U && !writeAny, false.B, io.regs.key.write.valid || writeAny)
+      RegEnable(
+        io.regs.key.write.bits === WatchdogTimer.key.U && !writeAny,
+        false.B,
+        io.regs.key.write.valid || writeAny
+      )
     }
-    val wantSleep = RegEnable(true.B, false.B, io.regs.sleep.write.valid && unlocked)
+    val wantSleep =
+      RegEnable(true.B, false.B, io.regs.sleep.write.valid && unlocked)
     val pc = RegInit(0.U(log2Ceil(c.programLength).W))
     val wakeupCause = RegInit(0.U(log2Ceil(c.nWakeupCauses).W))
-    val ie = RegEnable(io.regs.ie.write.bits, io.regs.ie.write.valid && unlocked) | 1.U /* POR always enabled */
+    val ie = RegEnable(
+      io.regs.ie.write.bits,
+      io.regs.ie.write.valid && unlocked
+    ) | 1.U /* POR always enabled */
 
     val insnWidth = new PMUInstruction().getWidth
     val wakeupProgram = c.wakeupProgram.map(v => RegInit(v.U(insnWidth.W)))
@@ -88,9 +97,9 @@ class PMUCore(c: PMUConfig)(resetIn: Bool) extends Module() {
     io.control.valid := run && !last && tick
     io.control.bits := insn.sigs
 
-    when (run) {
+    when(run) {
       count := count + 1.U
-      when (tick) {
+      when(tick) {
         count := 0.U
 
         require(isPow2(c.programLength))
@@ -99,12 +108,12 @@ class PMUCore(c: PMUConfig)(resetIn: Bool) extends Module() {
       }
     }.otherwise {
       val maskedWakeupCauses = ie & io.wakeup.asUInt
-      when (!awake && maskedWakeupCauses.orR) {
+      when(!awake && maskedWakeupCauses.orR) {
         run := true.B
         awake := true.B
         wakeupCause := PriorityEncoder(maskedWakeupCauses)
       }
-      when (awake && wantSleep) {
+      when(awake && wantSleep) {
         run := true.B
         awake := false.B
         wantSleep := false.B
@@ -116,9 +125,12 @@ class PMUCore(c: PMUConfig)(resetIn: Bool) extends Module() {
     io.regs.key.read := unlocked
     io.regs.sleep.read := 0.U
 
-    for ((port, reg) <- (io.regs.wakeupProgram ++ io.regs.sleepProgram) zip (wakeupProgram ++ sleepProgram)) {
+    for (
+      (port, reg) <-
+        (io.regs.wakeupProgram ++ io.regs.sleepProgram) zip (wakeupProgram ++ sleepProgram)
+    ) {
       port.read := reg
-      when (port.write.valid && unlocked) { reg := port.write.bits }
+      when(port.write.valid && unlocked) { reg := port.write.bits }
     }
   }
 }
@@ -138,7 +150,8 @@ class PMU(val c: PMUConfig) extends Module {
   core.io.wakeup.reset := false.B // this is implied by resetting the PMU
 
   // during aonrst, hold all control signals high
-  val latch = ~AsyncResetReg(~core.io.control.bits.asUInt, core.io.control.valid)
+  val latch =
+    ~AsyncResetReg(~core.io.control.bits.asUInt, core.io.control.valid)
   io.control := latch.asTypeOf(io.control)
 
   core.io.resetCause := {
@@ -146,7 +159,10 @@ class PMU(val c: PMUConfig) extends Module {
     val latches = for (i <- 0 until cause.getWidth) yield {
       val latch = Module(new SRLatch)
       latch.io.set := cause(i)
-      latch.io.reset := (0 until cause.getWidth).filter(_ != i).map(cause(_)).reduce(_||_)
+      latch.io.reset := (0 until cause.getWidth)
+        .filter(_ != i)
+        .map(cause(_))
+        .reduce(_ || _)
       latch.io.q
     }
     OHToUInt(latches)
@@ -167,4 +183,4 @@ class PMU(val c: PMUConfig) extends Module {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

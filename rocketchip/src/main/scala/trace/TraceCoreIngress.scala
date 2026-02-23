@@ -23,30 +23,42 @@ class TraceCoreIngress(val params: TraceCoreParams) extends Module {
     val out = Output(new TraceCoreGroup(params))
   })
 
-  def gen_itype(insn: UInt, taken: Bool, is_branch: Bool, is_jal: Bool, is_jalr: Bool) = {
+  def gen_itype(
+      insn: UInt,
+      taken: Bool,
+      is_branch: Bool,
+      is_jal: Bool,
+      is_jalr: Bool
+  ) = {
     val itype = Wire(TraceItype())
-    when (io.in.exception) {
-        itype := TraceItype.ITException
-    }.elsewhen (io.in.interrupt) {
-        itype := TraceItype.ITInterrupt
-    }.elsewhen (io.in.trap_return) {
-        itype := TraceItype.ITReturn
-    }.elsewhen (is_branch && taken) {
-        itype := TraceItype.ITBrTaken
-    }.elsewhen (is_branch && !taken) {
-        itype := TraceItype.ITBrNTaken
-    }.elsewhen (is_jal) {
-        itype := TraceItype.ITInJump
-    }.elsewhen (is_jalr) {
-        itype := TraceItype.ITUnJump
+    when(io.in.exception) {
+      itype := TraceItype.ITException
+    }.elsewhen(io.in.interrupt) {
+      itype := TraceItype.ITInterrupt
+    }.elsewhen(io.in.trap_return) {
+      itype := TraceItype.ITReturn
+    }.elsewhen(is_branch && taken) {
+      itype := TraceItype.ITBrTaken
+    }.elsewhen(is_branch && !taken) {
+      itype := TraceItype.ITBrNTaken
+    }.elsewhen(is_jal) {
+      itype := TraceItype.ITInJump
+    }.elsewhen(is_jalr) {
+      itype := TraceItype.ITUnJump
     }.otherwise {
-        itype := TraceItype.ITNothing
+      itype := TraceItype.ITNothing
     }
     itype
-}
-  
+  }
+
   io.out.iretire := io.in.valid
   io.out.iaddr := io.in.pc
-  io.out.itype := gen_itype(io.in.insn, io.in.taken, io.in.is_branch, io.in.is_jal, io.in.is_jalr)
+  io.out.itype := gen_itype(
+    io.in.insn,
+    io.in.taken,
+    io.in.is_branch,
+    io.in.is_jal,
+    io.in.is_jalr
+  )
   io.out.ilastsize := io.in.valid && !io.in.is_compressed // 2^1 if non-compressed, 2^0 if compressed
 }

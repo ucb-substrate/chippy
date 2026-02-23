@@ -23,7 +23,7 @@ object WidthWidget {
     out.bits.tail := in.bits.tail && last
     out.bits.payload := Mux(first, in.bits.payload, stored)
     in.ready := last && out.ready
-    when (out.fire) {
+    when(out.fire) {
       count := Mux(last, 0.U, count + 1.U)
       stored := Mux(first, in.bits.payload, stored) >> outBits
     }
@@ -38,17 +38,17 @@ object WidthWidget {
     val first = count === 0.U
     val last = count === (ratio - 1).U
     val flit = Reg(out.bits.cloneType)
-    val payload = Reg(Vec(ratio-1, UInt(inBits.W)))
+    val payload = Reg(Vec(ratio - 1, UInt(inBits.W)))
 
     out.valid := in.valid && last
     out.bits := flit
     out.bits.tail := last && in.bits.tail
     out.bits.payload := Cat(in.bits.payload, payload.asUInt)
     in.ready := !last || out.ready
-    when (in.fire) {
+    when(in.fire) {
       count := Mux(last, 0.U, count + 1.U)
       payload(count) := in.bits.payload
-      when (first) {
+      when(first) {
         flit := in.bits
       }
     }
@@ -68,9 +68,10 @@ object WidthWidget {
   }
 }
 
-class IngressWidthWidget(srcBits: Int)(implicit p: Parameters) extends LazyModule {
+class IngressWidthWidget(srcBits: Int)(implicit p: Parameters)
+    extends LazyModule {
   val node = new IngressChannelAdapterNode(
-    slaveFn = { s => s.copy(payloadBits=srcBits) }
+    slaveFn = { s => s.copy(payloadBits = srcBits) }
   )
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -91,9 +92,10 @@ object IngressWidthWidget {
   }
 }
 
-class EgressWidthWidget(srcBits: Int)(implicit p: Parameters) extends LazyModule {
+class EgressWidthWidget(srcBits: Int)(implicit p: Parameters)
+    extends LazyModule {
   val node = new EgressChannelAdapterNode(
-    slaveFn = { s => s.copy(payloadBits=srcBits) }
+    slaveFn = { s => s.copy(payloadBits = srcBits) }
   )
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -114,7 +116,8 @@ object EgressWidthWidget {
   }
 }
 
-class ChannelWidthWidget(srcBits: Int)(implicit p: Parameters) extends LazyModule {
+class ChannelWidthWidget(srcBits: Int)(implicit p: Parameters)
+    extends LazyModule {
   val node = new ChannelAdapterNode(
     slaveFn = { s =>
       val destBits = s.payloadBits
@@ -124,13 +127,19 @@ class ChannelWidthWidget(srcBits: Int)(implicit p: Parameters) extends LazyModul
           require(vP.bufferSize >= ratio)
           vP.copy(bufferSize = vP.bufferSize / ratio)
         }
-        s.copy(payloadBits=srcBits, virtualChannelParams=virtualChannelParams)
+        s.copy(
+          payloadBits = srcBits,
+          virtualChannelParams = virtualChannelParams
+        )
       } else {
         val ratio = destBits / srcBits
         val virtualChannelParams = s.virtualChannelParams.map { vP =>
           vP.copy(bufferSize = vP.bufferSize * ratio)
         }
-        s.copy(payloadBits=srcBits, virtualChannelParams=virtualChannelParams)
+        s.copy(
+          payloadBits = srcBits,
+          virtualChannelParams = virtualChannelParams
+        )
       }
     }
   )
@@ -145,8 +154,14 @@ class ChannelWidthWidget(srcBits: Int)(implicit p: Parameters) extends LazyModul
         require(srcBits % destBits == 0, s"$srcBits, $destBits")
 
         (in.flit zip out.flit) foreach { case (iF, oF) =>
-          val in_q = Module(new Queue(new Flit(in.cParam.payloadBits),
-            in.cParam.virtualChannelParams.map(_.bufferSize).sum, pipe=true, flow=true))
+          val in_q = Module(
+            new Queue(
+              new Flit(in.cParam.payloadBits),
+              in.cParam.virtualChannelParams.map(_.bufferSize).sum,
+              pipe = true,
+              flow = true
+            )
+          )
           in_q.io.enq.valid := iF.valid
           in_q.io.enq.bits := iF.bits
           assert(!(in_q.io.enq.valid && !in_q.io.enq.ready))
@@ -164,15 +179,17 @@ class ChannelWidthWidget(srcBits: Int)(implicit p: Parameters) extends LazyModul
         }
 
         val ratio = srcBits / destBits
-        val counts = RegInit(VecInit(Seq.fill(in.nVirtualChannels) { 0.U(log2Ceil(ratio).W) }))
+        val counts = RegInit(VecInit(Seq.fill(in.nVirtualChannels) {
+          0.U(log2Ceil(ratio).W)
+        }))
         val in_credit_return = Wire(Vec(in.nVirtualChannels, Bool()))
         in.credit_return := in_credit_return.asUInt
         for (i <- 0 until in.nVirtualChannels) {
           in_credit_return(i) := false.B
-          when (out.credit_return(i)) {
-            val last = counts(i) === (ratio-1).U
+          when(out.credit_return(i)) {
+            val last = counts(i) === (ratio - 1).U
             counts(i) := Mux(last, 0.U, counts(i) + 1.U)
-            when (last) {
+            when(last) {
               in_credit_return(i) := true.B
             }
           }
@@ -180,8 +197,15 @@ class ChannelWidthWidget(srcBits: Int)(implicit p: Parameters) extends LazyModul
       } else {
         require(destBits % srcBits == 0)
 
-        val in_flits = Wire(Vec(in.nVirtualChannels, Irrevocable(new Flit(in.cParam.payloadBits))))
-        val out_flits = Wire(Vec(in.nVirtualChannels, Irrevocable(new Flit(out.cParam.payloadBits))))
+        val in_flits = Wire(
+          Vec(in.nVirtualChannels, Irrevocable(new Flit(in.cParam.payloadBits)))
+        )
+        val out_flits = Wire(
+          Vec(
+            in.nVirtualChannels,
+            Irrevocable(new Flit(out.cParam.payloadBits))
+          )
+        )
         for (i <- 0 until in.nVirtualChannels) {
           val sel = in.flit.map(f => f.valid && f.bits.virt_channel_id === i.U)
           in_flits(i).valid := sel.orR
@@ -198,15 +222,15 @@ class ChannelWidthWidget(srcBits: Int)(implicit p: Parameters) extends LazyModul
 
         val ratio = destBits / srcBits
         val credits = RegInit(VecInit((0 until in.nVirtualChannels).map { i =>
-          0.U(log2Ceil(ratio*in.cParam.virtualChannelParams(i).bufferSize).W)
+          0.U(log2Ceil(ratio * in.cParam.virtualChannelParams(i).bufferSize).W)
         }))
         val in_credit_return = Wire(Vec(in.nVirtualChannels, Bool()))
         in.credit_return := in_credit_return.asUInt
         for (i <- 0 until in.nVirtualChannels) {
-          when (out.credit_return(i)) {
+          when(out.credit_return(i)) {
             in_credit_return(i) := true.B
             credits(i) := credits(i) + (ratio - 1).U
-          } .otherwise {
+          }.otherwise {
             val empty = credits(i) === 0.U
             in_credit_return(i) := !empty
             credits(i) := Mux(empty, 0.U, credits(i) - 1.U)

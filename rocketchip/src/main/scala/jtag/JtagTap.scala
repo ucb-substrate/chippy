@@ -11,19 +11,23 @@ import org.chipsalliance.cde.config.Parameters
   */
 class JTAGIO(hasTRSTn: Boolean = false) extends Bundle {
   val TRSTn = if (hasTRSTn) Some(Output(Bool())) else None
-  val TCK   = Output(Clock())
-  val TMS   = Output(Bool())
-  val TDI   = Output(Bool())
-  val TDO   = Input(new Tristate())
+  val TCK = Output(Clock())
+  val TMS = Output(Bool())
+  val TDI = Output(Bool())
+  val TDO = Input(new Tristate())
 
 }
 
 /** JTAG block output signals.
   */
 class JtagOutput(irLength: Int) extends Bundle {
-  val state = Output(JtagState.State.chiselType())  // state, transitions on TCK rising edge
-  val instruction = Output(UInt(irLength.W))  // current active instruction
-  val tapIsInTestLogicReset = Output(Bool())  // synchronously asserted in Test-Logic-Reset state, should NOT hold the FSM in reset
+  val state = Output(
+    JtagState.State.chiselType()
+  ) // state, transitions on TCK rising edge
+  val instruction = Output(UInt(irLength.W)) // current active instruction
+  val tapIsInTestLogicReset = Output(
+    Bool()
+  ) // synchronously asserted in Test-Logic-Reset state, should NOT hold the FSM in reset
 
 }
 
@@ -33,7 +37,7 @@ class JtagControl extends Bundle {
 
 /** Aggregate JTAG block IO.
   */
-class JtagBlockIO(irLength: Int, hasIdcode:Boolean = true) extends Bundle {
+class JtagBlockIO(irLength: Int, hasIdcode: Boolean = true) extends Bundle {
 
   val jtag = Flipped(new JTAGIO())
   val control = new JtagControl
@@ -50,18 +54,22 @@ class JtagControllerIO(irLength: Int) extends JtagBlockIO(irLength, false) {
 
 }
 
-/** JTAG TAP controller internal block, responsible for instruction decode and data register chain
-  * control signal generation.
+/** JTAG TAP controller internal block, responsible for instruction decode and
+  * data register chain control signal generation.
   *
   * Misc notes:
-  * - Figure 6-3 and 6-4 provides examples with timing behavior
+  *   - Figure 6-3 and 6-4 provides examples with timing behavior
   */
-class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val p: Parameters) extends Module {
-  require(irLength >= 2)  // 7.1.1a
+class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit
+    val p: Parameters
+) extends Module {
+  require(irLength >= 2) // 7.1.1a
 
   val io = IO(new JtagControllerIO(irLength))
 
-  val tdo = Wire(Bool())  // 4.4.1c TDI should appear here uninverted after shifting
+  val tdo = Wire(
+    Bool()
+  ) // 4.4.1c TDI should appear here uninverted after shifting
   val tdo_driven = Wire(Bool())
 
   val clock_falling = WireInit((!clock.asUInt).asClock)
@@ -77,18 +85,22 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   // At this point, the TRSTn should already have been
   // combined with any POR, and it should also be
   // synchronized to TCK.
-  require(!io.jtag.TRSTn.isDefined, "TRSTn should be absorbed into jtckPOReset outside of JtagTapController.")
+  require(
+    !io.jtag.TRSTn.isDefined,
+    "TRSTn should be absorbed into jtckPOReset outside of JtagTapController."
+  )
   withReset(io.control.jtag_reset) {
     val stateMachine = Module(new JtagStateMachine)
     stateMachine.suggestName("stateMachine")
     stateMachine.io.tms := io.jtag.TMS
     currState := stateMachine.io.currState
     io.output.state := stateMachine.io.currState
-     // 4.5.1a TDO changes on falling edge of TCK, 6.1.2.1d driver active on first TCK falling edge in ShiftIR and ShiftDR states
+    // 4.5.1a TDO changes on falling edge of TCK, 6.1.2.1d driver active on first TCK falling edge in ShiftIR and ShiftDR states
     withClock(clock_falling) {
-      val TDOdata   = RegNext(next=tdo, init=false.B).suggestName("tdoReg")
-      val TDOdriven = RegNext(next=tdo_driven, init=false.B).suggestName("tdoeReg")
-      io.jtag.TDO.data   := TDOdata
+      val TDOdata = RegNext(next = tdo, init = false.B).suggestName("tdoReg")
+      val TDOdriven =
+        RegNext(next = tdo_driven, init = false.B).suggestName("tdoeReg")
+      io.jtag.TDO.data := TDOdata
       io.jtag.TDO.driven := TDOdriven
     }
   }
@@ -109,9 +121,9 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
 
   withClockAndReset(clock_falling, io.control.jtag_reset) {
     val activeInstruction = RegInit(initialInstruction.U(irLength.W))
-    when (tapIsInTestLogicReset) {
+    when(tapIsInTestLogicReset) {
       activeInstruction := initialInstruction.U
-    }.elsewhen (currState === JtagState.UpdateIR.U) {
+    }.elsewhen(currState === JtagState.UpdateIR.U) {
       activeInstruction := irChain.io.update.bits
     }
     io.output.instruction := activeInstruction
@@ -131,13 +143,13 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   //
   // Output Control
   //
-  when (currState === JtagState.ShiftDR.U) {
+  when(currState === JtagState.ShiftDR.U) {
     tdo := io.dataChainIn.data
     tdo_driven := true.B
-  } .elsewhen (currState === JtagState.ShiftIR.U) {
+  }.elsewhen(currState === JtagState.ShiftIR.U) {
     tdo := irChain.io.chainOut.data
     tdo_driven := true.B
-  } .otherwise {
+  }.otherwise {
     // Needed when using chisel3._ (See #1160)
     tdo := DontCare
     tdo_driven := false.B
@@ -145,45 +157,62 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
 }
 
 object JtagTapGenerator {
-  /** JTAG TAP generator, enclosed module must be clocked from TCK and reset from output of this
-    * block.
+
+  /** JTAG TAP generator, enclosed module must be clocked from TCK and reset
+    * from output of this block.
     *
-    * @param irLength length, in bits, of instruction register, must be at least 2
-    * @param instructions map of instruction codes to data register chains that select that data
-    * register; multiple instructions may map to the same data chain
-    * @param idcode optional idcode instruction. idcode UInt will come from outside this core.
+    * @param irLength
+    *   length, in bits, of instruction register, must be at least 2
+    * @param instructions
+    *   map of instruction codes to data register chains that select that data
+    *   register; multiple instructions may map to the same data chain
+    * @param idcode
+    *   optional idcode instruction. idcode UInt will come from outside this
+    *   core.
     *
-    * @note all other instruction codes (not part of instructions or idcode) map to BYPASS
-    * @note initial instruction is idcode (if supported), otherwise all ones BYPASS
+    * @note
+    *   all other instruction codes (not part of instructions or idcode) map to
+    *   BYPASS
+    * @note
+    *   initial instruction is idcode (if supported), otherwise all ones BYPASS
     *
     * Usage notes:
-    * - 4.3.1b TMS must appear high when undriven
-    * - 4.3.1c (rec) minimize load presented by TMS
-    * - 4.4.1b TDI must appear high when undriven
-    * - 4.5.1b TDO must be inactive except when shifting data (undriven? 6.1.2)
-    * - 6.1.3.1b TAP controller must not be (re-?)initialized by system reset (allows
-    *   boundary-scan testing of reset pin)
-    *   - 6.1 TAP controller can be initialized by a on-chip power on reset generator, the same one
-    *     that would initialize system logic
+    *   - 4.3.1b TMS must appear high when undriven
+    *   - 4.3.1c (rec) minimize load presented by TMS
+    *   - 4.4.1b TDI must appear high when undriven
+    *   - 4.5.1b TDO must be inactive except when shifting data (undriven?
+    *     6.1.2)
+    *   - 6.1.3.1b TAP controller must not be (re-?)initialized by system reset
+    *     (allows boundary-scan testing of reset pin)
+    *     - 6.1 TAP controller can be initialized by a on-chip power on reset
+    *       generator, the same one that would initialize system logic
     *
     * TODO:
-    * - support concatenated scan chains
+    *   - support concatenated scan chains
     */
-  def apply(irLength: Int, instructions: Map[BigInt, Chain], icode: Option[BigInt] = None)(implicit p: Parameters): JtagBlockIO = {
+  def apply(
+      irLength: Int,
+      instructions: Map[BigInt, Chain],
+      icode: Option[BigInt] = None
+  )(implicit p: Parameters): JtagBlockIO = {
 
     val internalIo = Wire(new JtagBlockIO(irLength, icode.isDefined))
-
 
     // Create IDCODE chain if needed
     val allInstructions = icode match {
       case (Some(icode)) => {
-        require(!(instructions contains icode), "instructions may not contain IDCODE")
+        require(
+          !(instructions contains icode),
+          "instructions may not contain IDCODE"
+        )
         val idcodeChain = Module(CaptureChain(new JTAGIdcodeBundle()))
         idcodeChain.suggestName("idcodeChain")
         val i = internalIo.idcode.get.asUInt
         assert(i % 2.U === 1.U, "LSB must be set in IDCODE, see 12.1.1d")
-        assert(((i >> 1) & ((1.U << 11) - 1.U)) =/= JtagIdcode.dummyMfrId.U,
-          "IDCODE must not have 0b00001111111 as manufacturer identity, see 12.2.1b")
+        assert(
+          ((i >> 1) & ((1.U << 11) - 1.U)) =/= JtagIdcode.dummyMfrId.U,
+          "IDCODE must not have 0b00001111111 as manufacturer identity, see 12.2.1b"
+        )
         idcodeChain.io.capture.bits := internalIo.idcode.get
         instructions + (icode -> idcodeChain)
 
@@ -191,14 +220,21 @@ object JtagTapGenerator {
       case None => instructions
     }
 
-    val bypassIcode = (BigInt(1) << irLength) - 1  // required BYPASS instruction
-    val initialInstruction = icode.getOrElse(bypassIcode) // 7.2.1e load IDCODE or BYPASS instruction after entry into TestLogicReset
+    val bypassIcode = (BigInt(1) << irLength) - 1 // required BYPASS instruction
+    val initialInstruction = icode.getOrElse(
+      bypassIcode
+    ) // 7.2.1e load IDCODE or BYPASS instruction after entry into TestLogicReset
 
-    require(!(allInstructions contains bypassIcode), "instructions may not contain BYPASS code")
+    require(
+      !(allInstructions contains bypassIcode),
+      "instructions may not contain BYPASS code"
+    )
 
-    val controllerInternal = Module(new JtagTapController(irLength, initialInstruction))
+    val controllerInternal = Module(
+      new JtagTapController(irLength, initialInstruction)
+    )
 
-    val unusedChainOut = Wire(new ShifterIO)  // De-selected chain output
+    val unusedChainOut = Wire(new ShifterIO) // De-selected chain output
     unusedChainOut.shift := false.B
     unusedChainOut.data := false.B
     unusedChainOut.capture := false.B
@@ -207,25 +243,32 @@ object JtagTapGenerator {
     val bypassChain = Module(JtagBypassChain())
 
     // The Great Data Register Chain Mux
-    bypassChain.io.chainIn := controllerInternal.io.dataChainOut  // for simplicity, doesn't visibly affect anything else
-    require(allInstructions.size > 0, "Seriously? JTAG TAP with no instructions?")
+    bypassChain.io.chainIn := controllerInternal.io.dataChainOut // for simplicity, doesn't visibly affect anything else
+    require(
+      allInstructions.size > 0,
+      "Seriously? JTAG TAP with no instructions?"
+    )
 
     // Need to ensure that this mapping is ordered to produce deterministic verilog,
     // and neither Map nor groupBy are deterministic.
     // Therefore, we first sort by IDCODE, then sort the groups by the first IDCODE in each group.
-    val chainToIcode = (SortedMap(allInstructions.toList:_*).groupBy { case (icode, chain) => chain } map {
-      case (chain, icodeToChain) => chain -> icodeToChain.keys
+    val chainToIcode = (SortedMap(allInstructions.toList: _*).groupBy {
+      case (icode, chain) => chain
+    } map { case (chain, icodeToChain) =>
+      chain -> icodeToChain.keys
     }).toList.sortBy(_._2.head)
 
     val chainToSelect = chainToIcode map {
       case (chain, icodes) => {
         assume(icodes.size > 0)
-        val icodeSelects = icodes map { controllerInternal.io.output.instruction === _.asUInt(irLength.W) }
-        chain -> icodeSelects.reduceLeft(_||_)
+        val icodeSelects = icodes map {
+          controllerInternal.io.output.instruction === _.asUInt(irLength.W)
+        }
+        chain -> icodeSelects.reduceLeft(_ || _)
       }
     }
 
-    controllerInternal.io.dataChainIn := bypassChain.io.chainOut  // default
+    controllerInternal.io.dataChainIn := bypassChain.io.chainOut // default
 
     def foldOutSelect(res: WhenContext, x: (Chain, Bool)): WhenContext = {
       val (chain, select) = x
@@ -235,16 +278,16 @@ object JtagTapGenerator {
       }
     }
 
-    val emptyWhen = when (false.B) { }  // Empty WhenContext to start things off
+    val emptyWhen = when(false.B) {} // Empty WhenContext to start things off
     chainToSelect.toSeq.foldLeft(emptyWhen)(foldOutSelect).otherwise {
       controllerInternal.io.dataChainIn := bypassChain.io.chainOut
     }
 
     def mapInSelect(x: (Chain, Bool)): Unit = {
       val (chain, select) = x
-      when (select) {
+      when(select) {
         chain.io.chainIn := controllerInternal.io.dataChainOut
-      } .otherwise {
+      }.otherwise {
         chain.io.chainIn := unusedChainOut
       }
     }

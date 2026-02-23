@@ -42,14 +42,20 @@ object ReduceOthers {
     if (x.size <= 1) {
       (Seq.fill(x.size) { true.B }, x.headOption.getOrElse(true.B))
     } else if (x.size <= 3) {
-      (Seq.tabulate(x.size) { i =>
-        (x.take(i) ++ x.drop(i+1)).reduce(_ && _)
-      }, x.reduce(_ && _))
+      (
+        Seq.tabulate(x.size) { i =>
+          (x.take(i) ++ x.drop(i + 1)).reduce(_ && _)
+        },
+        x.reduce(_ && _)
+      )
     } else {
       val (half, all) = helper(x.grouped(2).map(_.reduce(_ && _)).toList)
-      (Seq.tabulate(x.size) { i =>
-        if ((i ^ 1) >= x.size) half(i/2) else x(i ^ 1) && half(i / 2)
-      }, all)
+      (
+        Seq.tabulate(x.size) { i =>
+          if ((i ^ 1) >= x.size) half(i / 2) else x(i ^ 1) && half(i / 2)
+        },
+        all
+      )
     }
   }
 }

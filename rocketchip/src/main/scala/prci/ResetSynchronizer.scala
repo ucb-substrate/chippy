@@ -7,8 +7,8 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.util.ResetCatchAndSync
 
-/**
-  * Synchronizes the reset of a diplomatic clock-reset pair to its accompanying clock.
+/** Synchronizes the reset of a diplomatic clock-reset pair to its accompanying
+  * clock.
   */
 class ResetSynchronizer(implicit p: Parameters) extends LazyModule {
   val node = ClockAdapterNode()
@@ -22,12 +22,12 @@ class ResetSynchronizer(implicit p: Parameters) extends LazyModule {
 }
 
 object ResetSynchronizer {
-  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new ResetSynchronizer()).node
+  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(
+    new ResetSynchronizer()
+  ).node
 }
 
-
-/**
-  * Instantiates a reset synchronizer on all clock-reset pairs in a clock group.
+/** Instantiates a reset synchronizer on all clock-reset pairs in a clock group.
   */
 class ClockGroupResetSynchronizer(implicit p: Parameters) extends LazyModule {
   val node = ClockGroupAdapterNode()
@@ -43,5 +43,7 @@ class ClockGroupResetSynchronizer(implicit p: Parameters) extends LazyModule {
 }
 
 object ClockGroupResetSynchronizer {
-  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new ClockGroupResetSynchronizer()).node
+  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(
+    new ClockGroupResetSynchronizer()
+  ).node
 }

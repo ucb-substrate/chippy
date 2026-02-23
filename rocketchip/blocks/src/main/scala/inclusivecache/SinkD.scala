@@ -21,25 +21,24 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink._
 
-class SinkDResponse(params: InclusiveCacheParameters) extends InclusiveCacheBundle(params)
-{
-  val last   = Bool()
+class SinkDResponse(params: InclusiveCacheParameters)
+    extends InclusiveCacheBundle(params) {
+  val last = Bool()
   val opcode = UInt(3.W)
-  val param  = UInt(3.W)
+  val param = UInt(3.W)
   val source = UInt(params.outer.bundle.sourceBits.W)
-  val sink   = UInt(params.outer.bundle.sinkBits.W)
+  val sink = UInt(params.outer.bundle.sinkBits.W)
   val denied = Bool()
 }
 
-class SinkD(params: InclusiveCacheParameters) extends Module
-{
+class SinkD(params: InclusiveCacheParameters) extends Module {
   val io = IO(new Bundle {
     val resp = Valid(new SinkDResponse(params)) // Grant or ReleaseAck
     val d = Flipped(Decoupled(new TLBundleD(params.outer.bundle)))
     // Lookup the set+way from MSHRs
     val source = UInt(params.outer.bundle.sourceBits.W)
-    val way    = Flipped(UInt(params.wayBits.W))
-    val set    = Flipped(UInt(params.setBits.W))
+    val way = Flipped(UInt(params.wayBits.W))
+    val set = Flipped(UInt(params.setBits.W))
     // Banked Store port
     val bs_adr = Decoupled(new BankedStoreOuterAddress(params))
     val bs_dat = new BankedStoreOuterPoison(params)
@@ -62,22 +61,37 @@ class SinkD(params: InclusiveCacheParameters) extends Module
   io.resp.valid := (first || last) && d.fire
   d.ready := io.bs_adr.ready && (!first || io.grant_safe)
   io.bs_adr.valid := !first || (d.valid && io.grant_safe)
-  params.ccover(d.valid && first && !io.grant_safe, "SINKD_HAZARD", "Prevented Grant data hazard with backpressure")
-  params.ccover(io.bs_adr.valid && !io.bs_adr.ready, "SINKD_SRAM_STALL", "Data SRAM busy")
+  params.ccover(
+    d.valid && first && !io.grant_safe,
+    "SINKD_HAZARD",
+    "Prevented Grant data hazard with backpressure"
+  )
+  params.ccover(
+    io.bs_adr.valid && !io.bs_adr.ready,
+    "SINKD_SRAM_STALL",
+    "Data SRAM busy"
+  )
 
-  io.resp.bits.last   := last
+  io.resp.bits.last := last
   io.resp.bits.opcode := d.bits.opcode
-  io.resp.bits.param  := d.bits.param
+  io.resp.bits.param := d.bits.param
   io.resp.bits.source := d.bits.source
-  io.resp.bits.sink   := d.bits.sink
+  io.resp.bits.sink := d.bits.sink
   io.resp.bits.denied := d.bits.denied
 
   io.bs_adr.bits.noop := !d.valid || !hasData
-  io.bs_adr.bits.way  := io.way
-  io.bs_adr.bits.set  := io.set
-  io.bs_adr.bits.beat := Mux(d.valid, beat, RegEnable(beat + io.bs_adr.ready.asUInt, d.valid))
+  io.bs_adr.bits.way := io.way
+  io.bs_adr.bits.set := io.set
+  io.bs_adr.bits.beat := Mux(
+    d.valid,
+    beat,
+    RegEnable(beat + io.bs_adr.ready.asUInt, d.valid)
+  )
   io.bs_adr.bits.mask := ~0.U(params.outerMaskBits.W)
-  io.bs_dat.data      := d.bits.data
+  io.bs_dat.data := d.bits.data
 
-  assert (!(d.valid && d.bits.corrupt && !d.bits.denied), "Data poisoning unsupported")
+  assert(
+    !(d.valid && d.bits.corrupt && !d.bits.denied),
+    "Data poisoning unsupported"
+  )
 }

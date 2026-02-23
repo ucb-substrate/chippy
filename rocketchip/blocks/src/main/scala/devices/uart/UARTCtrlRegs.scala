@@ -8,11 +8,11 @@ object UARTCtrlRegs {
   val rxctrl = 0x0c
   val rxmark = 0x0e
 
-  val ie     = 0x10
-  val ip     = 0x14
-  val div    = 0x18
+  val ie = 0x10
+  val ip = 0x14
+  val div = 0x18
   val parity = 0x1c
-  val wire4  = 0x20
+  val wire4 = 0x20
   val either8or9 = 0x24
 }
 
@@ -30,4 +30,4 @@ object UARTCtrlRegs {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

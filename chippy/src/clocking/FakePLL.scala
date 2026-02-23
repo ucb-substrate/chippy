@@ -14,17 +14,22 @@ class FakePLLCtrlBundle extends Bundle {
   val power = Bool()
 }
 
-class FakePLLCtrl(address: BigInt, beatBytes: Int)(implicit p: Parameters) extends LazyModule
-{
+class FakePLLCtrl(address: BigInt, beatBytes: Int)(implicit p: Parameters)
+    extends LazyModule {
   val device = new SimpleDevice(s"pll", Nil)
-  val tlNode = TLRegisterNode(Seq(AddressSet(address, 4096-1)), device, "reg/control", beatBytes=beatBytes)
+  val tlNode = TLRegisterNode(
+    Seq(AddressSet(address, 4096 - 1)),
+    device,
+    "reg/control",
+    beatBytes = beatBytes
+  )
   val ctrlNode = BundleBridgeSource(() => Output(new FakePLLCtrlBundle))
   lazy val module = new LazyModuleImp(this) {
     // This PLL only has 2 address, the gate and power
     // Both should be set to turn on the PLL
     // TODO: Should these be reset by the top level reset pin?
-    val gate_reg = Module(new AsyncResetRegVec(w=1, init=0))
-    val power_reg = Module(new AsyncResetRegVec(w=1, init=0))
+    val gate_reg = Module(new AsyncResetRegVec(w = 1, init = 0))
+    val power_reg = Module(new AsyncResetRegVec(w = 1, init = 0))
 
     ctrlNode.out(0)._1.gate := gate_reg.io.q
     ctrlNode.out(0)._1.power := power_reg.io.q

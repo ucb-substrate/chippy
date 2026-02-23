@@ -17,8 +17,8 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.prci._
 
 case class SpikeCoreParams(
-  nPMPs: Int = 16,
-  useZicntr: Boolean = false
+    nPMPs: Int = 16,
+    useZicntr: Boolean = false
 ) extends CoreParams {
   val xLen = 64
   val pgLevels = 5
@@ -74,7 +74,7 @@ case class SpikeCoreParams(
 }
 
 case class SpikeTileAttachParams(
-  tileParams: SpikeTileParams
+    tileParams: SpikeTileParams
 ) extends CanAttachTile {
   type TileType = SpikeTile
   val lookup = PriorityMuxHartIdFromSeq(Seq(tileParams))
@@ -82,13 +82,12 @@ case class SpikeTileAttachParams(
 }
 
 case class SpikeTileParams(
-  tileId: Int = 0,
-  val core: SpikeCoreParams = SpikeCoreParams(),
-  icacheParams: ICacheParams = ICacheParams(nWays = 32),
-  dcacheParams: DCacheParams = DCacheParams(nWays = 32),
-  tcmParams: Option[MasterPortParams] = None // tightly coupled memory
-) extends InstantiableTileParams[SpikeTile]
-{
+    tileId: Int = 0,
+    val core: SpikeCoreParams = SpikeCoreParams(),
+    icacheParams: ICacheParams = ICacheParams(nWays = 32),
+    dcacheParams: DCacheParams = DCacheParams(nWays = 32),
+    tcmParams: Option[MasterPortParams] = None // tightly coupled memory
+) extends InstantiableTileParams[SpikeTile] {
   val baseName = "spike_tile"
   val uniqueName = s"${baseName}_$tileId"
   val beuAddr = None
@@ -98,21 +97,28 @@ case class SpikeTileParams(
   val dcache = Some(dcacheParams)
   val icache = Some(icacheParams)
   val clockSinkParams = ClockSinkParameters()
-  def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): SpikeTile = {
+  def instantiate(
+      crossing: HierarchicalElementCrossingParamsLike,
+      lookup: LookupByHartIdImpl
+  )(implicit p: Parameters): SpikeTile = {
     new SpikeTile(this, crossing, lookup)
   }
 }
 
 class SpikeTile(
-  val spikeTileParams: SpikeTileParams,
-  crossing: ClockCrossingType,
-  lookup: LookupByHartIdImpl,
-  q: Parameters) extends BaseTile(spikeTileParams, crossing, lookup, q)
+    val spikeTileParams: SpikeTileParams,
+    crossing: ClockCrossingType,
+    lookup: LookupByHartIdImpl,
+    q: Parameters
+) extends BaseTile(spikeTileParams, crossing, lookup, q)
     with SinksExternalInterrupts
-    with SourcesExternalNotifications
-{
+    with SourcesExternalNotifications {
   // Private constructor ensures altered LazyModule.p is used implicitly
-  def this(params: SpikeTileParams, crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
+  def this(
+      params: SpikeTileParams,
+      crossing: HierarchicalElementCrossingParamsLike,
+      lookup: LookupByHartIdImpl
+  )(implicit p: Parameters) =
     this(params, crossing.crossingType, lookup, p)
 
   // Required TileLink nodes
@@ -134,60 +140,97 @@ class SpikeTile(
   ) ++ spikeTileParams.core.useZicntr.option("zicntr")).mkString("_")
 
   // Required entry of CPU device in the device tree for interrupt purpose
-  val cpuDevice: SimpleDevice = new SimpleDevice("cpu", Seq("ucb-bar,spike", "riscv")) {
-    override def parent = Some(ResourceAnchors.cpus)
-    override def describe(resources: ResourceBindings): Description = {
-      val Description(name, mapping) = super.describe(resources)
-      Description(name, mapping ++
-        cpuProperties ++
-        nextLevelCacheProperty ++
-        tileProperties)
+  val cpuDevice: SimpleDevice =
+    new SimpleDevice("cpu", Seq("ucb-bar,spike", "riscv")) {
+      override def parent = Some(ResourceAnchors.cpus)
+      override def describe(resources: ResourceBindings): Description = {
+        val Description(name, mapping) = super.describe(resources)
+        Description(
+          name,
+          mapping ++
+            cpuProperties ++
+            nextLevelCacheProperty ++
+            tileProperties
+        )
+      }
     }
-  }
 
   ResourceBinding {
     Resource(cpuDevice, "reg").bind(ResourceAddress(tileId))
   }
 
+  val icacheNode = TLClientNode(
+    Seq(
+      TLMasterPortParameters.v1(
+        Seq(
+          TLMasterParameters.v1(
+            sourceId = IdRange(0, 1),
+            name = s"Core ${tileId} ICache"
+          )
+        )
+      )
+    )
+  )
 
-  val icacheNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
-    sourceId = IdRange(0, 1),
-    name = s"Core ${tileId} ICache")))))
+  val dcacheNode = TLClientNode(
+    Seq(
+      TLMasterPortParameters.v1(
+        Seq(
+          TLMasterParameters.v1(
+            name = s"Core ${tileId} DCache",
+            sourceId = IdRange(0, tileParams.dcache.get.nMSHRs),
+            supportsProbe =
+              TransferSizes(p(CacheBlockBytes), p(CacheBlockBytes))
+          )
+        )
+      )
+    )
+  )
 
-  val dcacheNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
-    name          = s"Core ${tileId} DCache",
-    sourceId      = IdRange(0, tileParams.dcache.get.nMSHRs),
-    supportsProbe = TransferSizes(p(CacheBlockBytes), p(CacheBlockBytes)))))))
-
-  val mmioNode = TLClientNode((Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
-    name          = s"Core ${tileId} MMIO",
-    sourceId      = IdRange(0, 1),
-    requestFifo   = true))))))
+  val mmioNode = TLClientNode(
+    (Seq(
+      TLMasterPortParameters.v1(
+        Seq(
+          TLMasterParameters.v1(
+            name = s"Core ${tileId} MMIO",
+            sourceId = IdRange(0, 1),
+            requestFifo = true
+          )
+        )
+      )
+    ))
+  )
 
   tlSlaveXbar.node :*= slaveNode
   val tcmNode = spikeTileParams.tcmParams.map { tcmP =>
     val device = new MemoryDevice
     val base = AddressSet.misaligned(tcmP.base, tcmP.size)
-    val tcmNode = TLManagerNode(Seq(TLSlavePortParameters.v1(
-      managers = Seq(TLSlaveParameters.v1(
-        address = base,
-        resources = device.reg,
-        regionType = RegionType.IDEMPOTENT, // not cacheable
-        executable = true,
-        supportsGet = TransferSizes(1, 8),
-        supportsPutFull = TransferSizes(1, 8),
-        supportsPutPartial = TransferSizes(1, 8),
-        fifoId = Some(0)
-      )),
-      beatBytes = 8
-    )))
+    val tcmNode = TLManagerNode(
+      Seq(
+        TLSlavePortParameters.v1(
+          managers = Seq(
+            TLSlaveParameters.v1(
+              address = base,
+              resources = device.reg,
+              regionType = RegionType.IDEMPOTENT, // not cacheable
+              executable = true,
+              supportsGet = TransferSizes(1, 8),
+              supportsPutFull = TransferSizes(1, 8),
+              supportsPutPartial = TransferSizes(1, 8),
+              fifoId = Some(0)
+            )
+          ),
+          beatBytes = 8
+        )
+      )
+    )
     connectTLSlave(tcmNode := TLBuffer(), 8)
     tcmNode
   }
 
   tlOtherMastersNode := TLBuffer() := tlMasterXbar.node
   masterNode :=* tlOtherMastersNode
-  tlMasterXbar.node := TLWidthWidget(64) := TLBuffer():= icacheNode
+  tlMasterXbar.node := TLWidthWidget(64) := TLBuffer() := icacheNode
   tlMasterXbar.node := TLWidthWidget(64) := TLBuffer() := dcacheNode
   tlMasterXbar.node := TLWidthWidget(8) := TLBuffer() := mmioNode
 
@@ -195,37 +238,41 @@ class SpikeTile(
 }
 
 class SpikeBlackBox(
-  hartId: Int,
-  isa: String,
-  pmpregions: Int,
-  icache_sets: Int,
-  icache_ways: Int,
-  dcache_sets: Int,
-  dcache_ways: Int,
-  dcache_sourceids: Int,
-  cacheable_regions: String,
-  uncacheable_regions: String,
-  readonly_uncacheable_regions: String,
-  executable_regions: String,
-  tcm_base: BigInt,
-  tcm_size: BigInt,
-  use_dtm: Boolean) extends BlackBox(Map(
-    "HARTID" -> IntParam(hartId),
-    "ISA" -> StringParam(isa),
-    "PMPREGIONS" -> IntParam(pmpregions),
-    "ICACHE_SETS" -> IntParam(icache_sets),
-    "ICACHE_WAYS" -> IntParam(icache_ways),
-    "DCACHE_SETS" -> IntParam(dcache_sets),
-    "DCACHE_WAYS" -> IntParam(dcache_ways),
-    "ICACHE_SOURCEIDS" -> IntParam(1),
-    "DCACHE_SOURCEIDS" -> IntParam(dcache_sourceids),
-    "UNCACHEABLE" -> StringParam(uncacheable_regions),
-    "READONLY_UNCACHEABLE" -> StringParam(readonly_uncacheable_regions),
-    "CACHEABLE" -> StringParam(cacheable_regions),
-    "EXECUTABLE" -> StringParam(executable_regions),
-    "TCM_BASE" -> IntParam(tcm_base),
-    "TCM_SIZE" -> IntParam(tcm_size)
-  )) with HasBlackBoxResource {
+    hartId: Int,
+    isa: String,
+    pmpregions: Int,
+    icache_sets: Int,
+    icache_ways: Int,
+    dcache_sets: Int,
+    dcache_ways: Int,
+    dcache_sourceids: Int,
+    cacheable_regions: String,
+    uncacheable_regions: String,
+    readonly_uncacheable_regions: String,
+    executable_regions: String,
+    tcm_base: BigInt,
+    tcm_size: BigInt,
+    use_dtm: Boolean
+) extends BlackBox(
+      Map(
+        "HARTID" -> IntParam(hartId),
+        "ISA" -> StringParam(isa),
+        "PMPREGIONS" -> IntParam(pmpregions),
+        "ICACHE_SETS" -> IntParam(icache_sets),
+        "ICACHE_WAYS" -> IntParam(icache_ways),
+        "DCACHE_SETS" -> IntParam(dcache_sets),
+        "DCACHE_WAYS" -> IntParam(dcache_ways),
+        "ICACHE_SOURCEIDS" -> IntParam(1),
+        "DCACHE_SOURCEIDS" -> IntParam(dcache_sourceids),
+        "UNCACHEABLE" -> StringParam(uncacheable_regions),
+        "READONLY_UNCACHEABLE" -> StringParam(readonly_uncacheable_regions),
+        "CACHEABLE" -> StringParam(cacheable_regions),
+        "EXECUTABLE" -> StringParam(executable_regions),
+        "TCM_BASE" -> IntParam(tcm_base),
+        "TCM_SIZE" -> IntParam(tcm_size)
+      )
+    )
+    with HasBlackBoxResource {
 
   val io = IO(new Bundle {
     val clock = Input(Bool())
@@ -335,16 +382,28 @@ class SpikeTileModuleImp(outer: SpikeTile) extends BaseTileModuleImp(outer) {
   val int_bundle = Wire(new TileInterrupts())
   outer.decodeCoreInterrupts(int_bundle)
   val managers = outer.visibilityNode.edges.out.flatMap(_.manager.managers)
-  val cacheable_regions = AddressRange.fromSets(managers.filter(_.supportsAcquireB).flatMap(_.address))
-    .map(a => s"${a.base} ${a.size}").mkString(" ")
-  val uncacheable_regions = AddressRange.fromSets(managers.filter(!_.supportsAcquireB).flatMap(_.address))
-    .map(a => s"${a.base} ${a.size}").mkString(" ")
-  val readonly_uncacheable_regions = AddressRange.fromSets(managers.filter {
-    m => !m.supportsAcquireB && !m.supportsPutFull && m.regionType == RegionType.UNCACHED
-  }.flatMap(_.address))
-    .map(a => s"${a.base} ${a.size}").mkString(" ")
-  val executable_regions = AddressRange.fromSets(managers.filter(_.executable).flatMap(_.address))
-    .map(a => s"${a.base} ${a.size}").mkString(" ")
+  val cacheable_regions = AddressRange
+    .fromSets(managers.filter(_.supportsAcquireB).flatMap(_.address))
+    .map(a => s"${a.base} ${a.size}")
+    .mkString(" ")
+  val uncacheable_regions = AddressRange
+    .fromSets(managers.filter(!_.supportsAcquireB).flatMap(_.address))
+    .map(a => s"${a.base} ${a.size}")
+    .mkString(" ")
+  val readonly_uncacheable_regions = AddressRange
+    .fromSets(
+      managers
+        .filter { m =>
+          !m.supportsAcquireB && !m.supportsPutFull && m.regionType == RegionType.UNCACHED
+        }
+        .flatMap(_.address)
+    )
+    .map(a => s"${a.base} ${a.size}")
+    .mkString(" ")
+  val executable_regions = AddressRange
+    .fromSets(managers.filter(_.executable).flatMap(_.address))
+    .map(a => s"${a.base} ${a.size}")
+    .mkString(" ")
 
   val (icache_tl, icacheEdge) = outer.icacheNode.out(0)
   val (dcache_tl, dcacheEdge) = outer.dcacheNode.out(0)
@@ -354,15 +413,25 @@ class SpikeTileModuleImp(outer: SpikeTile) extends BaseTileModuleImp(outer) {
   // then the DTM-based bringup with SimDTM will be used. This isn't required to be
   // true, but it usually is
   val useDTM = p(ExportDebug).protocols.contains(DMI)
-  val spike = Module(new SpikeBlackBox(outer.tileId, outer.isaDTS, tileParams.core.nPMPs,
-    tileParams.icache.get.nSets, tileParams.icache.get.nWays,
-    tileParams.dcache.get.nSets, tileParams.dcache.get.nWays,
-    tileParams.dcache.get.nMSHRs,
-    cacheable_regions, uncacheable_regions, readonly_uncacheable_regions, executable_regions,
-    outer.spikeTileParams.tcmParams.map(_.base).getOrElse(0),
-    outer.spikeTileParams.tcmParams.map(_.size).getOrElse(0),
-    useDTM
-  ))
+  val spike = Module(
+    new SpikeBlackBox(
+      outer.tileId,
+      outer.isaDTS,
+      tileParams.core.nPMPs,
+      tileParams.icache.get.nSets,
+      tileParams.icache.get.nWays,
+      tileParams.dcache.get.nSets,
+      tileParams.dcache.get.nWays,
+      tileParams.dcache.get.nMSHRs,
+      cacheable_regions,
+      uncacheable_regions,
+      readonly_uncacheable_regions,
+      executable_regions,
+      outer.spikeTileParams.tcmParams.map(_.base).getOrElse(0),
+      outer.spikeTileParams.tcmParams.map(_.size).getOrElse(0),
+      useDTM
+    )
+  )
   spike.io.clock := clock.asBool
   val cycle = RegInit(0.U(64.W))
   cycle := cycle + 1.U
@@ -377,15 +446,18 @@ class SpikeTileModuleImp(outer: SpikeTile) extends BaseTileModuleImp(outer) {
   spike.io.msip := int_bundle.msip
   spike.io.meip := int_bundle.meip
   spike.io.seip := int_bundle.seip.get
-  spike.io.ipc := PlusArg("spike-ipc", width=32, default=10000)
+  spike.io.ipc := PlusArg("spike-ipc", width = 32, default = 10000)
 
   val blockBits = log2Ceil(p(CacheBlockBytes))
   spike.io.icache.a.ready := icache_tl.a.ready
   icache_tl.a.valid := spike.io.icache.a.valid
-  icache_tl.a.bits := icacheEdge.Get(
-    fromSource = spike.io.icache.a.sourceid,
-    toAddress = (spike.io.icache.a.address >> blockBits) << blockBits,
-    lgSize = blockBits.U)._2
+  icache_tl.a.bits := icacheEdge
+    .Get(
+      fromSource = spike.io.icache.a.sourceid,
+      toAddress = (spike.io.icache.a.address >> blockBits) << blockBits,
+      lgSize = blockBits.U
+    )
+    ._2
   icache_tl.d.ready := true.B
   spike.io.icache.d.valid := icache_tl.d.valid
   spike.io.icache.d.sourceid := icache_tl.d.bits.source
@@ -394,11 +466,18 @@ class SpikeTileModuleImp(outer: SpikeTile) extends BaseTileModuleImp(outer) {
   spike.io.dcache.a.ready := dcache_tl.a.ready
   dcache_tl.a.valid := spike.io.dcache.a.valid
   if (dcacheEdge.manager.anySupportAcquireB) {
-    dcache_tl.a.bits := dcacheEdge.AcquireBlock(
-      fromSource = spike.io.dcache.a.sourceid,
-      toAddress = (spike.io.dcache.a.address >> blockBits) << blockBits,
-      lgSize = blockBits.U,
-      growPermissions = Mux(spike.io.dcache.a.state_old, 2.U, Mux(spike.io.dcache.a.state_new, 1.U, 0.U)))._2
+    dcache_tl.a.bits := dcacheEdge
+      .AcquireBlock(
+        fromSource = spike.io.dcache.a.sourceid,
+        toAddress = (spike.io.dcache.a.address >> blockBits) << blockBits,
+        lgSize = blockBits.U,
+        growPermissions = Mux(
+          spike.io.dcache.a.state_old,
+          2.U,
+          Mux(spike.io.dcache.a.state_new, 1.U, 0.U)
+        )
+      )
+      ._2
   } else {
     dcache_tl.a.bits := DontCare
   }
@@ -411,26 +490,34 @@ class SpikeTileModuleImp(outer: SpikeTile) extends BaseTileModuleImp(outer) {
   spike.io.dcache.c.ready := dcache_tl.c.ready
   dcache_tl.c.valid := spike.io.dcache.c.valid
   if (dcacheEdge.manager.anySupportAcquireB) {
-    dcache_tl.c.bits := Mux(spike.io.dcache.c.voluntary,
-      dcacheEdge.Release(
-        fromSource = spike.io.dcache.c.sourceid,
-        toAddress = spike.io.dcache.c.address,
-        lgSize = blockBits.U,
-        shrinkPermissions = spike.io.dcache.c.param,
-        data = spike.io.dcache.c.data.asUInt)._2,
-      Mux(spike.io.dcache.c.has_data,
+    dcache_tl.c.bits := Mux(
+      spike.io.dcache.c.voluntary,
+      dcacheEdge
+        .Release(
+          fromSource = spike.io.dcache.c.sourceid,
+          toAddress = spike.io.dcache.c.address,
+          lgSize = blockBits.U,
+          shrinkPermissions = spike.io.dcache.c.param,
+          data = spike.io.dcache.c.data.asUInt
+        )
+        ._2,
+      Mux(
+        spike.io.dcache.c.has_data,
         dcacheEdge.ProbeAck(
           fromSource = spike.io.dcache.c.sourceid,
           toAddress = spike.io.dcache.c.address,
           lgSize = blockBits.U,
           reportPermissions = spike.io.dcache.c.param,
-          data = spike.io.dcache.c.data.asUInt),
+          data = spike.io.dcache.c.data.asUInt
+        ),
         dcacheEdge.ProbeAck(
           fromSource = spike.io.dcache.c.sourceid,
           toAddress = spike.io.dcache.c.address,
           lgSize = blockBits.U,
-          reportPermissions = spike.io.dcache.c.param)
-      ))
+          reportPermissions = spike.io.dcache.c.param
+        )
+      )
+    )
   } else {
     dcache_tl.c.bits := DontCare
   }
@@ -441,7 +528,8 @@ class SpikeTileModuleImp(outer: SpikeTile) extends BaseTileModuleImp(outer) {
   dcache_tl.d.ready := can_finish
   spike.io.dcache.d.valid := dcache_tl.d.valid && can_finish
   spike.io.dcache.d.has_data := has_data
-  spike.io.dcache.d.grantack := dcache_tl.d.bits.opcode.isOneOf(TLMessages.Grant, TLMessages.GrantData)
+  spike.io.dcache.d.grantack := dcache_tl.d.bits.opcode
+    .isOneOf(TLMessages.Grant, TLMessages.GrantData)
   spike.io.dcache.d.sourceid := dcache_tl.d.bits.source
   spike.io.dcache.d.data := dcache_tl.d.bits.data.asTypeOf(Vec(8, UInt(64.W)))
 
@@ -450,10 +538,16 @@ class SpikeTileModuleImp(outer: SpikeTile) extends BaseTileModuleImp(outer) {
 
   spike.io.mmio.a.ready := mmio_tl.a.ready
   mmio_tl.a.valid := spike.io.mmio.a.valid
-  val log_size = (0 until 4).map { i => Mux(spike.io.mmio.a.size === (1 << i).U, i.U, 0.U) }.reduce(_|_)
-  mmio_tl.a.bits := Mux(spike.io.mmio.a.store,
-    mmioEdge.Put(0.U, spike.io.mmio.a.address, log_size, spike.io.mmio.a.data)._2,
-    mmioEdge.Get(0.U, spike.io.mmio.a.address, log_size)._2)
+  val log_size = (0 until 4)
+    .map { i => Mux(spike.io.mmio.a.size === (1 << i).U, i.U, 0.U) }
+    .reduce(_ | _)
+  mmio_tl.a.bits := Mux(
+    spike.io.mmio.a.store,
+    mmioEdge
+      .Put(0.U, spike.io.mmio.a.address, log_size, spike.io.mmio.a.data)
+      ._2,
+    mmioEdge.Get(0.U, spike.io.mmio.a.address, log_size)._2
+  )
 
   mmio_tl.d.ready := true.B
   spike.io.mmio.d.valid := mmio_tl.d.valid
@@ -476,7 +570,7 @@ class SpikeTileModuleImp(outer: SpikeTile) extends BaseTileModuleImp(outer) {
 
     spike.io.tcm.d.ready := tcm_tl.d.ready
     tcm_tl.d.bits := tcmEdge.AccessAck(RegNext(tcm_tl.a.bits))
-    when (RegNext(tcm_tl.a.bits.opcode === TLMessages.Get)) {
+    when(RegNext(tcm_tl.a.bits.opcode === TLMessages.Get)) {
       tcm_tl.d.bits.opcode := TLMessages.AccessAckData
     }
     tcm_tl.d.valid := spike.io.tcm.d.valid
@@ -484,36 +578,47 @@ class SpikeTileModuleImp(outer: SpikeTile) extends BaseTileModuleImp(outer) {
   }
 }
 
-class WithSpikeZicntr extends TileAttachConfig[SpikeTileAttachParams](t =>
-  t.copy(tileParams=t.tileParams.copy(core=t.tileParams.core.copy(useZicntr=true)))
-)
-
-class WithNSpikeCores(n: Int = 1, tileParams: SpikeTileParams = SpikeTileParams()
-) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => {
-    // Calculate the next available hart ID (since hart ID cannot be duplicated)
-    val prev = up(TilesLocated(InSubsystem), site)
-    val idOffset = up(NumTiles)
-    // Create TileAttachParams for every core to be instantiated
-    (0 until n).map { i =>
-      SpikeTileAttachParams(
-        tileParams = tileParams.copy(tileId = i + idOffset)
+class WithSpikeZicntr
+    extends TileAttachConfig[SpikeTileAttachParams](t =>
+      t.copy(tileParams =
+        t.tileParams.copy(core = t.tileParams.core.copy(useZicntr = true))
       )
-    } ++ prev
-  }
-  case NumTiles => up(NumTiles) + n
+    )
 
-})
+class WithNSpikeCores(
+    n: Int = 1,
+    tileParams: SpikeTileParams = SpikeTileParams()
+) extends Config((site, here, up) => {
+      case TilesLocated(InSubsystem) => {
+        // Calculate the next available hart ID (since hart ID cannot be duplicated)
+        val prev = up(TilesLocated(InSubsystem), site)
+        val idOffset = up(NumTiles)
+        // Create TileAttachParams for every core to be instantiated
+        (0 until n).map { i =>
+          SpikeTileAttachParams(
+            tileParams = tileParams.copy(tileId = i + idOffset)
+          )
+        } ++ prev
+      }
+      case NumTiles => up(NumTiles) + n
 
-class WithSpikeTCM extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => {
-    val prev = up(TilesLocated(InSubsystem))
-    require(prev.size == 1)
-    val spike = prev(0).asInstanceOf[SpikeTileAttachParams]
-    Seq(spike.copy(tileParams = spike.tileParams.copy(
-      tcmParams = Some(up(ExtMem).get.master)
-    )))
-  }
-  case ExtMem => None
-  case SubsystemBankedCoherenceKey => up(SubsystemBankedCoherenceKey).copy(nBanks = 0)
-})
+    })
+
+class WithSpikeTCM
+    extends Config((site, here, up) => {
+      case TilesLocated(InSubsystem) => {
+        val prev = up(TilesLocated(InSubsystem))
+        require(prev.size == 1)
+        val spike = prev(0).asInstanceOf[SpikeTileAttachParams]
+        Seq(
+          spike.copy(tileParams =
+            spike.tileParams.copy(
+              tcmParams = Some(up(ExtMem).get.master)
+            )
+          )
+        )
+      }
+      case ExtMem => None
+      case SubsystemBankedCoherenceKey =>
+        up(SubsystemBankedCoherenceKey).copy(nBanks = 0)
+    })

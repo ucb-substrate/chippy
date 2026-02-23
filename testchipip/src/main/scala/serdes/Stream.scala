@@ -9,7 +9,7 @@ import freechips.rocketchip.tilelink._
 
 class StreamChannel(val w: Int) extends Bundle {
   val data = UInt(w.W)
-  val keep = UInt((w/8).W)
+  val keep = UInt((w / 8).W)
   val last = Bool()
 }
 
@@ -50,17 +50,17 @@ class StreamNarrower(inW: Int, outW: Int) extends Module {
   io.out.bits.keep := bits.keep(outBytes - 1, 0)
   io.out.bits.last := bits.last && !nextKeep.orR
 
-  when (io.in.fire) {
+  when(io.in.fire) {
     count := (outBeats - 1).U
     bits := io.in.bits
     state := s_send
   }
 
-  when (io.out.fire) {
+  when(io.out.fire) {
     count := count - 1.U
     bits.data := nextData
     bits.keep := nextKeep
-    when (io.out.bits.last || count === 0.U) {
+    when(io.out.bits.last || count === 0.U) {
       state := s_recv
     }
   }
@@ -93,17 +93,17 @@ class StreamWidener(inW: Int, outW: Int) extends Module {
   io.out.bits.keep := keep.asUInt
   io.out.bits.last := last
 
-  when (io.in.fire) {
+  when(io.in.fire) {
     idx := idx + 1.U
     data(idx) := io.in.bits.data
     keep(idx) := io.in.bits.keep
-    when (io.in.bits.last || idx === (inBeats - 1).U) {
+    when(io.in.bits.last || idx === (inBeats - 1).U) {
       last := io.in.bits.last
       state := s_send
     }
   }
 
-  when (io.out.fire) {
+  when(io.out.fire) {
     idx := 0.U
     keep.foreach(_ := 0.U)
     state := s_recv

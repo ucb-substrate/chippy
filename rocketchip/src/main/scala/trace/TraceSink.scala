@@ -12,7 +12,8 @@ abstract class LazyTraceSink()(implicit p: Parameters) extends LazyModule {
   val module: LazyTraceSinkModuleImp
 }
 
-class LazyTraceSinkModuleImp(outer: LazyTraceSink) extends LazyModuleImp(outer) {
+class LazyTraceSinkModuleImp(outer: LazyTraceSink)
+    extends LazyModuleImp(outer) {
   val io = IO(new Bundle {
     val trace_in = Flipped(Decoupled(UInt(8.W)))
   })

@@ -5,10 +5,10 @@ import freechips.rocketchip.util.ShiftRegInit
 
 class BlackBoxDelayBuffer extends BlackBox {
   val io = IO(new Bundle() {
-  val in = Input(UInt(1.W))
-  val sel = Input(UInt(5.W))
-  val out = Input(UInt(1.W))
-  val mux_out = Output(UInt(1.W))
+    val in = Input(UInt(1.W))
+    val sel = Input(UInt(5.W))
+    val out = Input(UInt(1.W))
+    val mux_out = Output(UInt(1.W))
   })
 }
 
@@ -26,4 +26,4 @@ class BlackBoxDelayBuffer extends BlackBox {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

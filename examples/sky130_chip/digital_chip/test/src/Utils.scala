@@ -63,11 +63,13 @@ script -f -c "./simulation </dev/null 2> >(spike-dasm > simulation.out)" simulat
       topModule: String,
       sourceFilesList: Path,
       incDirs: Seq[Path] = Seq.empty,
-      loadmem: Boolean = true,
+      loadmem: Boolean = true
   ) = {
     // val dramsim_ini =
     //   getClass.getResource("/dramsim2_ini").getPath
-    val dramsim_ini = Path("/scratch/rohankumar/chippy/testchipip/resources/dramsim2_ini")
+    val dramsim_ini = Path(
+      "/scratch/rohankumar/chippy/testchipip/resources/dramsim2_ini"
+    )
     os.makeDir.all(path / os.up)
     os.write.over(
       path,
@@ -88,7 +90,13 @@ vcs \\
   +define+layer$$Verification$$Cover$$Temporal \\
   +define+VCS +define+FSDB +define+RANDOMIZE_MEM_INIT +define+RANDOMIZE_REG_INIT +define+RANDOMIZE_GARBAGE_ASSIGN +define+RANDOMIZE_INVALID_ASSIGN \\
   -o simulation -Mdir=vcs-sources
-script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.toString}${if (loadmem) { s" +loadmem=${(root / "software/hello0.riscv").toString}" } else { "" }} +permissive-off placeholder-binary </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.toString}${if (
+          loadmem
+        ) {
+          s" +loadmem=${(root / "software/hello0.riscv").toString}"
+        } else {
+          ""
+        }} +permissive-off placeholder-binary </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
 """
     )
     path.toIO.setExecutable(true)

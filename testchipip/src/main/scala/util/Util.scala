@@ -4,26 +4,38 @@ import chisel3._
 import chisel3.util._
 import chisel3.reflect.DataMirror
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy.{IdRange, ValName, LazyModule, LazyModuleImp}
+import freechips.rocketchip.diplomacy.{
+  IdRange,
+  ValName,
+  LazyModule,
+  LazyModuleImp
+}
 import freechips.rocketchip.util.AsyncResetReg
 import freechips.rocketchip.tilelink._
 
 // a counter that clock gates most of its MSBs using the LSB carry-out
 // uses asyncresetregs to make it easy for cross-clock domain work
-case class AsyncWideCounter(width: Int, inc: UInt = 1.U, reset: Boolean = true)
-{
-  private val isWide = width > 2*inc.getWidth
+case class AsyncWideCounter(
+    width: Int,
+    inc: UInt = 1.U,
+    reset: Boolean = true
+) {
+  private val isWide = width > 2 * inc.getWidth
   private val smallWidth = if (isWide) inc.getWidth max log2Up(width) else width
   private val widerNextSmall = Wire(UInt((smallWidth + 1).W))
   private val nextSmall = Wire(UInt(smallWidth.W))
-  private val small = if (reset) AsyncResetReg(nextSmall, 0, "smallReg") else AsyncResetReg(nextSmall, "smallReg")
+  private val small =
+    if (reset) AsyncResetReg(nextSmall, 0, "smallReg")
+    else AsyncResetReg(nextSmall, "smallReg")
   widerNextSmall := small +& inc
   nextSmall := widerNextSmall
 
   private val large = if (isWide) {
     val nextR = Wire(UInt((width - smallWidth).W))
-    val r = if (reset) AsyncResetReg(nextR, 0, "rReg") else AsyncResetReg(nextR, "rReg")
-    when (widerNextSmall(smallWidth)) {
+    val r =
+      if (reset) AsyncResetReg(nextR, 0, "rReg")
+      else AsyncResetReg(nextR, "rReg")
+    when(widerNextSmall(smallWidth)) {
       nextR := r +& 1.U
     }.otherwise {
       nextR := r
@@ -34,7 +46,8 @@ case class AsyncWideCounter(width: Int, inc: UInt = 1.U, reset: Boolean = true)
   val value = if (isWide) large ## small else small
   lazy val carryOut = {
     val lo = (small ^ widerNextSmall) >> 1
-    if (!isWide) lo else {
+    if (!isWide) lo
+    else {
       val hi = Mux(widerNextSmall(smallWidth), large ^ (large +& 1.U), 0.U) >> 1
       hi ## lo
     }
@@ -42,8 +55,13 @@ case class AsyncWideCounter(width: Int, inc: UInt = 1.U, reset: Boolean = true)
 }
 
 // As WideCounter, but it's a module so it can take arbitrary clocks
-class WideCounterModule(w: Int, inc: UInt = 1.U, rst: Boolean = true, clockSignal: Clock = null, resetSignal: Bool = null)
-    extends Module {
+class WideCounterModule(
+    w: Int,
+    inc: UInt = 1.U,
+    rst: Boolean = true,
+    clockSignal: Clock = null,
+    resetSignal: Bool = null
+) extends Module {
   val io = IO(new Bundle {
     val value = Output(UInt(w.W))
   })
@@ -54,7 +72,9 @@ class WideCounterModule(w: Int, inc: UInt = 1.U, rst: Boolean = true, clockSigna
 
 object WideCounterModule {
   def apply(w: Int, c: Clock, r: Bool) = {
-    val counter = Module(new WideCounterModule(w, clockSignal = c, resetSignal = r))
+    val counter = Module(
+      new WideCounterModule(w, clockSignal = c, resetSignal = r)
+    )
     counter.suggestName("wideCounterInst")
     counter.io.value
   }
@@ -74,13 +94,13 @@ class WordSync[T <: Data](gen: T, lat: Int = 2) extends Module {
     val out = chiselTypeOf(gen)
     val tx_clock = Input(Clock())
   })
-  val bin2gray = Module(new BinToGray(gen,io.tx_clock))
+  val bin2gray = Module(new BinToGray(gen, io.tx_clock))
   bin2gray.io.bin := io.in
   val out_gray = ShiftRegister(bin2gray.io.gray, lat)
-  io.out := (
-    (0 until size)
-      .map(out_gray.asUInt >> _.U)
-      .reduceLeft((a: UInt, b: UInt) => a^b)).asTypeOf(gen)
+  io.out := ((0 until size)
+    .map(out_gray.asUInt >> _.U)
+    .reduceLeft((a: UInt, b: UInt) => a ^ b))
+    .asTypeOf(gen)
 }
 
 class BinToGray[T <: Data](gen: T, c: Clock) extends Module {
@@ -101,7 +121,7 @@ object WordSync {
     sync.io.out
   }
   def apply[T <: Data](gen: T, word: Data, c: Clock, lat: Int = 2) = {
-    val sync = Module(new WordSync(gen,lat))
+    val sync = Module(new WordSync(gen, lat))
     sync.suggestName("wordSyncInst")
     sync.io.tx_clock := c
     sync.io.in := word
@@ -133,7 +153,11 @@ object DecoupledMux {
     mux.io.out
   }
 
-  def apply[T <: Data](sel: Bool, a: DecoupledIO[T], b: DecoupledIO[T]): DecoupledIO[T] =
+  def apply[T <: Data](
+      sel: Bool,
+      a: DecoupledIO[T],
+      b: DecoupledIO[T]
+  ): DecoupledIO[T] =
     apply(sel, Seq(b, a))
 }
 
@@ -161,7 +185,9 @@ class TLSinkSetter(endSinkId: Int)(implicit p: Parameters) extends LazyModule {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       connect(out.a, in.a) // out.a <> in .a
       connect(in.d, out.d) // in .d <> out.d
-      if (edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe) {
+      if (
+        edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
+      ) {
         connect(in.b, out.b) // in .b <> out.b
         connect(out.c, in.c) // out.c <> in .c
         connect(out.e, in.e) // out.e <> in .e
@@ -185,7 +211,11 @@ object TLSinkSetter {
 }
 
 class TLSourceSetter(sourceId: Int)(implicit p: Parameters) extends LazyModule {
-  val node = TLAdapterNode(clientFn = { cp => cp.v1copy(clients = cp.clients.map { c => c.v1copy(sourceId = IdRange(0, sourceId))} )})
+  val node = TLAdapterNode(clientFn = { cp =>
+    cp.v1copy(clients = cp.clients.map { c =>
+      c.v1copy(sourceId = IdRange(0, sourceId))
+    })
+  })
   lazy val module = new LazyModuleImp(this) {
     // FIXME: bulk connect
     def connect[T <: TLBundleBase](out: DecoupledIO[T], in: DecoupledIO[T]) {
@@ -197,7 +227,9 @@ class TLSourceSetter(sourceId: Int)(implicit p: Parameters) extends LazyModule {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       connect(out.a, in.a) // out.a <> in .a
       connect(in.d, out.d) // in .d <> out.d
-      if (edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe) {
+      if (
+        edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
+      ) {
         connect(in.b, out.b) // in .b <> out.b
         connect(out.c, in.c) // out.c <> in .c
         connect(out.e, in.e) // out.e <> in .e

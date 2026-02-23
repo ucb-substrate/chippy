@@ -1,10 +1,7 @@
 package sifive.blocks.devices.spi
 
-import chisel3._ 
+import chisel3._
 import chisel3.util._
-
-
-
 
 class SPIFlashInsn(c: SPIFlashParamsBase) extends SPIBundle(c) {
   val cmd = new Bundle with HasSPIProtocol {
@@ -64,15 +61,14 @@ class SPIFlashMap(c: SPIFlashParamsBase) extends Module {
   io.link.fmt.proto := insn.addr.proto
   io.link.fmt.iodir := SPIDirection.Tx
   io.link.fmt.endian := io.ctrl.fmt.endian
-  io.link.cnt := Mux1H(
-    SPIProtocol.decode(io.link.fmt.proto).zipWithIndex.map {
-      case (s, i) => (s -> (c.frameBits >> i).U)
-    })
+  io.link.cnt := Mux1H(SPIProtocol.decode(io.link.fmt.proto).zipWithIndex.map {
+    case (s, i) => (s -> (c.frameBits >> i).U)
+  })
   io.link.cs.set := true.B
   io.link.cs.clear := false.B
   io.link.cs.hold := true.B
   io.link.lock := true.B
-  io.link.disableOE.foreach ( _ := false.B)
+  io.link.disableOE.foreach(_ := false.B)
 
   io.addr.ready := false.B
   io.data.valid := false.B
@@ -84,92 +80,92 @@ class SPIFlashMap(c: SPIFlashParamsBase) extends Module {
   val cnt_zero = cnt_cmp(0)
   val cnt_last = cnt_cmp(1) && io.link.tx.ready
   val cnt_done = cnt_last || cnt_zero
-  when (cnt_en) {
+  when(cnt_en) {
     io.link.tx.valid := !cnt_zero
-    when (io.link.tx.fire) {
+    when(io.link.tx.fire) {
       cnt := cnt - 1.U
     }
   }
 
-  val (s_idle :: s_cmd :: s_addr :: s_pad :: s_data_pre :: s_data_post :: s_off :: Nil) = Enum(7)
+  val (s_idle :: s_cmd :: s_addr :: s_pad :: s_data_pre :: s_data_post :: s_off :: Nil) =
+    Enum(7)
   val state = RegInit(s_idle)
 
-  switch (state) {
-    is (s_idle) {
+  switch(state) {
+    is(s_idle) {
       io.link.tx.valid := false.B
-      when (io.en) {
+      when(io.en) {
         io.addr.ready := true.B
-        when (io.addr.valid) {
-          when (merge) {
+        when(io.addr.valid) {
+          when(merge) {
             state := s_data_pre
-          } .otherwise {
+          }.otherwise {
             state := Mux(insn.cmd.en, s_cmd, s_addr)
             io.link.cs.clear := true.B
           }
-        } .otherwise {
+        }.otherwise {
           io.link.lock := false.B
         }
-      } .otherwise {
+      }.otherwise {
         io.addr.ready := true.B
         io.link.lock := false.B
-        when (io.addr.valid) {
+        when(io.addr.valid) {
           state := s_off
         }
       }
     }
 
-    is (s_cmd) {
+    is(s_cmd) {
       io.link.fmt.proto := insn.cmd.proto
       io.link.tx.bits := insn.cmd.code
-      when (io.link.tx.ready) {
+      when(io.link.tx.ready) {
         state := s_addr
         cnt := insn.addr.len
       }
     }
 
-    is (s_addr) {
-      io.link.tx.bits := Mux1H(cnt_cmp.tail.zipWithIndex.map {
-        case (s, i) =>
-          val n = i * c.frameBits
-          val m = n + (c.frameBits - 1)
-          s -> io.addr.bits.hold(m, n)
+    is(s_addr) {
+      io.link.tx.bits := Mux1H(cnt_cmp.tail.zipWithIndex.map { case (s, i) =>
+        val n = i * c.frameBits
+        val m = n + (c.frameBits - 1)
+        s -> io.addr.bits.hold(m, n)
       })
 
       cnt_en := true.B
-      when (cnt_done) {
+      when(cnt_done) {
         state := s_pad
       }
     }
 
-    is (s_pad) {
+    is(s_pad) {
       io.link.cnt := insn.pad.cnt
       io.link.tx.bits := insn.pad.code
       io.link.disableOE.foreach(_ := true.B)
-      when (io.link.tx.ready) {
+      when(io.link.tx.ready) {
         state := s_data_pre
       }
     }
 
-    is (s_data_pre) {
+    is(s_data_pre) {
       io.link.fmt.proto := insn.data.proto
       io.link.fmt.iodir := SPIDirection.Rx
-      when (io.link.tx.ready) {
+      when(io.link.tx.ready) {
         state := s_data_post
       }
     }
 
-    is (s_data_post) {
+    is(s_data_post) {
       io.link.tx.valid := false.B
       io.data.valid := io.link.rx.valid
-      when (io.data.fire) {
+      when(io.data.fire) {
         state := s_idle
       }
     }
 
-    is (s_off) {
+    is(s_off) {
       io.data.valid := true.B
       io.data.bits := 0.U
-      when (io.data.ready) {
+      when(io.data.ready) {
         state := s_idle
       }
     }
@@ -190,4 +186,4 @@ class SPIFlashMap(c: SPIFlashParamsBase) extends Module {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

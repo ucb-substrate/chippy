@@ -9,7 +9,12 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{AddressSet, BufferParams, IdRange, TransferSizes}
+import freechips.rocketchip.diplomacy.{
+  AddressSet,
+  BufferParams,
+  IdRange,
+  TransferSizes
+}
 import freechips.rocketchip.util.{Repeater, OH1ToUInt, UIntToOH1}
 
 import scala.math.min
@@ -32,20 +37,40 @@ object EarlyAck {
 // Fragmenter modifies: PutFull, PutPartial, LogicalData, Get, Hint
 // Fragmenter passes: ArithmeticData (truncated to minSize if alwaysMin)
 // Fragmenter cannot modify acquire (could livelock); thus it is unsafe to put caches on both sides
-class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false, val earlyAck: EarlyAck.T = EarlyAck.None, val holdFirstDeny: Boolean = false, val nameSuffix: Option[String] = None)(implicit p: Parameters) extends LazyModule
-{
-  require(isPow2 (maxSize), s"TLFragmenter expects pow2(maxSize), but got $maxSize")
-  require(isPow2 (minSize), s"TLFragmenter expects pow2(minSize), but got $minSize")
-  require(minSize <= maxSize, s"TLFragmenter expects min <= max, but got $minSize > $maxSize")
+class TLFragmenter(
+    val minSize: Int,
+    val maxSize: Int,
+    val alwaysMin: Boolean = false,
+    val earlyAck: EarlyAck.T = EarlyAck.None,
+    val holdFirstDeny: Boolean = false,
+    val nameSuffix: Option[String] = None
+)(implicit p: Parameters)
+    extends LazyModule {
+  require(
+    isPow2(maxSize),
+    s"TLFragmenter expects pow2(maxSize), but got $maxSize"
+  )
+  require(
+    isPow2(minSize),
+    s"TLFragmenter expects pow2(minSize), but got $minSize"
+  )
+  require(
+    minSize <= maxSize,
+    s"TLFragmenter expects min <= max, but got $minSize > $maxSize"
+  )
 
   val fragmentBits = log2Ceil(maxSize / minSize)
   val fullBits = if (earlyAck == EarlyAck.PutFulls) 1 else 0
   val toggleBits = 1
   val addedBits = fragmentBits + toggleBits + fullBits
 
-  def expandTransfer(x: TransferSizes, op: String) = if (!x) x else {
+  def expandTransfer(x: TransferSizes, op: String) = if (!x) x
+  else {
     // validate that we can apply the fragmenter correctly
-    require (x.max >= minSize, s"TLFragmenter (with parent $parent) max transfer size $op(${x.max}) must be >= min transfer size (${minSize})")
+    require(
+      x.max >= minSize,
+      s"TLFragmenter (with parent $parent) max transfer size $op(${x.max}) must be >= min transfer size (${minSize})"
+    )
     TransferSizes(x.min, maxSize)
   }
 
@@ -57,33 +82,62 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
   private def mapManager(m: TLSlaveParameters) = m.v1copy(
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
-    supportsLogical    = shrinkTransfer(m.supportsLogical),
-    supportsGet        = expandTransfer(m.supportsGet, "Get"),
-    supportsPutFull    = expandTransfer(m.supportsPutFull, "PutFull"),
+    supportsLogical = shrinkTransfer(m.supportsLogical),
+    supportsGet = expandTransfer(m.supportsGet, "Get"),
+    supportsPutFull = expandTransfer(m.supportsPutFull, "PutFull"),
     supportsPutPartial = expandTransfer(m.supportsPutPartial, "PutParital"),
-    supportsHint       = expandTransfer(m.supportsHint, "Hint"))
+    supportsHint = expandTransfer(m.supportsHint, "Hint")
+  )
 
   val node = new TLAdapterNode(
     // We require that all the responses are mutually FIFO
     // Thus we need to compact all of the masters into one big master
-    clientFn  = { c => (if (noChangeRequired) c else c.v2copy(
-      masters = Seq(TLMasterParameters.v2(
-        name        = "TLFragmenter",
-        sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
-        requestFifo = true,
-        emits       = TLMasterToSlaveTransferSizes(
-          acquireT    = shrinkTransfer(c.masters.map(_.emits.acquireT)  .reduce(_ mincover _)),
-          acquireB    = shrinkTransfer(c.masters.map(_.emits.acquireB)  .reduce(_ mincover _)),
-          arithmetic  = shrinkTransfer(c.masters.map(_.emits.arithmetic).reduce(_ mincover _)),
-          logical     = shrinkTransfer(c.masters.map(_.emits.logical)   .reduce(_ mincover _)),
-          get         = shrinkTransfer(c.masters.map(_.emits.get)       .reduce(_ mincover _)),
-          putFull     = shrinkTransfer(c.masters.map(_.emits.putFull)   .reduce(_ mincover _)),
-          putPartial  = shrinkTransfer(c.masters.map(_.emits.putPartial).reduce(_ mincover _)),
-          hint        = shrinkTransfer(c.masters.map(_.emits.hint)      .reduce(_ mincover _))
-        )
-      ))
-    ))},
-    managerFn = { m => if (noChangeRequired) m else m.v2copy(slaves = m.slaves.map(mapManager)) }
+    clientFn = { c =>
+      (if (noChangeRequired) c
+       else
+         c.v2copy(
+           masters = Seq(
+             TLMasterParameters.v2(
+               name = "TLFragmenter",
+               sourceId = IdRange(
+                 0,
+                 if (minSize == maxSize) c.endSourceId
+                 else (c.endSourceId << addedBits)
+               ),
+               requestFifo = true,
+               emits = TLMasterToSlaveTransferSizes(
+                 acquireT = shrinkTransfer(
+                   c.masters.map(_.emits.acquireT).reduce(_ mincover _)
+                 ),
+                 acquireB = shrinkTransfer(
+                   c.masters.map(_.emits.acquireB).reduce(_ mincover _)
+                 ),
+                 arithmetic = shrinkTransfer(
+                   c.masters.map(_.emits.arithmetic).reduce(_ mincover _)
+                 ),
+                 logical = shrinkTransfer(
+                   c.masters.map(_.emits.logical).reduce(_ mincover _)
+                 ),
+                 get = shrinkTransfer(
+                   c.masters.map(_.emits.get).reduce(_ mincover _)
+                 ),
+                 putFull = shrinkTransfer(
+                   c.masters.map(_.emits.putFull).reduce(_ mincover _)
+                 ),
+                 putPartial = shrinkTransfer(
+                   c.masters.map(_.emits.putPartial).reduce(_ mincover _)
+                 ),
+                 hint = shrinkTransfer(
+                   c.masters.map(_.emits.hint).reduce(_ mincover _)
+                 )
+               )
+             )
+           )
+         ))
+    },
+    managerFn = { m =>
+      if (noChangeRequired) m else m.v2copy(slaves = m.slaves.map(mapManager))
+    }
   ) {
     override def circuitIdentity = noChangeRequired
   }
@@ -96,20 +150,32 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         out <> in
       } else {
         // All managers must share a common FIFO domain (responses might end up interleaved)
-        val manager   = edgeOut.manager
-        val managers  = manager.managers
+        val manager = edgeOut.manager
+        val managers = manager.managers
         val beatBytes = manager.beatBytes
         val fifoId = managers(0).fifoId
-        require (fifoId.isDefined && managers.map(_.fifoId == fifoId).reduce(_ && _))
-        require (!manager.anySupportAcquireB || !edgeOut.client.anySupportProbe,
-          s"TLFragmenter (with parent $parent) can't fragment a caching client's requests into a cacheable region")
-        
-        require (minSize >= beatBytes, s"TLFragmenter (with parent $parent) can't support fragmenting ($minSize) to sub-beat ($beatBytes) accesses")
+        require(
+          fifoId.isDefined && managers.map(_.fifoId == fifoId).reduce(_ && _)
+        )
+        require(
+          !manager.anySupportAcquireB || !edgeOut.client.anySupportProbe,
+          s"TLFragmenter (with parent $parent) can't fragment a caching client's requests into a cacheable region"
+        )
+
+        require(
+          minSize >= beatBytes,
+          s"TLFragmenter (with parent $parent) can't support fragmenting ($minSize) to sub-beat ($beatBytes) accesses"
+        )
         // We can't support devices which are cached on both sides of us
-        require (!edgeOut.manager.anySupportAcquireB || !edgeIn.client.anySupportProbe)
+        require(
+          !edgeOut.manager.anySupportAcquireB || !edgeIn.client.anySupportProbe
+        )
         // We can't support denied because we reassemble fragments
-        require (!edgeOut.manager.mayDenyGet || holdFirstDeny, s"TLFragmenter (with parent $parent) can't support denials without holdFirstDeny=true")
-        require (!edgeOut.manager.mayDenyPut || earlyAck == EarlyAck.None)
+        require(
+          !edgeOut.manager.mayDenyGet || holdFirstDeny,
+          s"TLFragmenter (with parent $parent) can't support denials without holdFirstDeny=true"
+        )
+        require(!edgeOut.manager.mayDenyPut || earlyAck == EarlyAck.None)
 
         /* The Fragmenter is a bit tricky, because there are 5 sizes in play:
          *   max  size -- the maximum transfer size possible
@@ -176,8 +242,9 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
          * put1    put1   0       ack1    0      ack1      0     0
          */
 
-        val counterBits = log2Up(maxSize/beatBytes)
-        val maxDownSize = if (alwaysMin) minSize else min(manager.maxTransfer, maxSize)
+        val counterBits = log2Up(maxSize / beatBytes)
+        val maxDownSize =
+          if (alwaysMin) minSize else min(manager.maxTransfer, maxSize)
 
         // Consider the following waveform for two 4-beat bursts:
         // ---A----A------------
@@ -201,25 +268,25 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val acknum = RegInit(0.U(counterBits.W))
         val dOrig = Reg(UInt())
         val dToggle = RegInit(false.B)
-        val dFragnum = out.d.bits.source(fragmentBits-1, 0)
+        val dFragnum = out.d.bits.source(fragmentBits - 1, 0)
         val dFirst = acknum === 0.U
         val dLast = dFragnum === 0.U // only for AccessAck (!Data)
-        val dsizeOH  = UIntToOH (out.d.bits.size, log2Ceil(maxDownSize)+1)
+        val dsizeOH = UIntToOH(out.d.bits.size, log2Ceil(maxDownSize) + 1)
         val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Up(maxDownSize))
         val dHasData = edgeOut.hasData(out.d.bits)
 
         // calculate new acknum
-        val acknum_fragment = dFragnum << log2Ceil(minSize/beatBytes)
+        val acknum_fragment = dFragnum << log2Ceil(minSize / beatBytes)
         val acknum_size = dsizeOH1 >> log2Ceil(beatBytes)
-        assert (!out.d.valid || (acknum_fragment & acknum_size) === 0.U)
+        assert(!out.d.valid || (acknum_fragment & acknum_size) === 0.U)
         val dFirst_acknum = acknum_fragment | Mux(dHasData, acknum_size, 0.U)
         val ack_decrement = Mux(dHasData, 1.U, dsizeOH >> log2Ceil(beatBytes))
         // calculate the original size
         val dFirst_size = OH1ToUInt((dFragnum << log2Ceil(minSize)) | dsizeOH1)
 
-        when (out.d.fire) {
+        when(out.d.fire) {
           acknum := Mux(dFirst, dFirst_acknum, acknum - ack_decrement)
-          when (dFirst) {
+          when(dFirst) {
             dOrig := dFirst_size
             dToggle := out.d.bits.source(fragmentBits)
           }
@@ -228,47 +295,53 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         // Swallow up non-data ack fragments
         val doEarlyAck = earlyAck match {
           case EarlyAck.AllPuts  => true.B
-          case EarlyAck.PutFulls => out.d.bits.source(fragmentBits+1)
+          case EarlyAck.PutFulls => out.d.bits.source(fragmentBits + 1)
           case EarlyAck.None     => false.B
         }
         val drop = !dHasData && !Mux(doEarlyAck, dFirst, dLast)
         out.d.ready := in.d.ready || drop
-        in.d.valid  := out.d.valid && !drop
-        in.d.bits   := out.d.bits // pass most stuff unchanged
+        in.d.valid := out.d.valid && !drop
+        in.d.bits := out.d.bits // pass most stuff unchanged
         in.d.bits.source := out.d.bits.source >> addedBits
-        in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
+        in.d.bits.size := Mux(dFirst, dFirst_size, dOrig)
 
         if (edgeOut.manager.mayDenyPut) {
           val r_denied = Reg(Bool())
           val d_denied = (!dFirst && r_denied) || out.d.bits.denied
-          when (out.d.fire) { r_denied := d_denied }
+          when(out.d.fire) { r_denied := d_denied }
           in.d.bits.denied := d_denied
         }
         if (edgeOut.manager.mayDenyGet) {
           // Take denied only from the first beat and hold that value
           val d_denied = out.d.bits.denied holdUnless dFirst
-          when (dHasData) {
-            in.d.bits.denied  := d_denied
+          when(dHasData) {
+            in.d.bits.denied := d_denied
             in.d.bits.corrupt := d_denied || out.d.bits.corrupt
           }
         }
 
         // What maximum transfer sizes do downstream devices support?
         val maxArithmetics = managers.map(_.supportsArithmetic.max)
-        val maxLogicals    = managers.map(_.supportsLogical.max)
-        val maxGets        = managers.map(_.supportsGet.max)
-        val maxPutFulls    = managers.map(_.supportsPutFull.max)
+        val maxLogicals = managers.map(_.supportsLogical.max)
+        val maxGets = managers.map(_.supportsGet.max)
+        val maxPutFulls = managers.map(_.supportsPutFull.max)
         val maxPutPartials = managers.map(_.supportsPutPartial.max)
-        val maxHints       = managers.map(m => if (m.supportsHint) maxDownSize else 0)
+        val maxHints = managers.map(m => if (m.supportsHint) maxDownSize else 0)
 
         // We assume that the request is valid => size 0 is impossible
         val lgMinSize = log2Ceil(minSize).U
-        val maxLgArithmetics = maxArithmetics.map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
-        val maxLgLogicals    = maxLogicals   .map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
-        val maxLgGets        = maxGets       .map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
-        val maxLgPutFulls    = maxPutFulls   .map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
-        val maxLgPutPartials = maxPutPartials.map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
-        val maxLgHints       = maxHints      .map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
+        val maxLgArithmetics =
+          maxArithmetics.map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
+        val maxLgLogicals =
+          maxLogicals.map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
+        val maxLgGets =
+          maxGets.map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
+        val maxLgPutFulls =
+          maxPutFulls.map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
+        val maxLgPutPartials =
+          maxPutPartials.map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
+        val maxLgHints =
+          maxHints.map(m => if (m == 0) lgMinSize else log2Ceil(m).U)
 
         // Make the request repeatable
         val repeater = Module(new Repeater(in.a.bits))
@@ -277,21 +350,26 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
         // If this is infront of a single manager, these become constants
         val find = manager.findFast(edgeIn.address(in_a.bits))
-        val maxLgArithmetic  = Mux1H(find, maxLgArithmetics)
-        val maxLgLogical     = Mux1H(find, maxLgLogicals)
-        val maxLgGet         = Mux1H(find, maxLgGets)
-        val maxLgPutFull     = Mux1H(find, maxLgPutFulls)
-        val maxLgPutPartial  = Mux1H(find, maxLgPutPartials)
-        val maxLgHint        = Mux1H(find, maxLgHints)
+        val maxLgArithmetic = Mux1H(find, maxLgArithmetics)
+        val maxLgLogical = Mux1H(find, maxLgLogicals)
+        val maxLgGet = Mux1H(find, maxLgGets)
+        val maxLgPutFull = Mux1H(find, maxLgPutFulls)
+        val maxLgPutPartial = Mux1H(find, maxLgPutPartials)
+        val maxLgHint = Mux1H(find, maxLgHints)
 
-        val limit = if (alwaysMin) lgMinSize else
-          MuxLookup(in_a.bits.opcode, lgMinSize)(Seq(
-            TLMessages.PutFullData    -> maxLgPutFull,
-            TLMessages.PutPartialData -> maxLgPutPartial,
-            TLMessages.ArithmeticData -> maxLgArithmetic,
-            TLMessages.LogicalData    -> maxLgLogical,
-            TLMessages.Get            -> maxLgGet,
-            TLMessages.Hint           -> maxLgHint))
+        val limit =
+          if (alwaysMin) lgMinSize
+          else
+            MuxLookup(in_a.bits.opcode, lgMinSize)(
+              Seq(
+                TLMessages.PutFullData -> maxLgPutFull,
+                TLMessages.PutPartialData -> maxLgPutPartial,
+                TLMessages.ArithmeticData -> maxLgArithmetic,
+                TLMessages.LogicalData -> maxLgLogical,
+                TLMessages.Get -> maxLgGet,
+                TLMessages.Hint -> maxLgHint
+              )
+            )
 
         val aOrig = in_a.bits.size
         val aFrag = Mux(aOrig > limit, limit, aOrig)
@@ -302,26 +380,39 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
         val gennum = RegInit(0.U(counterBits.W))
         val aFirst = gennum === 0.U
-        val old_gennum1 = Mux(aFirst, aOrigOH1 >> log2Ceil(beatBytes), gennum - 1.U)
-        val new_gennum = ~(~old_gennum1 | (aMask >> log2Ceil(beatBytes))) // ~(~x|y) is width safe
-        val aFragnum = ~(~(old_gennum1 >> log2Ceil(minSize/beatBytes)) | (aFragOH1 >> log2Ceil(minSize)))
+        val old_gennum1 =
+          Mux(aFirst, aOrigOH1 >> log2Ceil(beatBytes), gennum - 1.U)
+        val new_gennum =
+          ~(~old_gennum1 | (aMask >> log2Ceil(
+            beatBytes
+          ))) // ~(~x|y) is width safe
+        val aFragnum = ~(~(old_gennum1 >> log2Ceil(
+          minSize / beatBytes
+        )) | (aFragOH1 >> log2Ceil(minSize)))
         val aLast = aFragnum === 0.U
         val aToggle = !Mux(aFirst, dToggle, RegEnable(dToggle, aFirst))
-        val aFull = if (earlyAck == EarlyAck.PutFulls) Some(in_a.bits.opcode === TLMessages.PutFullData) else None
+        val aFull =
+          if (earlyAck == EarlyAck.PutFulls)
+            Some(in_a.bits.opcode === TLMessages.PutFullData)
+          else None
 
-        when (out.a.fire) { gennum := new_gennum }
+        when(out.a.fire) { gennum := new_gennum }
 
         repeater.io.repeat := !aHasData && aFragnum =/= 0.U
         out.a <> in_a
-        out.a.bits.address := in_a.bits.address | ~(old_gennum1 << log2Ceil(beatBytes) | ~aOrigOH1 | aFragOH1 | (minSize-1).U)
-        out.a.bits.source := Cat(Seq(in_a.bits.source) ++ aFull ++ Seq(aToggle.asUInt, aFragnum))
+        out.a.bits.address := in_a.bits.address | ~(old_gennum1 << log2Ceil(
+          beatBytes
+        ) | ~aOrigOH1 | aFragOH1 | (minSize - 1).U)
+        out.a.bits.source := Cat(
+          Seq(in_a.bits.source) ++ aFull ++ Seq(aToggle.asUInt, aFragnum)
+        )
         out.a.bits.size := aFrag
 
         // Optimize away some of the Repeater's registers
-        assert (!repeater.io.full || !aHasData)
+        assert(!repeater.io.full || !aHasData)
         out.a.bits.data := in.a.bits.data
         val fullMask = ((BigInt(1) << beatBytes) - 1).U
-        assert (!repeater.io.full || in_a.bits.mask === fullMask)
+        assert(!repeater.io.full || in_a.bits.mask === fullMask)
         out.a.bits.mask := Mux(repeater.io.full, fullMask, in.a.bits.mask)
         out.a.bits.user.waiveAll :<= in.a.bits.user.subset(_.isData)
 
@@ -337,28 +428,50 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   }
 }
 
-object TLFragmenter
-{
-  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None, holdFirstDeny: Boolean = false, nameSuffix: Option[String] = None)(implicit p: Parameters): TLNode =
-  {
+object TLFragmenter {
+  def apply(
+      minSize: Int,
+      maxSize: Int,
+      alwaysMin: Boolean = false,
+      earlyAck: EarlyAck.T = EarlyAck.None,
+      holdFirstDeny: Boolean = false,
+      nameSuffix: Option[String] = None
+  )(implicit p: Parameters): TLNode = {
     if (minSize <= maxSize) {
-      val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny, nameSuffix))
+      val fragmenter = LazyModule(
+        new TLFragmenter(
+          minSize,
+          maxSize,
+          alwaysMin,
+          earlyAck,
+          holdFirstDeny,
+          nameSuffix
+        )
+      )
       fragmenter.node
     } else { TLEphemeralNode()(ValName("no_fragmenter")) }
   }
 
-  def apply(wrapper: TLBusWrapper, nameSuffix: Option[String])(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, wrapper.blockBytes, nameSuffix = nameSuffix)
+  def apply(wrapper: TLBusWrapper, nameSuffix: Option[String])(implicit
+      p: Parameters
+  ): TLNode =
+    apply(wrapper.beatBytes, wrapper.blockBytes, nameSuffix = nameSuffix)
 
-  def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper, None)
+  def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode =
+    apply(wrapper, None)
 }
 
 // Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
-class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
+class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int, txns: Int)(implicit
+    p: Parameters
+) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("Fragmenter"))
-  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
+  val ram = LazyModule(
+    new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes)
+  )
 
   (ram.node
     := TLDelayer(0.1)
@@ -367,7 +480,7 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int, txns: Int)(implicit p: Pa
     := TLFragmenter(ramBeatBytes, maxSize, earlyAck = EarlyAck.AllPuts)
     := TLDelayer(0.1)
     := TLBuffer(BufferParams.flow)
-    := TLFragmenter(ramBeatBytes, maxSize/2)
+    := TLFragmenter(ramBeatBytes, maxSize / 2)
     := TLDelayer(0.1)
     := TLBuffer(BufferParams.flow)
     := model.node
@@ -379,8 +492,16 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int, txns: Int)(implicit p: Pa
   }
 }
 
-class TLRAMFragmenterTest(ramBeatBytes: Int, maxSize: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  val dut = Module(LazyModule(new TLRAMFragmenter(ramBeatBytes,maxSize,txns)).module)
+class TLRAMFragmenterTest(
+    ramBeatBytes: Int,
+    maxSize: Int,
+    txns: Int = 5000,
+    timeout: Int = 500000
+)(implicit p: Parameters)
+    extends UnitTest(timeout) {
+  val dut = Module(
+    LazyModule(new TLRAMFragmenter(ramBeatBytes, maxSize, txns)).module
+  )
   io.finished := dut.io.finished
   dut.io.start := io.start
 }

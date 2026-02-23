@@ -1,6 +1,6 @@
 package sifive.blocks.util
 
-import chisel3._ 
+import chisel3._
 
 class SRLatch extends BlackBox {
   val io = new Bundle {
@@ -24,4 +24,4 @@ class SRLatch extends BlackBox {
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */

@@ -13,7 +13,7 @@ class ParameterizedBundle(implicit p: Parameters) extends Bundle
 
 trait Clocked extends Bundle {
   val clock = Clock()
-  val reset = Bool()  
+  val reset = Bool()
 }
 
 object DecoupledHelper {
@@ -22,7 +22,10 @@ object DecoupledHelper {
 
 class DecoupledHelper(val rvs: Seq[Bool]) {
   def fire(exclude: Bool, includes: Bool*) = {
-    require(rvs.contains(exclude), "Excluded Bool not present in DecoupledHelper! Note that DecoupledHelper uses referential equality for exclusion! If you don't want to exclude anything, use fire()!")
+    require(
+      rvs.contains(exclude),
+      "Excluded Bool not present in DecoupledHelper! Note that DecoupledHelper uses referential equality for exclusion! If you don't want to exclude anything, use fire()!"
+    )
     (rvs.filter(_ ne exclude) ++ includes).reduce(_ && _)
   }
   def fire() = {
@@ -31,26 +34,55 @@ class DecoupledHelper(val rvs: Seq[Bool]) {
 }
 
 object MuxT {
-  def apply[T <: Data, U <: Data](cond: Bool, con: (T, U), alt: (T, U)): (T, U) =
+  def apply[T <: Data, U <: Data](
+      cond: Bool,
+      con: (T, U),
+      alt: (T, U)
+  ): (T, U) =
     (Mux(cond, con._1, alt._1), Mux(cond, con._2, alt._2))
 
-  def apply[T <: Data, U <: Data, W <: Data](cond: Bool, con: (T, U, W), alt: (T, U, W)): (T, U, W) =
-    (Mux(cond, con._1, alt._1), Mux(cond, con._2, alt._2), Mux(cond, con._3, alt._3))
+  def apply[T <: Data, U <: Data, W <: Data](
+      cond: Bool,
+      con: (T, U, W),
+      alt: (T, U, W)
+  ): (T, U, W) =
+    (
+      Mux(cond, con._1, alt._1),
+      Mux(cond, con._2, alt._2),
+      Mux(cond, con._3, alt._3)
+    )
 
-  def apply[T <: Data, U <: Data, W <: Data, X <: Data](cond: Bool, con: (T, U, W, X), alt: (T, U, W, X)): (T, U, W, X) =
-    (Mux(cond, con._1, alt._1), Mux(cond, con._2, alt._2), Mux(cond, con._3, alt._3), Mux(cond, con._4, alt._4))
+  def apply[T <: Data, U <: Data, W <: Data, X <: Data](
+      cond: Bool,
+      con: (T, U, W, X),
+      alt: (T, U, W, X)
+  ): (T, U, W, X) =
+    (
+      Mux(cond, con._1, alt._1),
+      Mux(cond, con._2, alt._2),
+      Mux(cond, con._3, alt._3),
+      Mux(cond, con._4, alt._4)
+    )
 }
 
 /** Creates a cascade of n MuxTs to search for a key value. */
 object MuxTLookup {
-  def apply[S <: UInt, T <: Data, U <: Data](key: S, default: (T, U), mapping: Seq[(S, (T, U))]): (T, U) = {
+  def apply[S <: UInt, T <: Data, U <: Data](
+      key: S,
+      default: (T, U),
+      mapping: Seq[(S, (T, U))]
+  ): (T, U) = {
     var res = default
     for ((k, v) <- mapping.reverse)
       res = MuxT(k === key, v, res)
     res
   }
 
-  def apply[S <: UInt, T <: Data, U <: Data, W <: Data](key: S, default: (T, U, W), mapping: Seq[(S, (T, U, W))]): (T, U, W) = {
+  def apply[S <: UInt, T <: Data, U <: Data, W <: Data](
+      key: S,
+      default: (T, U, W),
+      mapping: Seq[(S, (T, U, W))]
+  ): (T, U, W) = {
     var res = default
     for ((k, v) <- mapping.reverse)
       res = MuxT(k === key, v, res)
@@ -65,20 +97,18 @@ object ValidMux {
   def apply[T <: Data](valids: Seq[ValidIO[T]]): ValidIO[T] = {
     val out = Wire(Valid(valids.head.bits.cloneType))
     out.valid := valids.map(_.valid).reduce(_ || _)
-    out.bits := MuxCase(valids.head.bits,
-      valids.map(v => (v.valid -> v.bits)))
+    out.bits := MuxCase(valids.head.bits, valids.map(v => (v.valid -> v.bits)))
     out
   }
 }
 
-object Str
-{
+object Str {
   def apply(s: String): UInt = {
     var i = BigInt(0)
     require(s.forall(validChar _))
     for (c <- s)
       i = (i << 8) | c
-    i.U((s.length*8).W)
+    i.U((s.length * 8).W)
   }
   def apply(x: Char): UInt = {
     require(validChar(x))
@@ -92,7 +122,7 @@ object Str
 
     var q = x
     var s = digit(q % rad)
-    for (i <- 1 until ceil(log(2)/log(radix)*w).toInt) {
+    for (i <- 1 until ceil(log(2) / log(radix) * w).toInt) {
       q = q / rad
       s = Cat(Mux((radix == 10).B && q === 0.U, Str(' '), digit(q % rad)), s)
     }
@@ -112,7 +142,7 @@ object Str
       var q = abs
       var s = digit(q % rad)
       var needSign = neg
-      for (i <- 1 until ceil(log(2)/log(radix)*w).toInt) {
+      for (i <- 1 until ceil(log(2) / log(radix) * w).toInt) {
         q = q / rad
         val placeSpace = q === 0.U
         val space = Mux(needSign, Str('-'), Str(' '))
@@ -123,36 +153,43 @@ object Str
     }
   }
 
-  private def digit(d: UInt): UInt = Mux(d < 10.U, Str('0')+d, Str(('a'-10).toChar)+d)(7,0)
-  private def validChar(x: Char) = x == (x & 0xFF)
+  private def digit(d: UInt): UInt =
+    Mux(d < 10.U, Str('0') + d, Str(('a' - 10).toChar) + d)(7, 0)
+  private def validChar(x: Char) = x == (x & 0xff)
 }
 
-object Split
-{
+object Split {
   def apply(x: UInt, n0: Int) = {
     val w = x.getWidth
-    (x.extract(w-1,n0), x.extract(n0-1,0))
+    (x.extract(w - 1, n0), x.extract(n0 - 1, 0))
   }
   def apply(x: UInt, n1: Int, n0: Int) = {
     val w = x.getWidth
-    (x.extract(w-1,n1), x.extract(n1-1,n0), x.extract(n0-1,0))
+    (x.extract(w - 1, n1), x.extract(n1 - 1, n0), x.extract(n0 - 1, 0))
   }
   def apply(x: UInt, n2: Int, n1: Int, n0: Int) = {
     val w = x.getWidth
-    (x.extract(w-1,n2), x.extract(n2-1,n1), x.extract(n1-1,n0), x.extract(n0-1,0))
+    (
+      x.extract(w - 1, n2),
+      x.extract(n2 - 1, n1),
+      x.extract(n1 - 1, n0),
+      x.extract(n0 - 1, 0)
+    )
   }
 }
 
-object Random
-{
+object Random {
   def apply(mod: Int, random: UInt): UInt = {
-    if (isPow2(mod)) random.extract(log2Ceil(mod)-1,0)
-    else PriorityEncoder(partition(apply(1 << log2Up(mod*8), random), mod))
+    if (isPow2(mod)) random.extract(log2Ceil(mod) - 1, 0)
+    else PriorityEncoder(partition(apply(1 << log2Up(mod * 8), random), mod))
   }
   def apply(mod: Int): UInt = apply(mod, randomizer)
   def oneHot(mod: Int, random: UInt): UInt = {
-    if (isPow2(mod)) UIntToOH(random(log2Up(mod)-1,0))
-    else PriorityEncoderOH(partition(apply(1 << log2Up(mod*8), random), mod)).asUInt
+    if (isPow2(mod)) UIntToOH(random(log2Up(mod) - 1, 0))
+    else
+      PriorityEncoderOH(
+        partition(apply(1 << log2Up(mod * 8), random), mod)
+      ).asUInt
   }
   def oneHot(mod: Int): UInt = oneHot(mod, randomizer)
 
@@ -195,22 +232,30 @@ object PopCountAtLeast {
 // eg: (0x3, 0, 4) => 0001, (0x3, 1, 4) => 0011, (0x3, 2, 4) => 1111
 // groupBy applies an interleaved OR reduction; groupBy=2 take 0010 => 01
 object MaskGen {
-  def apply(addr_lo: UInt, lgSize: UInt, beatBytes: Int, groupBy: Int = 1): UInt = {
-    require (groupBy >= 1 && beatBytes >= groupBy)
-    require (isPow2(beatBytes) && isPow2(groupBy))
+  def apply(
+      addr_lo: UInt,
+      lgSize: UInt,
+      beatBytes: Int,
+      groupBy: Int = 1
+  ): UInt = {
+    require(groupBy >= 1 && beatBytes >= groupBy)
+    require(isPow2(beatBytes) && isPow2(groupBy))
     val lgBytes = log2Ceil(beatBytes)
-    val sizeOH = UIntToOH(lgSize | 0.U(log2Up(beatBytes).W), log2Up(beatBytes)) | (groupBy*2 - 1).U
+    val sizeOH = UIntToOH(
+      lgSize | 0.U(log2Up(beatBytes).W),
+      log2Up(beatBytes)
+    ) | (groupBy * 2 - 1).U
 
     def helper(i: Int): Seq[(Bool, Bool)] = {
       if (i == 0) {
         Seq((lgSize >= lgBytes.asUInt, true.B))
       } else {
-        val sub = helper(i-1)
+        val sub = helper(i - 1)
         val size = sizeOH(lgBytes - i)
         val bit = addr_lo(lgBytes - i)
         val nbit = !bit
-        Seq.tabulate (1 << i) { j =>
-          val (sub_acc, sub_eq) = sub(j/2)
+        Seq.tabulate(1 << i) { j =>
+          val (sub_acc, sub_eq) = sub(j / 2)
           val eq = sub_eq && (if (j % 2 == 1) bit else nbit)
           val acc = sub_acc || (size && eq)
           (acc, eq)
@@ -218,7 +263,8 @@ object MaskGen {
       }
     }
 
-    if (groupBy == beatBytes) 1.U else
-      Cat(helper(lgBytes-log2Ceil(groupBy)).map(_._1).reverse)
+    if (groupBy == beatBytes) 1.U
+    else
+      Cat(helper(lgBytes - log2Ceil(groupBy)).map(_._1).reverse)
   }
 }

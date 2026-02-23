@@ -35,7 +35,7 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val s2_resp = WireDefault(0.U.asTypeOf(new PTWResp))
   s2_resp.pte.ppn := s2_ppn
   s2_resp.pte.reserved_for_software := 0.U
-  s2_resp.level := (pgLevels-1).U
+  s2_resp.level := (pgLevels - 1).U
   s2_resp.pte.d := true.B
   s2_resp.pte.a := true.B
   s2_resp.pte.g := false.B

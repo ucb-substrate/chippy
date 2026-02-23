@@ -28,19 +28,21 @@ import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 
 class InclusiveCache(
-  val cache: CacheParameters,
-  val micro: InclusiveCacheMicroParameters,
-  control: Option[InclusiveCacheControlParameters] = None
-  )(implicit p: Parameters)
-    extends LazyModule
-{
+    val cache: CacheParameters,
+    val micro: InclusiveCacheMicroParameters,
+    control: Option[InclusiveCacheControlParameters] = None
+)(implicit p: Parameters)
+    extends LazyModule {
   val access = TransferSizes(1, cache.blockBytes)
   val xfer = TransferSizes(cache.blockBytes, cache.blockBytes)
   val atom = TransferSizes(1, cache.beatBytes)
 
   var resourcesOpt: Option[ResourceBindings] = None
 
-  val device: SimpleDevice = new SimpleDevice("cache-controller", Seq("sifive,inclusivecache0", "cache")) {
+  val device: SimpleDevice = new SimpleDevice(
+    "cache-controller",
+    Seq("sifive,inclusivecache0", "cache")
+  ) {
     def ofInt(x: Int) = Seq(ResourceInt(BigInt(x)))
 
     override def describe(resources: ResourceBindings): Description = {
@@ -58,103 +60,159 @@ class InclusiveCache(
         if (outer.isEmpty) {
           None
         } else {
-          Some("next-level-cache" -> outer.map(l => ResourceReference(l)).toList)
+          Some(
+            "next-level-cache" -> outer.map(l => ResourceReference(l)).toList
+          )
         }
 
       val extra = Map(
-        "cache-level"            -> ofInt(2),
-        "cache-unified"          -> Nil,
-        "cache-size"             -> ofInt(cache.sizeBytes * node.edges.in.size),
-        "cache-sets"             -> ofInt(cache.sets * node.edges.in.size),
-        "cache-block-size"       -> ofInt(cache.blockBytes),
-        "sifive,mshr-count"      -> ofInt(InclusiveCacheParameters.all_mshrs(cache, micro)))
+        "cache-level" -> ofInt(2),
+        "cache-unified" -> Nil,
+        "cache-size" -> ofInt(cache.sizeBytes * node.edges.in.size),
+        "cache-sets" -> ofInt(cache.sets * node.edges.in.size),
+        "cache-block-size" -> ofInt(cache.blockBytes),
+        "sifive,mshr-count" -> ofInt(
+          InclusiveCacheParameters.all_mshrs(cache, micro)
+        )
+      )
       Description(name, mapping ++ extra ++ nextlevel)
     }
   }
 
   val node: TLAdapterNode = TLAdapterNode(
-    clientFn  = { _ => TLClientPortParameters(Seq(TLClientParameters(
-      name          = s"L${cache.level} InclusiveCache",
-      sourceId      = IdRange(0, InclusiveCacheParameters.out_mshrs(cache, micro)),
-      supportsProbe = xfer)))
+    clientFn = { _ =>
+      TLClientPortParameters(
+        Seq(
+          TLClientParameters(
+            name = s"L${cache.level} InclusiveCache",
+            sourceId =
+              IdRange(0, InclusiveCacheParameters.out_mshrs(cache, micro)),
+            supportsProbe = xfer
+          )
+        )
+      )
     },
-    managerFn = { m => TLManagerPortParameters(
-      managers = m.managers.map { m => m.copy(
-        regionType         = if (m.regionType >= RegionType.UNCACHED) RegionType.CACHED else m.regionType,
-        resources          = Resource(device, "caches") +: m.resources,
-        supportsAcquireB   = xfer,
-        supportsAcquireT   = if (m.supportsAcquireT) xfer else TransferSizes.none,
-        supportsArithmetic = if (m.supportsAcquireT) atom else TransferSizes.none,
-        supportsLogical    = if (m.supportsAcquireT) atom else TransferSizes.none,
-        supportsGet        = access,
-        supportsPutFull    = if (m.supportsAcquireT) access else TransferSizes.none,
-        supportsPutPartial = if (m.supportsAcquireT) access else TransferSizes.none,
-        supportsHint       = access,
-        alwaysGrantsT      = false,
-        fifoId             = None)
-      },
-      beatBytes  = cache.beatBytes,
-      endSinkId  = InclusiveCacheParameters.all_mshrs(cache, micro),
-      minLatency = 2)
-    })
+    managerFn = { m =>
+      TLManagerPortParameters(
+        managers = m.managers.map { m =>
+          m.copy(
+            regionType =
+              if (m.regionType >= RegionType.UNCACHED) RegionType.CACHED
+              else m.regionType,
+            resources = Resource(device, "caches") +: m.resources,
+            supportsAcquireB = xfer,
+            supportsAcquireT =
+              if (m.supportsAcquireT) xfer else TransferSizes.none,
+            supportsArithmetic =
+              if (m.supportsAcquireT) atom else TransferSizes.none,
+            supportsLogical =
+              if (m.supportsAcquireT) atom else TransferSizes.none,
+            supportsGet = access,
+            supportsPutFull =
+              if (m.supportsAcquireT) access else TransferSizes.none,
+            supportsPutPartial =
+              if (m.supportsAcquireT) access else TransferSizes.none,
+            supportsHint = access,
+            alwaysGrantsT = false,
+            fifoId = None
+          )
+        },
+        beatBytes = cache.beatBytes,
+        endSinkId = InclusiveCacheParameters.all_mshrs(cache, micro),
+        minLatency = 2
+      )
+    }
+  )
 
-  val ctrls = control.map { c =>
-    val nCtrls = if (c.bankedControl) p(SubsystemBankedCoherenceKey).nBanks else 1
-    Seq.tabulate(nCtrls) { i => LazyModule(new InclusiveCacheControl(this,
-      c.copy(address = c.address + i * InclusiveCacheParameters.L2ControlSize))) }
-  }.getOrElse(Nil)
+  val ctrls = control
+    .map { c =>
+      val nCtrls =
+        if (c.bankedControl) p(SubsystemBankedCoherenceKey).nBanks else 1
+      Seq.tabulate(nCtrls) { i =>
+        LazyModule(
+          new InclusiveCacheControl(
+            this,
+            c.copy(address =
+              c.address + i * InclusiveCacheParameters.L2ControlSize
+            )
+          )
+        )
+      }
+    }
+    .getOrElse(Nil)
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     // If you have a control port, you must have at least one cache port
-    require (ctrls.isEmpty || !node.edges.in.isEmpty)
+    require(ctrls.isEmpty || !node.edges.in.isEmpty)
 
     // Extract the client IdRanges; must be the same on all ports!
-    val clientIds = node.edges.in.headOption.map(_.client.clients.map(_.sourceId).sortBy(_.start))
-    node.edges.in.foreach { e => require(e.client.clients.map(_.sourceId).sortBy(_.start) == clientIds.get) }
+    val clientIds = node.edges.in.headOption
+      .map(_.client.clients.map(_.sourceId).sortBy(_.start))
+    node.edges.in.foreach { e =>
+      require(e.client.clients.map(_.sourceId).sortBy(_.start) == clientIds.get)
+    }
 
     // Use the natural ordering of clients (just like in Directory)
     node.edges.in.headOption.foreach { n =>
       println(s"L${cache.level} InclusiveCache Client Map:")
-      n.client.clients.zipWithIndex.foreach { case (c,i) =>
+      n.client.clients.zipWithIndex.foreach { case (c, i) =>
         println(s"\t${i} <= ${c.name}")
       }
       println("")
     }
 
     // Create the L2 Banks
-    val mods = (node.in zip node.out) map { case ((in, edgeIn), (out, edgeOut)) =>
-      edgeOut.manager.managers.foreach { m =>
-        require (m.supportsAcquireB.contains(xfer),
-          s"All managers behind the L2 must support acquireB($xfer) " +
-          s"but ${m.name} only supports (${m.supportsAcquireB})!")
-        if (m.supportsAcquireT) require (m.supportsAcquireT.contains(xfer),
-          s"Any probing managers behind the L2 must support acquireT($xfer) " +
-          s"but ${m.name} only supports (${m.supportsAcquireT})!")
-      }
+    val mods = (node.in zip node.out) map {
+      case ((in, edgeIn), (out, edgeOut)) =>
+        edgeOut.manager.managers.foreach { m =>
+          require(
+            m.supportsAcquireB.contains(xfer),
+            s"All managers behind the L2 must support acquireB($xfer) " +
+              s"but ${m.name} only supports (${m.supportsAcquireB})!"
+          )
+          if (m.supportsAcquireT)
+            require(
+              m.supportsAcquireT.contains(xfer),
+              s"Any probing managers behind the L2 must support acquireT($xfer) " +
+                s"but ${m.name} only supports (${m.supportsAcquireT})!"
+            )
+        }
 
-      val params = InclusiveCacheParameters(cache, micro, !ctrls.isEmpty, edgeIn, edgeOut)
-      val scheduler = Module(new InclusiveCacheBankScheduler(params)).suggestName("inclusive_cache_bank_sched")
+        val params = InclusiveCacheParameters(
+          cache,
+          micro,
+          !ctrls.isEmpty,
+          edgeIn,
+          edgeOut
+        )
+        val scheduler = Module(new InclusiveCacheBankScheduler(params))
+          .suggestName("inclusive_cache_bank_sched")
 
-      scheduler.io.in <> in
-      out <> scheduler.io.out
-      scheduler.io.ways := DontCare
-      scheduler.io.divs := DontCare
+        scheduler.io.in <> in
+        out <> scheduler.io.out
+        scheduler.io.ways := DontCare
+        scheduler.io.divs := DontCare
 
-      // Tie down default values in case there is no controller
-      scheduler.io.req.valid := false.B
-      scheduler.io.req.bits.address := 0.U
-      scheduler.io.req.bits.invalidate := false.B
-      scheduler.io.resp.ready := true.B
+        // Tie down default values in case there is no controller
+        scheduler.io.req.valid := false.B
+        scheduler.io.req.bits.address := 0.U
+        scheduler.io.req.bits.invalidate := false.B
+        scheduler.io.resp.ready := true.B
 
+        // Fix-up the missing addresses. We do this here so that the Scheduler can be
+        // deduplicated by Firrtl to make hierarchical place-and-route easier.
+        out.a.bits.address := params.restoreAddress(
+          scheduler.io.out.a.bits.address
+        )
+        in.b.bits.address := params.restoreAddress(
+          scheduler.io.in.b.bits.address
+        )
+        out.c.bits.address := params.restoreAddress(
+          scheduler.io.out.c.bits.address
+        )
 
-      // Fix-up the missing addresses. We do this here so that the Scheduler can be
-      // deduplicated by Firrtl to make hierarchical place-and-route easier.
-      out.a.bits.address := params.restoreAddress(scheduler.io.out.a.bits.address)
-      in .b.bits.address := params.restoreAddress(scheduler.io.in .b.bits.address)
-      out.c.bits.address := params.restoreAddress(scheduler.io.out.c.bits.address)
-
-      scheduler
+        scheduler
     }
 
     ctrls.foreach { ctrl =>
@@ -165,19 +223,25 @@ class InclusiveCache(
 
     mods.zip(node.edges.in).zipWithIndex.foreach { case ((sched, edgeIn), i) =>
       val ctrl = if (ctrls.size > 1) Some(ctrls(i)) else ctrls.headOption
-      ctrl.foreach { ctrl => {
-        val contained = edgeIn.manager.managers.flatMap(_.address)
-          .map(_.contains(ctrl.module.io.flush_req.bits)).reduce(_||_)
-        when (contained) { ctrl.module.io.flush_match := true.B }
+      ctrl.foreach { ctrl =>
+        {
+          val contained = edgeIn.manager.managers
+            .flatMap(_.address)
+            .map(_.contains(ctrl.module.io.flush_req.bits))
+            .reduce(_ || _)
+          when(contained) { ctrl.module.io.flush_match := true.B }
 
-        sched.io.req.valid := contained && ctrl.module.io.flush_req.valid
-        sched.io.req.bits.address := ctrl.module.io.flush_req.bits
-        sched.io.req.bits.invalidate := ctrl.module.io.invalidate_req
-        when (contained && sched.io.req.ready) { ctrl.module.io.flush_req.ready := true.B }
+          sched.io.req.valid := contained && ctrl.module.io.flush_req.valid
+          sched.io.req.bits.address := ctrl.module.io.flush_req.bits
+          sched.io.req.bits.invalidate := ctrl.module.io.invalidate_req
+          when(contained && sched.io.req.ready) {
+            ctrl.module.io.flush_req.ready := true.B
+          }
 
-        when (sched.io.resp.valid) { ctrl.module.io.flush_resp := true.B }
-        sched.io.resp.ready := true.B
-      }}
+          when(sched.io.resp.valid) { ctrl.module.io.flush_resp := true.B }
+          sched.io.resp.ready := true.B
+        }
+      }
     }
 
     def json = s"""{"banks":[${mods.map(_.json).mkString(",")}]}"""

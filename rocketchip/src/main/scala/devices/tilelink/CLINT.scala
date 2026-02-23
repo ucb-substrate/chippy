@@ -10,13 +10,22 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.diplomacy.{AddressSet}
 import freechips.rocketchip.resources.{Resource, SimpleDevice}
-import freechips.rocketchip.interrupts.{IntNexusNode, IntSinkParameters, IntSinkPortParameters, IntSourceParameters, IntSourcePortParameters}
+import freechips.rocketchip.interrupts.{
+  IntNexusNode,
+  IntSinkParameters,
+  IntSinkPortParameters,
+  IntSourceParameters,
+  IntSourcePortParameters
+}
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup}
-import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, TLBusWrapperLocation}
+import freechips.rocketchip.subsystem.{
+  BaseSubsystem,
+  CBUS,
+  TLBusWrapperLocation
+}
 import freechips.rocketchip.tilelink.{TLFragmenter, TLRegisterNode}
 
-object CLINTConsts
-{
+object CLINTConsts {
   def msipOffset(hart: Int) = hart * msipBytes
   def timecmpOffset(hart: Int) = 0x4000 + hart * timecmpBytes
   def timeOffset = 0xbff8
@@ -28,21 +37,20 @@ object CLINTConsts
   def ints = 2
 }
 
-case class CLINTParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
-{
-  def address = AddressSet(baseAddress, CLINTConsts.size-1)
+case class CLINTParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0) {
+  def address = AddressSet(baseAddress, CLINTConsts.size - 1)
 }
 
 case object CLINTKey extends Field[Option[CLINTParams]](None)
 
 case class CLINTAttachParams(
-  slaveWhere: TLBusWrapperLocation = CBUS
+    slaveWhere: TLBusWrapperLocation = CBUS
 )
 
 case object CLINTAttachKey extends Field(CLINTAttachParams())
 
-class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
-{
+class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters)
+    extends LazyModule {
   import CLINTConsts._
 
   // clint0 => at most 4095 devices
@@ -51,25 +59,34 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
   }
 
   val node: TLRegisterNode = TLRegisterNode(
-    address   = Seq(params.address),
-    device    = device,
-    beatBytes = beatBytes)
+    address = Seq(params.address),
+    device = device,
+    beatBytes = beatBytes
+  )
 
-  val intnode : IntNexusNode = IntNexusNode(
-    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))) },
-    sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
-    outputRequiresInput = false)
+  val intnode: IntNexusNode = IntNexusNode(
+    sourceFn = { _ =>
+      IntSourcePortParameters(
+        Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))
+      )
+    },
+    sinkFn = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+    outputRequiresInput = false
+  )
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    require (intnode.edges.in.size == 0, "CLINT only produces interrupts; it does not accept them")
+    require(
+      intnode.edges.in.size == 0,
+      "CLINT only produces interrupts; it does not accept them"
+    )
 
     val io = IO(new Bundle {
       val rtcTick = Input(Bool())
     })
 
     val time = RegInit(0.U(timeWidth.W))
-    when (io.rtcTick) { time := time + 1.U }
+    when(io.rtcTick) { time := time + 1.U }
 
     val nTiles = intnode.out.size
     val timecmp = Seq.fill(nTiles) { Reg(UInt(timeWidth.W)) }
@@ -78,7 +95,10 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     val (intnode_out, _) = intnode.out.unzip
     intnode_out.zipWithIndex.foreach { case (int, i) =>
       int(0) := ShiftRegister(ipi(i)(0), params.intStages) // msip
-      int(1) := ShiftRegister(time.asUInt >= timecmp(i).asUInt, params.intStages) // mtip
+      int(1) := ShiftRegister(
+        time.asUInt >= timecmp(i).asUInt,
+        params.intStages
+      ) // mtip
     }
 
     /* 0000 msip hart 0
@@ -92,12 +112,33 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
      */
 
     node.regmap(
-      0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.flatMap{ case (r, i) =>
-        RegField(1, r, RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset=Some(0))) :: RegField(ipiWidth - 1) :: Nil }),
-      timecmpOffset(0) -> timecmp.zipWithIndex.flatMap{ case (t, i) => RegFieldGroup(s"mtimecmp_$i", Some(s"MTIMECMP for hart $i"),
-          RegField.bytes(t, Some(RegFieldDesc(s"mtimecmp_$i", "", reset=None))))},
-      timeOffset       -> RegFieldGroup("mtime", Some("Timer Register"),
-        RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0), volatile=true))))
+      0 -> RegFieldGroup(
+        "msip",
+        Some("MSIP Bits"),
+        ipi.zipWithIndex.flatMap { case (r, i) =>
+          RegField(
+            1,
+            r,
+            RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset = Some(0))
+          ) :: RegField(ipiWidth - 1) :: Nil
+        }
+      ),
+      timecmpOffset(0) -> timecmp.zipWithIndex.flatMap { case (t, i) =>
+        RegFieldGroup(
+          s"mtimecmp_$i",
+          Some(s"MTIMECMP for hart $i"),
+          RegField
+            .bytes(t, Some(RegFieldDesc(s"mtimecmp_$i", "", reset = None)))
+        )
+      },
+      timeOffset -> RegFieldGroup(
+        "mtime",
+        Some("Timer Register"),
+        RegField.bytes(
+          time,
+          Some(RegFieldDesc("mtime", "", reset = Some(0), volatile = true))
+        )
+      )
     )
   }
 }
@@ -106,14 +147,23 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val (clintOpt, clintDomainOpt, clintTickOpt) = p(CLINTKey).map { params =>
     val tlbus = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
-    val clintDomainWrapper = tlbus.generateSynchronousDomain("CLINT").suggestName("clint_domain")
-    val clint = clintDomainWrapper { LazyModule(new CLINT(params, tlbus.beatBytes)) }
-    clintDomainWrapper { clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus, Some("CLINT")) := _ } }
-    val clintTick = clintDomainWrapper { InModuleBody {
-      val tick = IO(Input(Bool()))
-      clint.module.io.rtcTick := tick
-      tick
-    }}
+    val clintDomainWrapper =
+      tlbus.generateSynchronousDomain("CLINT").suggestName("clint_domain")
+    val clint = clintDomainWrapper {
+      LazyModule(new CLINT(params, tlbus.beatBytes))
+    }
+    clintDomainWrapper {
+      clint.node := tlbus.coupleTo("clint") {
+        TLFragmenter(tlbus, Some("CLINT")) := _
+      }
+    }
+    val clintTick = clintDomainWrapper {
+      InModuleBody {
+        val tick = IO(Input(Bool()))
+        clint.module.io.rtcTick := tick
+        tick
+      }
+    }
 
     (clint, clintDomainWrapper, clintTick)
   }.unzip3

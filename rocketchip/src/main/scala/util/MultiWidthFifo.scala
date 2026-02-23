@@ -21,28 +21,39 @@ class MultiWidthFifo(inW: Int, outW: Int, n: Int) extends Module {
   } else if (inW > outW) {
     val nBeats = inW / outW
 
-    require(inW % outW == 0, s"MultiWidthFifo: in: $inW not divisible by out: $outW")
-    require(n % nBeats == 0, s"Cannot store $n output words when output beats is $nBeats")
+    require(
+      inW % outW == 0,
+      s"MultiWidthFifo: in: $inW not divisible by out: $outW"
+    )
+    require(
+      n % nBeats == 0,
+      s"Cannot store $n output words when output beats is $nBeats"
+    )
 
     val wdata = Reg(Vec(n / nBeats, Bits(inW.W)))
     val rdata = VecInit(wdata.flatMap { indat =>
-      (0 until nBeats).map(i => indat(outW * (i + 1) - 1, outW * i)) })
+      (0 until nBeats).map(i => indat(outW * (i + 1) - 1, outW * i))
+    })
 
     val head = RegInit(0.U(log2Up(n / nBeats).W))
     val tail = RegInit(0.U(log2Up(n).W))
     val size = RegInit(0.U(log2Up(n + 1).W))
 
-    when (io.in.fire) {
+    when(io.in.fire) {
       wdata(head) := io.in.bits
       head := head + 1.U
     }
 
-    when (io.out.fire) { tail := tail + 1.U }
+    when(io.out.fire) { tail := tail + 1.U }
 
-    size := MuxCase(size, Seq(
-      (io.in.fire && io.out.fire) -> (size + (nBeats - 1).U),
-      io.in.fire -> (size + nBeats.U),
-      io.out.fire -> (size - 1.U)))
+    size := MuxCase(
+      size,
+      Seq(
+        (io.in.fire && io.out.fire) -> (size + (nBeats - 1).U),
+        io.in.fire -> (size + nBeats.U),
+        io.out.fire -> (size - 1.U)
+      )
+    )
 
     io.out.valid := size > 0.U
     io.out.bits := rdata(tail)
@@ -51,27 +62,35 @@ class MultiWidthFifo(inW: Int, outW: Int, n: Int) extends Module {
   } else {
     val nBeats = outW / inW
 
-    require(outW % inW == 0, s"MultiWidthFifo: out: $outW not divisible by in: $inW")
+    require(
+      outW % inW == 0,
+      s"MultiWidthFifo: out: $outW not divisible by in: $inW"
+    )
 
     val wdata = Reg(Vec(n * nBeats, Bits(inW.W)))
     val rdata = VecInit(Seq.tabulate(n) { i =>
-      Cat(wdata.slice(i * nBeats, (i + 1) * nBeats).reverse)})
+      Cat(wdata.slice(i * nBeats, (i + 1) * nBeats).reverse)
+    })
 
     val head = RegInit(0.U(log2Up(n * nBeats).W))
     val tail = RegInit(0.U(log2Up(n).W))
     val size = RegInit(0.U(log2Up(n * nBeats + 1).W))
 
-    when (io.in.fire) {
+    when(io.in.fire) {
       wdata(head) := io.in.bits
       head := head + 1.U
     }
 
-    when (io.out.fire) { tail := tail + 1.U }
+    when(io.out.fire) { tail := tail + 1.U }
 
-    size := MuxCase(size, Seq(
-      (io.in.fire && io.out.fire) -> (size - (nBeats - 1).U),
-      io.in.fire -> (size + 1.U),
-      io.out.fire -> (size - nBeats.U)))
+    size := MuxCase(
+      size,
+      Seq(
+        (io.in.fire && io.out.fire) -> (size - (nBeats - 1).U),
+        io.in.fire -> (size + 1.U),
+        io.out.fire -> (size - nBeats.U)
+      )
+    )
 
     io.count := size >> log2Up(nBeats).U
     io.out.valid := io.count > 0.U
@@ -91,8 +110,10 @@ class MultiWidthFifoTest extends UnitTest {
   val bl_finished = RegInit(false.B)
   val lb_finished = RegInit(false.B)
 
-  val bl_data = VecInit(Seq.tabulate(4){i => ((2 * i + 1) * 256 + 2 * i).U(16.W)})
-  val lb_data = VecInit(Seq.tabulate(8){i => i.U(8.W)})
+  val bl_data = VecInit(Seq.tabulate(4) { i =>
+    ((2 * i + 1) * 256 + 2 * i).U(16.W)
+  })
+  val lb_data = VecInit(Seq.tabulate(8) { i => i.U(8.W) })
 
   val (bl_send_cnt, bl_send_done) = Counter(big2little.io.in.fire, 4)
   val (lb_send_cnt, lb_send_done) = Counter(little2big.io.in.fire, 8)
@@ -109,35 +130,38 @@ class MultiWidthFifoTest extends UnitTest {
   little2big.io.out.ready := lb_recv
 
   val bl_recv_data_idx = bl_recv_cnt >> 1.U
-  val bl_recv_data = Mux(bl_recv_cnt(0),
+  val bl_recv_data = Mux(
+    bl_recv_cnt(0),
     bl_data(bl_recv_data_idx)(15, 8),
-    bl_data(bl_recv_data_idx)(7, 0))
+    bl_data(bl_recv_data_idx)(7, 0)
+  )
 
   val lb_recv_data = Cat(
     lb_data(Cat(lb_recv_cnt, 1.U(1.W))),
-    lb_data(Cat(lb_recv_cnt, 0.U(1.W))))
+    lb_data(Cat(lb_recv_cnt, 0.U(1.W)))
+  )
 
-  when (io.start) {
+  when(io.start) {
     bl_send := true.B
     lb_send := true.B
   }
 
-  when (bl_send_done) {
+  when(bl_send_done) {
     bl_send := false.B
     bl_recv := true.B
   }
 
-  when (lb_send_done) {
+  when(lb_send_done) {
     lb_send := false.B
     lb_recv := true.B
   }
 
-  when (bl_recv_done) {
+  when(bl_recv_done) {
     bl_recv := false.B
     bl_finished := true.B
   }
 
-  when (lb_recv_done) {
+  when(lb_recv_done) {
     lb_recv := false.B
     lb_finished := true.B
   }
@@ -147,15 +171,21 @@ class MultiWidthFifoTest extends UnitTest {
   val bl_start_recv = RegNext(bl_send_done)
   val lb_start_recv = RegNext(lb_send_done)
 
-  assert(!little2big.io.out.valid || little2big.io.out.bits === lb_recv_data,
-    "Little to Big data mismatch")
-  assert(!big2little.io.out.valid || big2little.io.out.bits === bl_recv_data,
-    "Bit to Little data mismatch")
+  assert(
+    !little2big.io.out.valid || little2big.io.out.bits === lb_recv_data,
+    "Little to Big data mismatch"
+  )
+  assert(
+    !big2little.io.out.valid || big2little.io.out.bits === bl_recv_data,
+    "Bit to Little data mismatch"
+  )
 
-  assert(!lb_start_recv || little2big.io.count === 4.U,
-    "Little to Big count incorrect")
-  assert(!bl_start_recv || big2little.io.count === 8.U,
-    "Big to Little count incorrect")
+  assert(
+    !lb_start_recv || little2big.io.count === 4.U,
+    "Little to Big count incorrect"
+  )
+  assert(
+    !bl_start_recv || big2little.io.count === 8.U,
+    "Big to Little count incorrect"
+  )
 }
-
-
