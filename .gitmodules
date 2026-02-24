@@ -1,16 +1,21 @@
-[submodule "hardfloat/berkeley-softfloat-3"]
-	path = hardfloat/berkeley-softfloat-3
-	url = https://github.com/ucb-bar/berkeley-softfloat-3.git
-[submodule "hardfloat/berkeley-testfloat-3"]
-	path = hardfloat/berkeley-testfloat-3
-	url = https://github.com/ucb-bar/berkeley-testfloat-3.git
-[submodule "examples/sky130_chip/digital_chip/saturn-vectors"]
-	path = examples/sky130_chip/digital_chip/saturn
-	url = https://github.com/kevindna/saturn-vectors.git
-[submodule "examples/sky130_chip/digital_chip/shuttle"]
-	path = examples/sky130_chip/digital_chip/shuttle
-	url = git@github.com:ucb-bar/shuttle.git
-[submodule "saturn"]
-	url = https://github.com/ucb-bar/saturn-vectors.git
-[submodule "shuttle"]
+[submodule "testchipip"]
+	path = testchipip
+	url = https://github.com/ucb-bar/testchipip.git
+[submodule "rocket-chip"]
+	path = rocket-chip
+	url = https://github.com/chipsalliance/rocket-chip.git
+[submodule "rocket-chip-inclusive-cache"]
+	path = rocket-chip-inclusive-cache
+	url = https://github.com/chipsalliance/rocket-chip-inclusive-cache.git
+[submodule "rocket-chip-blocks"]
+	path = rocket-chip-blocks
+	url = https://github.com/chipsalliance/rocket-chip-blocks.git
+[submodule "examples/sky130-chip/digital-chip/shuttle"]
+	path = examples/sky130-chip/digital-chip/shuttle
 	url = https://github.com/ucb-bar/shuttle.git
+[submodule "examples/sky130-chip/digital-chip/saturn-vectors"]
+	path = examples/sky130-chip/digital-chip/saturn-vectors
+	url = https://github.com/kevindna/saturn-vectors.git
+[submodule "constellation"]
+	path = constellation
+	url = https://github.com/ucb-bar/constellation.git

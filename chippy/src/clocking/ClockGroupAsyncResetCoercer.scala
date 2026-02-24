@@ -1,4 +1,4 @@
-package chipyard.clocking
+package edu.berkeley.cs.chippy.clocking
 
 import freechips.rocketchip.prci.ClockGroupAdapterNode
 import org.chipsalliance.cde.config.{Config, Field, Parameters}
@@ -19,7 +19,7 @@ class WithAsyncClockGroups(groups: String*)
   * Clock groups to coerce to use an async reset are customized with
   * `ClockGroupAsyncResetKey`. All clock groups which aren't present in that
   * list are left as synchronous. Use the clock group names which
-  * `chipyard.clocking.WithClockGroupsCombinedByName` produces.
+  * `edu.berkeley.cs.chippy.clocking.WithClockGroupsCombinedByName` produces.
   */
 class ClockGroupAsyncResetCoercer()(implicit p: Parameters, valName: ValName)
     extends LazyModule {
