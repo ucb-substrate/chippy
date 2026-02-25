@@ -1,4 +1,4 @@
-package examples.sky130_chip.digital_chip
+package examples.sky130chip.digitalchip
 
 import os.Path
 import circt.stage.ChiselStage

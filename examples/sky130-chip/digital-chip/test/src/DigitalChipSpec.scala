@@ -1,4 +1,4 @@
-package examples.sky130_chip.digital_chip
+package examples.sky130chip.digitalchip
 
 import chisel3._
 import chisel3.util._

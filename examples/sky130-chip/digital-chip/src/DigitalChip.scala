@@ -1,4 +1,4 @@
-package examples.sky130_chip.digital_chip
+package examples.sky130chip.digitalchip
 
 import org.chipsalliance.cde.config.Config
 import freechips.rocketchip.amba.axi4.{AXI4Bundle}

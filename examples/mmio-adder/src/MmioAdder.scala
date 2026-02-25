@@ -1,4 +1,4 @@
-package examples.mmio_adder
+package examples.mmioadder
 
 import chisel3._
 import chisel3.util._

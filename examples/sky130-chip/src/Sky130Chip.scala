@@ -1,4 +1,4 @@
-package examples.sky130_chip
+package examples.sky130chip
 
 import chisel3._
 import chisel3.util._
