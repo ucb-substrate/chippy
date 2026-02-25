@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package chipyard.clocking
+package edu.berkeley.cs.chippy.clocking
 
 import chisel3._
 import chisel3.util._
