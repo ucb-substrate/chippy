@@ -1,4 +1,4 @@
-package chipyard.clocking
+package edu.berkeley.cs.chippy.clocking
 
 import chisel3._
 
@@ -13,15 +13,21 @@ import freechips.rocketchip.prci._
 case object ClockTapKey extends Field[Boolean](true)
 
 trait CanHaveClockTap { this: BaseSubsystem =>
-  require(!p(SubsystemDriveClockGroupsFromIO), "Subsystem must not drive clocks from IO")
+  require(
+    !p(SubsystemDriveClockGroupsFromIO),
+    "Subsystem must not drive clocks from IO"
+  )
   val clockTapNode = Option.when(p(ClockTapKey)) {
-    val clockTap = ClockSinkNode(Seq(ClockSinkParameters(name=Some("clock_tap"))))
+    val clockTap =
+      ClockSinkNode(Seq(ClockSinkParameters(name = Some("clock_tap"))))
     clockTap := ClockGroup() := allClockGroupsNode
     clockTap
   }
-  val clockTapIO = clockTapNode.map { node => InModuleBody {
-    val clock_tap = IO(Output(Clock()))
-    clock_tap := node.in.head._1.clock
-    clock_tap
-  }}
+  val clockTapIO = clockTapNode.map { node =>
+    InModuleBody {
+      val clock_tap = IO(Output(Clock()))
+      clock_tap := node.in.head._1.clock
+      clock_tap
+    }
+  }
 }

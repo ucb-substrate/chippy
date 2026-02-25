@@ -1,14 +1,16 @@
 //| mill-version: 1.1.2
 //| mill-allow-nested-build-mill: true
-
 package build
 
 import mill._
 import scalalib._
 import publish._
+import os.SubPath
+import mill.api.Task.Simple
+import os.RelPath
 
 trait ChippyModule extends ScalaModule {
-  def scalaVersion = "2.13.18"
+  def scalaVersion = "2.13.16"
   def chiselVersion = "7.8.0"
 
   def scalacOptions = Seq(
@@ -27,4 +29,217 @@ trait ChippyPublishModule extends ChippyModule, PublishModule {
       Developer("rohanku", "Rohan Kumar", "https://github.com/rohanku")
     )
   )
+}
+
+object rocketchip extends ChippyPublishModule {
+  def publishVersion = "0.0.1"
+
+  def moduleDir = super.moduleDir / os.up / "rocket-chip"
+  def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
+
+  def moduleDeps = Seq(dependencies.cde, dependencies.diplomacy, dependencies.hardfloat, macros)
+
+  def mvnDeps = Seq(
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+    mvn"com.lihaoyi::mainargs:0.5.0",
+    mvn"org.json4s::json4s-jackson:4.0.5",
+    mvn"com.lihaoyi::sourcecode:0.3.1",
+  )
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = makePomSettings("Hardware floating-point units written in Chisel.")
+
+  object macros extends ChippyPublishModule {
+    def publishVersion = "0.0.1"
+
+    def mvnDeps = Seq(
+      mvn"org.scala-lang:scala-reflect:${scalaVersion}",
+      )
+
+    def pomSettings = makePomSettings("Hardware floating-point units written in Chisel.")
+  }
+
+  object dependencies extends Module {
+    object cde extends ChippyPublishModule {
+      def publishVersion = "0.0.1"
+      def artifactName = "cde"
+
+      def sources = Task.Sources(this.moduleDir / "cde" / "src")
+
+      def pomSettings = makePomSettings("A Scala library for Context-Dependent Environments.")
+
+      object test extends ScalaTests, TestModule.Utest {
+        def sources = Task.Sources(this.moduleDir / os.up / "cde" / "tests")
+
+        def mvnDeps = Seq(
+          mvn"com.lihaoyi::utest:0.8.1"
+        )
+      }
+    }
+
+    object diplomacy extends ChippyPublishModule {
+      def publishVersion = "0.0.1"
+      def artifactName = "diplomacy"
+
+      def sources = Task.Sources(this.moduleDir / "diplomacy" / "src")
+
+      def moduleDeps = Seq(cde)
+
+      def mvnDeps = Seq(
+        mvn"org.chipsalliance::chisel:${chiselVersion}",
+        mvn"com.lihaoyi::sourcecode:0.3.1",
+        )
+      def scalacPluginMvnDeps = Seq(
+        mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
+        )
+
+      def pomSettings = makePomSettings("A parameter negotiation framework for Chisel.")
+    }
+
+    object hardfloat extends ChippyPublishModule {
+      def publishVersion = "0.0.1"
+      def artifactName = "hardfloat"
+
+      def sources = Task.Sources(this.moduleDir / "hardfloat" / "src")
+
+      def mvnDeps = Seq(
+        mvn"org.chipsalliance::chisel:${chiselVersion}",
+        )
+      def scalacPluginMvnDeps = Seq(
+        mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+      )
+
+      def pomSettings = makePomSettings("Hardware floating-point units written in Chisel.")
+
+      object test extends ScalaTests, TestModule.ScalaTest {
+        def sources = Task.Sources(this.moduleDir / os.up / "hardfloat" / "tests")
+
+        def mvnDeps = Seq(
+          mvn"org.scalatest::scalatest:3.2.19",
+          mvn"org.scala-lang.modules::scala-parallel-collections:1.0.4"
+        )
+      }
+    }
+
+  }
+}
+
+object `rocketchip-blocks` extends ChippyPublishModule {
+  def publishVersion = "0.0.1"
+
+  def moduleDir = super.moduleDir / os.up / "rocket-chip-blocks"
+
+  def moduleDeps = Seq(rocketchip)
+
+  def mvnDeps = Seq(
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+    )
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = makePomSettings("RTL generators designed to be compatible with Rocket Chip.")
+}
+
+object `rocketchip-inclusive-cache` extends ChippyPublishModule {
+  def publishVersion = "0.0.1"
+
+  def moduleDir = super.moduleDir / os.up / "rocket-chip-inclusive-cache"
+  def sources = Task.Sources(moduleDir / "design" / "craft" / "inclusivecache")
+
+  def moduleDeps = Seq(rocketchip)
+
+  def mvnDeps = Seq(
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+    )
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = makePomSettings("An RTL generator for a last-level shared inclusive TileLink cache controller.")
+}
+
+object testchipip extends ChippyPublishModule {
+  def publishVersion = "0.0.1"
+
+  def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
+
+  def moduleDeps = Seq(rocketchip.dependencies.cde, rocketchip, `rocketchip-blocks`)
+
+  def mvnDeps = Seq(
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+    )
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = makePomSettings("Useful IP components for chips.")
+}
+
+object constellation extends ChippyPublishModule {
+  def publishVersion = "0.0.1"
+
+  def sources = Task.Sources(this.moduleDir / "src" / "main")
+
+  def moduleDeps = Seq(rocketchip.dependencies.cde, rocketchip, rocketchip.macros)
+
+  def mvnDeps = Seq(
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+    )
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = makePomSettings("A Chisel NoC RTL generator framework designed to provide the core interconnect fabric for heterogeneous many-core, many-accelerator SoCs.")
+
+  object test extends ScalaTests, TestModule.ScalaTest {
+    def sources = Task.Sources(this.moduleDir / os.up / "src" / "test")
+    def mvnDeps = Seq(
+      mvn"org.scalatest::scalatest:3.2.19",
+      mvn"edu.berkeley.cs::chiseltest:0.5.4",
+      )
+  }
+}
+
+object chippy extends ChippyPublishModule {
+  def publishVersion = "0.0.1"
+
+  def moduleDeps = Seq(rocketchip.dependencies.cde, rocketchip.dependencies.diplomacy, rocketchip)
+
+  def mvnDeps = Seq(
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+  )
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = makePomSettings("An SoC design framework for integrating cores, accelerators, and other peripherals. ")
+}
+
+object chipyard extends ChippyPublishModule {
+  def publishVersion = "0.0.1"
+
+  def sources = Task.Sources(this.moduleDir / "src" / "main")
+  def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
+
+  def moduleDeps = Seq(rocketchip, testchipip, `rocketchip-blocks`, constellation)
+
+  def mvnDeps = Seq(
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+    mvn"org.reflections:reflections:0.10.2"
+  )
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = makePomSettings("An SoC design framework for integrating cores, accelerators, and other peripherals. ")
+
+  object test extends ScalaTests, TestModule.ScalaTest {
+    def sources = Task.Sources(this.moduleDir / os.up / "src" / "test")
+    def mvnDeps = Seq(
+      mvn"org.scalatest::scalatest:3.2.19",
+      )
+  }
 }

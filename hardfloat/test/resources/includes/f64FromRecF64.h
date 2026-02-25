@@ -1,2 +1,0 @@
-#define FLEN 64
-

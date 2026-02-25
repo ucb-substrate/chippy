@@ -3,19 +3,17 @@
 // All Rights Reserved. See LICENSE and LICENSE.SiFive for license details.
 //------------------------------------------------------------------------------
 
-package chipyard
+package edu.berkeley.cs.chippy
 
 import chisel3._
 
 import freechips.rocketchip.prci._
 import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.devices.debug.{
   HasPeripheryDebug,
   ExportDebug,
   DebugModuleKey
 }
-import sifive.blocks.devices.uart.{HasPeripheryUART, PeripheryUARTKey}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
@@ -23,62 +21,9 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.amba.axi4._
+import freechips.rocketchip.devices.tilelink._
 
-import testchipip.serdes.{CanHavePeripheryTLSerial, SerialTLKey}
-
-trait CanHaveHTIF { this: BaseSubsystem =>
-  // Advertise HTIF if system can communicate with fesvr
-  if (
-    this match {
-      case _: CanHavePeripheryTLSerial if (p(SerialTLKey).size != 0) => true
-      case _: HasPeripheryDebug
-          if (!p(DebugModuleKey).isEmpty && p(ExportDebug).dmi) =>
-        true
-      case _ => false
-    }
-  ) {
-    ResourceBinding {
-      val htif = new Device {
-        def describe(resources: ResourceBindings): Description = {
-          val compat = resources("compat").map(_.value)
-          Description("htif", Map("compatible" -> compat))
-        }
-      }
-      Resource(htif, "compat").bind(ResourceString("ucb,htif0"))
-    }
-  }
-}
-
-// This trait adds the "chosen" node to DTS, which
-// can be used to pass information to OS about the earlycon
-case object ChosenInDTS extends Field[Boolean](true)
-trait CanHaveChosenInDTS { this: BaseSubsystem =>
-  if (p(ChosenInDTS)) {
-    this match {
-      case t: HasPeripheryUART if (!p(PeripheryUARTKey).isEmpty) => {
-        val chosen = new Device {
-          def describe(resources: ResourceBindings): Description = {
-            val stdout = resources("stdout").map(_.value)
-            Description(
-              "chosen",
-              resources("uart").headOption.map { case Binding(_, value) =>
-                "stdout-path" -> Seq(value)
-              }.toMap
-            )
-          }
-        }
-        ResourceBinding {
-          t.uarts.foreach(u =>
-            Resource(chosen, "uart").bind(ResourceAlias(u.device.label))
-          )
-        }
-      }
-      case _ =>
-    }
-  }
-}
-
-class ChipyardSubsystem(implicit p: Parameters)
+class ChippySubsystem(implicit p: Parameters)
     extends BaseSubsystem
     with InstantiatesHierarchicalElements
     with HasTileNotificationSinks
@@ -87,9 +32,7 @@ class ChipyardSubsystem(implicit p: Parameters)
     with CanHavePeripheryPLIC
     with HasPeripheryDebug
     with HasHierarchicalElementsRootContext
-    with HasHierarchicalElements
-    with CanHaveHTIF
-    with CanHaveChosenInDTS {
+    with HasHierarchicalElements {
   def coreMonitorBundles = totalTiles.values.map { case r: RocketTile =>
     r.module.core.rocketImpl.coreMonitorBundle
   }.toList
@@ -129,10 +72,10 @@ class ChipyardSubsystem(implicit p: Parameters)
       _.clockGroupNode := allClockGroupsNode
     }
   }
-  override lazy val module = new ChipyardSubsystemModuleImp(this)
+  override lazy val module = new ChippySubsystemModuleImp(this)
 }
 
-class ChipyardSubsystemModuleImp[+L <: ChipyardSubsystem](_outer: L)
+class ChippySubsystemModuleImp[+L <: ChippySubsystem](_outer: L)
     extends BaseSubsystemModuleImp(_outer)
     with HasHierarchicalElementsRootContextModuleImp {
   override lazy val outer = _outer
