@@ -3,9 +3,8 @@ package examples.sky130chip
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.{Config, Parameters}
-import chipyard.iobinders._
 import testchipip.serdes._
-import examples.sky130_chip.digital_chip.{DigitalChipTop, DigitalChipTopIO}
+import examples.sky130chip.digitalchip.{JTAGChipIO, DigitalChipTop}
 import sifive.blocks.devices.uart._
 import freechips.rocketchip.diplomacy._
 
