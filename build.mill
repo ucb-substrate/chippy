@@ -164,6 +164,8 @@ object `rocketchip-inclusive-cache` extends ChippyPublishModule {
 object testchipip extends ChippyPublishModule {
   def publishVersion = "0.0.1"
 
+  def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
+
   def moduleDeps = Seq(rocketchip.dependencies.cde, rocketchip, `rocketchip-blocks`)
 
   def mvnDeps = Seq(
