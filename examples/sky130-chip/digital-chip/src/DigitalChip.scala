@@ -43,11 +43,11 @@ class JTAGChipIO(hasReset: Boolean) extends Bundle {
 
 class DigitalSystem(implicit p: Parameters)
     extends edu.berkeley.cs.chippy.ChippySystem
-    with edu.berkeley.cs.chippy.clocking.HasChippyPRCI
-    with sifive.blocks.devices.uart.HasPeripheryUART
-    with testchipip.serdes.CanHavePeripheryTLSerial
     with testchipip.soc.CanHaveSubsystemInjectors // Enables the subsystem injector API
     with testchipip.soc.CanHaveSwitchableOffchipBus // Enables optional off-chip-bus with interface-switch
+    with testchipip.serdes.CanHavePeripheryTLSerial
+    with sifive.blocks.devices.uart.HasPeripheryUART
+    with edu.berkeley.cs.chippy.clocking.HasChippyPRCI
     with constellation.soc.CanHaveGlobalNoC
 
 class DigitalChipTop(implicit p: Parameters)
@@ -320,6 +320,8 @@ class DigitalChipConfig(sim: Boolean = false)
             Nil
           )
         ) ++
+        new freechips.rocketchip.subsystem.WithNoMMIOPort ++
+        new freechips.rocketchip.subsystem.WithNoSlavePort ++
         /** add a UART */
         new Config((site, here, up) => { case PeripheryUARTKey =>
           Seq(UARTParams(address = 0x10020000))

@@ -18,7 +18,6 @@ import testchipip.uart.UARTAdapter
 import freechips.rocketchip.jtag.JTAGIO
 import freechips.rocketchip.util._
 import freechips.rocketchip.devices.debug.SimJTAG
-import chipyard.harness.ClockSourceAtFreqMHz
 import edu.berkeley.cs.chippyip.{SimTSI, TSIIO}
 // import testchipip.tsi._
 import testchipip.dram._
@@ -30,6 +29,38 @@ import java.nio.file.Paths
 import os.RelPath
 import os.Path
 import chisel3.experimental.dataview._
+
+class ClockSourceIO extends Bundle {
+  val power = Input(Bool())
+  val gate = Input(Bool())
+  val clk = Output(Clock())
+}
+
+class ClockSourceAtFreqMHz(val freqMHz: Double)
+    extends BlackBox(
+      Map(
+        "PERIOD" -> DoubleParam(1000 / freqMHz)
+      )
+    )
+    with HasBlackBoxInline {
+  val io = IO(new ClockSourceIO)
+  val moduleName = this.getClass.getSimpleName
+
+  setInline(
+    s"$moduleName.v",
+    s"""
+      |module $moduleName #(parameter PERIOD="") (
+      |    input power,
+      |    input gate,
+      |    output clk);
+      |  timeunit 1ns/1ps;
+      |  reg clk_i = 1'b0;
+      |  always #(PERIOD/2.0) clk_i = ~clk_i & (power & ~gate);
+      |  assign clk = clk_i;
+      |endmodule
+      |""".stripMargin
+  )
+}
 
 class SimTop(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit
     p: Parameters

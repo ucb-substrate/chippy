@@ -217,3 +217,29 @@ object chippy extends ChippyPublishModule {
 
   def pomSettings = makePomSettings("An SoC design framework for integrating cores, accelerators, and other peripherals. ")
 }
+
+object chipyard extends ChippyPublishModule {
+  def publishVersion = "0.0.1"
+
+  def sources = Task.Sources(this.moduleDir / "src" / "main")
+  def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
+
+  def moduleDeps = Seq(rocketchip, testchipip, `rocketchip-blocks`, constellation)
+
+  def mvnDeps = Seq(
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+    mvn"org.reflections:reflections:0.10.2"
+  )
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = makePomSettings("An SoC design framework for integrating cores, accelerators, and other peripherals. ")
+
+  object test extends ScalaTests, TestModule.ScalaTest {
+    def sources = Task.Sources(this.moduleDir / os.up / "src" / "test")
+    def mvnDeps = Seq(
+      mvn"org.scalatest::scalatest:3.2.19",
+      )
+  }
+}
