@@ -20,12 +20,4 @@ object `package` extends build.`digital-chip`.ChipModule {
   def scalacPluginMvnDeps = Seq(
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
   )
-
-  object test extends ScalaTests, TestModule.ScalaTest {
-    def mvnDeps = Seq(
-      mvn"org.scalatest::scalatest:3.2.19",
-      mvn"edu.berkeley.cs::testchipip:0.0.1",
-      mvn"edu.berkeley.cs::chippyip:0.0.1",
-    )
-  }
 }

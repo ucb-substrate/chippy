@@ -18,7 +18,7 @@ import testchipip.uart.UARTAdapter
 import freechips.rocketchip.jtag.JTAGIO
 import freechips.rocketchip.util._
 import freechips.rocketchip.devices.debug.SimJTAG
-import edu.berkeley.cs.chippyip.{SimTSI, TSIIO}
+import edu.berkeley.cs.chippy.{SimTSI, TSIIO}
 // import testchipip.tsi._
 import testchipip.dram._
 import testchipip.tsi.SerialRAM
