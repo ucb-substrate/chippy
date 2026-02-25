@@ -108,7 +108,6 @@ class DigitalChipTop(implicit p: Parameters)
     // Tie off interupts and chip ID
     system.module.interrupts := DontCare
 
-    // val serial_tl = IO(DataMirror.internal.chiselTypeClone[DecoupledExternalSyncPhitIO](system.serial_tls(0)))
     val serial_tl = IO(
       new DecoupledExternalSyncPhitIO(p(SerialTLKey)(0).phyParams.phitWidth)
     )
@@ -120,8 +119,7 @@ class DigitalChipTop(implicit p: Parameters)
 
 /** Digital chip configuration.
   *
-  * Simulation flag expands tilelink bus and adds AXI port to allow faster
-  * binary loading.
+  * Simulation flag expands tilelink bus to allow faster binary loading.
   */
 class DigitalChipConfig(sim: Boolean = false)
     extends Config(
