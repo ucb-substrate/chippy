@@ -63,7 +63,7 @@ class SimTSI(binaryPath: Path, plusArgs: Seq[String] = Seq.empty)
       Map(
         "argc" -> IntParam(2 + plusArgs.length),
         "argv" -> RawParam(
-          s"'{${plusArgs.reverse.map(arg => s"\"${arg}\", ").mkString("")}\"${binaryPath.toString}\", \"placeholder\"}"
+          s"'{\"${binaryPath.toString}\", ${plusArgs.map(arg => s"\"${arg}\", ").mkString("")}\"placeholder\"}"
         )
       )
     )
