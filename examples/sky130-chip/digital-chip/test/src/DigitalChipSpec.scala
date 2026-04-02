@@ -62,11 +62,11 @@ class ClockSourceAtFreqMHz(val freqMHz: Double)
   )
 }
 
-class SimTop(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit
+class SimTop(chip0BinaryPath: Path, chip1BinaryPath: Path, chip0PlusArgs: Seq[String] = Seq.empty, chip1PlusArgs: Seq[String] = Seq.empty)(implicit
     p: Parameters
 ) extends RawModule {
   val driver = Module(new TestDriver)
-  val harness = Module(new TestHarness(chip0BinaryPath, chip1BinaryPath))
+  val harness = Module(new TestHarness(chip0BinaryPath, chip1BinaryPath, chip0PlusArgs, chip1PlusArgs))
   harness.io.reset := driver.reset
   driver.success := harness.io.success
 }
@@ -104,7 +104,7 @@ class TestHarnessIO extends Bundle {
   val reset = Input(Bool())
 }
 
-class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit
+class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path, chip0PlusArgs: Seq[String] = Seq.empty, chip1PlusArgs: Seq[String] = Seq.empty)(implicit
     p: Parameters
 ) extends RawModule {
   val io = IO(new Bundle {
@@ -172,7 +172,8 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit
         ram.io.tsi.map(_.viewAs[TSIIO]),
         digitalClock,
         io.reset,
-        chip0BinaryPath
+        chip0BinaryPath,
+        chip0PlusArgs
       )
     when(success) { io.success := true.B }
   }
@@ -229,7 +230,8 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit
         ram.io.tsi.map(_.viewAs[TSIIO]),
         digitalClock,
         io.reset,
-        chip1BinaryPath
+        chip1BinaryPath,
+        chip1PlusArgs
       )
     when(success) { io.success := true.B }
   }
