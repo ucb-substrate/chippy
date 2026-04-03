@@ -63,13 +63,11 @@ script -f -c "./simulation </dev/null 2> >(spike-dasm > simulation.out)" simulat
       topModule: String,
       sourceFilesList: Path,
       incDirs: Seq[Path] = Seq.empty,
-      loadmem: Boolean = true
+      loadmem: Option[Path] = None
   ) = {
     // val dramsim_ini =
     //   getClass.getResource("/dramsim2_ini").getPath
-    val dramsim_ini = Path(
-      "/scratch/rohankumar/chippy/testchipip/resources/dramsim2_ini"
-    )
+    val dramsim_ini = root / os.up / os.up / os.up / "testchipip" / "src" / "main" / "resources" / "dramsim2_ini"
     os.makeDir.all(path / os.up)
     os.write.over(
       path,
@@ -77,7 +75,7 @@ script -f -c "./simulation </dev/null 2> >(spike-dasm > simulation.out)" simulat
 set -ex -o pipefail
 vcs \\
   -full64\\
-  -CFLAGS "$$CXXFLAGS -O3 -std=c++17 -I$$RISCV/include" \\
+  -CFLAGS "$$CXXFLAGS -O3 -std=c++17 -I$$RISCV/include -I${(root / os.up / os.up / os.up / "DRAMSim2").toString}${incDirs.map(dir => s" -I$dir").mkString("")}" \\
   -LDFLAGS "$$LDFLAGS -L$$RISCV/lib -Wl,-rpath,$$RISCV/lib" \\
   -lriscv -lfesvr -ldramsim \\
   -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -error=noZMMCM \\
@@ -90,13 +88,7 @@ vcs \\
   +define+layer$$Verification$$Cover$$Temporal \\
   +define+VCS +define+FSDB +define+RANDOMIZE_MEM_INIT +define+RANDOMIZE_REG_INIT +define+RANDOMIZE_GARBAGE_ASSIGN +define+RANDOMIZE_INVALID_ASSIGN \\
   -o simulation -Mdir=vcs-sources
-script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.toString}${if (
-          loadmem
-        ) {
-          s" +loadmem=${(root / "software/hello0.riscv").toString}"
-        } else {
-          ""
-        }} +permissive-off placeholder-binary </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.toString}${loadmem.map(p => s" +loadmem=${p.toString}").getOrElse("")} +permissive-off placeholder-binary </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
 """
     )
     path.toIO.setExecutable(true)
@@ -120,7 +112,8 @@ script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.t
       chip0BinaryPath: Path,
       chip1BinaryPath: Path,
       chip0PlusArgs: Seq[String] = Seq.empty,
-      chip1PlusArgs: Seq[String] = Seq.empty
+      chip1PlusArgs: Seq[String] = Seq.empty,
+      fast: Boolean = false
   )(implicit p: Parameters) = {
     assert(
       os.exists(chip0BinaryPath),
@@ -130,12 +123,16 @@ script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.t
       os.exists(chip1BinaryPath),
       "The provided chip1 binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
     )
+    assert(
+      !fast || chip0BinaryPath == chip1BinaryPath,
+      "FastRAM uses +loadmem which loads a single binary into all SimDRAM instances. Both chips must use the same binary when fast is enabled."
+    )
     os.remove.all(workDir)
     os.makeDir.all(workDir)
     val sourceDir = workDir / "src"
     val simDir = workDir / "sim"
     ChiselStage.emitSystemVerilogFile(
-      new SimTop(chip0BinaryPath, chip1BinaryPath, chip0PlusArgs, chip1PlusArgs),
+      new SimTop(chip0BinaryPath, chip1BinaryPath, chip0PlusArgs, chip1PlusArgs, fast),
       args = Array(
         "--target-dir",
         sourceDir.toString
@@ -152,7 +149,8 @@ script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.t
       simScript,
       "SimTop",
       sourceFilesList,
-      incDirs = os.walk(sourceDir).filter(os.isDir) ++ Seq(sourceDir)
+      incDirs = os.walk(sourceDir).filter(os.isDir) ++ Seq(sourceDir),
+      loadmem = if (fast) Some(chip0BinaryPath) else None
     )
 
     os.proc(

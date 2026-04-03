@@ -19,3 +19,6 @@
 [submodule "constellation"]
 	path = constellation
 	url = https://github.com/ucb-bar/constellation.git
+[submodule "DRAMSim2"]
+	path = DRAMSim2
+	url = git@github.com:firesim/DRAMSim2.git
