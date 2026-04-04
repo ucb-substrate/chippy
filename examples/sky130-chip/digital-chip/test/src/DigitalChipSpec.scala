@@ -159,6 +159,8 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path, chip0PlusArgs: S
 
     chiptop.serial_tl.clock_in := digitalClock
 
+    chiptop.chip_id := chipId.U
+
     val success = if (fast) {
       val ram = Module(LazyModule(new FastRAM(chiptop_lazy.system.serdessers(0), p(SerialTLKey)(0), chipId = chipId)(
         chiptop_lazy.system.serdessers(0).p
@@ -216,8 +218,8 @@ class DigitalChipSpec extends AnyFunSpec {
 
       Utils.simulateTopWithBinaries(
         workDir,
-        Utils.root / "software/hello0.riscv",
-        Utils.root / "software/hello0.riscv",
+        Utils.root / "software/hello.riscv",
+        Utils.root / "software/hello.riscv",
         fast = true
       )
     }

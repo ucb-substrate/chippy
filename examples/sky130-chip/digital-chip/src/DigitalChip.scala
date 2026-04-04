@@ -43,6 +43,7 @@ class JTAGChipIO(hasReset: Boolean) extends Bundle {
 
 class DigitalSystem(implicit p: Parameters)
     extends edu.berkeley.cs.chippy.ChippySystem
+    with testchipip.soc.CanHavePeripheryChipIdPin
     with testchipip.soc.CanHaveSubsystemInjectors // Enables the subsystem injector API
     with testchipip.soc.CanHaveSwitchableOffchipBus // Enables optional off-chip-bus with interface-switch
     with testchipip.serdes.CanHavePeripheryTLSerial
@@ -114,6 +115,10 @@ class DigitalChipTop(implicit p: Parameters)
     serial_tl <> system.serial_tls(0)
     val uart = IO(chiselTypeOf(system.uart(0)))
     uart <> system.uart(0)
+
+    val chip_id_pin = system.chip_id_pin.get
+    val chip_id = IO(Input(UInt(p(ChipIdPinKey).get.width.W)))
+    chip_id_pin := chip_id
   }
 }
 
@@ -232,6 +237,9 @@ class DigitalChipConfig(sim: Boolean = false)
         new shuttle.common.WithL1DCacheTagBanks(1) ++
         new shuttle.common.WithShuttleTileBeatBytes(16) ++
         new shuttle.common.WithNShuttleCores(2) ++
+
+        // Chip ID Pin
+        new testchipip.soc.WithChipIdPin ++
 
         // 1 serial tilelink port
         new testchipip.serdes.WithSerialTL(
