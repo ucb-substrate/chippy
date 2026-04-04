@@ -20,7 +20,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.devices.debug.SimJTAG
 import edu.berkeley.cs.chippy.{SimTSI, TSIIO}
 // import testchipip.tsi._
-import testchipip.dram.{FastRAM, SimDRAM}
+import testchipip.dram.FastRAM
 import testchipip.tsi.SerialRAM
 import testchipip.serdes.SerialTLKey
 import chisel3.simulator.stimulus.RunUntilSuccess
