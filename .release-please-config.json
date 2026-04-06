@@ -1,0 +1,82 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "component": "chippy",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/chippy.txt"
+      ]
+    },
+    "chipyard": {
+      "component": "chipyard",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/chipyard.txt"
+      ]
+    },
+    "constellation": {
+      "component": "constellation",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/constellation.txt"
+      ]
+    },
+    "rocket-chip": {
+      "component": "rocketchip",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/rocketchip.txt"
+      ]
+    },
+    "rocket-chip/macros": {
+      "component": "rocketchip-macros",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/rocketchip-macros.txt"
+      ]
+    },
+    "rocket-chip/dependencies/cde": {
+      "component": "cde",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/cde.txt"
+      ]
+    },
+    "rocket-chip/dependencies/diplomacy": {
+      "component": "diplomacy",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/diplomacy.txt"
+      ]
+    },
+    "rocket-chip/dependencies/hardfloat": {
+      "component": "hardfloat",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/hardfloat.txt"
+      ]
+    },
+    "rocket-chip-blocks": {
+      "component": "rocketchip-blocks",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/rocketchip-blocks.txt"
+      ]
+    },
+    "rocket-chip-inclusive-cache": {
+      "component": "rocketchip-inclusive-cache",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/rocketchip-inclusive-cache.txt"
+      ]
+    },
+    "testchipip": {
+      "component": "testchipip",
+      "release-type": "simple",
+      "extra-files": [
+        "versions/latest-release/testchipip.txt"
+      ]
+    }
+  }
+}

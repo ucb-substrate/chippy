@@ -2,8 +2,35 @@ package build
 
 import mill._
 import scalalib._
+import mill.api.BuildCtx
+
+def findRepoRoot(from: os.Path): os.Path = {
+  if (os.exists(from / "versions" / "workspace" / "chippy.txt")) from
+  else {
+    val parent = from / os.up
+    if (parent == from) sys.error(s"could not find repo root from ${from}")
+    else findRepoRoot(parent)
+  }
+}
+
+def readVersion(dir: os.Path, artifact: String) = os.read(dir / s"$artifact.txt").trim
+def readVersions(dir: os.Path) =
+  os.list(dir).map(path => path.baseName -> os.read(path).trim).toMap
+
+val repoRoot = BuildCtx.watchValue(findRepoRoot(BuildCtx.workspaceRoot))
+val workspaceVersions = BuildCtx.watchValue(readVersions(repoRoot / "versions" / "workspace"))
+val latestReleaseVersions = BuildCtx.watchValue(readVersions(repoRoot / "versions" / "latest-release"))
 
 trait ChipModule extends ScalaModule {
   def scalaVersion = "2.13.18"
   def chiselVersion = "7.8.0"
+  def packageVersion(artifact: String) = workspaceVersions(artifact)
+  def scalacOptions = Seq(
+    "-deprecation",
+    "-Werror",
+  )
+}
+
+object DigitalChipIgnoredTestTag {
+  val name = "examples.sky130chip.digitalchip.LongRunningBinarySimulation"
 }

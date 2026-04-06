@@ -5,6 +5,7 @@ import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 
 import org.chipsalliance.cde.config.Config
+import org.scalatest.Tag
 import org.scalatest.funspec.AnyFunSpec
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy._
@@ -236,6 +237,9 @@ class TestHarness(chip0BinaryPath: Path, chip1BinaryPath: Path)(implicit
 
 }
 
+object LongRunningBinarySimulation
+    extends Tag("examples.sky130chip.digitalchip.LongRunningBinarySimulation")
+
 class DigitalChipSpec extends AnyFunSpec {
   describe("DigitalChip") {
     it("should generate valid System Verilog") {
@@ -250,7 +254,10 @@ class DigitalChipSpec extends AnyFunSpec {
       )
     }
 
-    it("should run hello.riscv") {
+    it(
+      "should run hello.riscv",
+      LongRunningBinarySimulation
+    ) {
       implicit val p = new DigitalChipConfig(sim = true)
       val workDir = Utils.buildRoot / "DigitalChip_should_run_hello_riscv"
 

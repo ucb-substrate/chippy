@@ -10,14 +10,14 @@ object `package` extends ChipModule {
 
   def mvnDeps = Seq(
     mvn"org.chipsalliance::chisel:${chiselVersion}",
-    mvn"edu.berkeley.cs::cde:0.0.1",
-    mvn"edu.berkeley.cs::diplomacy:0.0.1",
-    mvn"edu.berkeley.cs::testchipip:0.0.1",
-    mvn"edu.berkeley.cs::rocketchip-blocks:0.0.1",
-    mvn"edu.berkeley.cs::rocketchip-inclusive-cache:0.0.1",
-    mvn"edu.berkeley.cs::rocketchip:0.0.1",
-    mvn"edu.berkeley.cs::chippy:0.0.1",
-    mvn"edu.berkeley.cs::constellation:0.0.1",
+    mvn"edu.berkeley.cs::cde:${packageVersion("cde")}",
+    mvn"edu.berkeley.cs::diplomacy:${packageVersion("diplomacy")}",
+    mvn"edu.berkeley.cs::testchipip:${packageVersion("testchipip")}",
+    mvn"edu.berkeley.cs::rocketchip-blocks:${packageVersion("rocketchip-blocks")}",
+    mvn"edu.berkeley.cs::rocketchip-inclusive-cache:${packageVersion("rocketchip-inclusive-cache")}",
+    mvn"edu.berkeley.cs::rocketchip:${packageVersion("rocketchip")}",
+    mvn"edu.berkeley.cs::chippy:${packageVersion("chippy")}",
+    mvn"edu.berkeley.cs::constellation:${packageVersion("constellation")}",
   )
   def scalacPluginMvnDeps = Seq(
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
@@ -26,16 +26,30 @@ object `package` extends ChipModule {
   object test extends ScalaTests, TestModule.ScalaTest {
     def mvnDeps = Seq(
       mvn"org.scalatest::scalatest:3.2.19",
-      mvn"edu.berkeley.cs::testchipip:0.0.1",
+      mvn"edu.berkeley.cs::testchipip:${packageVersion("testchipip")}",
     )
+
+    def testArgsDefault = Task {
+      super.testArgsDefault() ++ Seq("-l", DigitalChipIgnoredTestTag.name)
+    }
+  }
+
+  object ignored extends ScalaTests, TestModule.ScalaTest {
+    def sources = test.sources()
+
+    def mvnDeps = test.mvnDeps()
+
+    def testArgsDefault = Task {
+      super.testArgsDefault() ++ Seq("-n", DigitalChipIgnoredTestTag.name)
+    }
   }
 
   object shuttle extends ChipModule {
     def mvnDeps = Seq(
       mvn"org.chipsalliance::chisel:${chiselVersion}",
-      mvn"edu.berkeley.cs::cde:0.0.1",
-      mvn"edu.berkeley.cs::diplomacy:0.0.1",
-      mvn"edu.berkeley.cs::rocketchip:0.0.1",
+      mvn"edu.berkeley.cs::cde:${packageVersion("cde")}",
+      mvn"edu.berkeley.cs::diplomacy:${packageVersion("diplomacy")}",
+      mvn"edu.berkeley.cs::rocketchip:${packageVersion("rocketchip")}",
     )
     def scalacPluginMvnDeps = Seq(
       mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
@@ -49,12 +63,81 @@ object `package` extends ChipModule {
 
     def mvnDeps = Seq(
       mvn"org.chipsalliance::chisel:${chiselVersion}",
-      mvn"edu.berkeley.cs::cde:0.0.1",
-      mvn"edu.berkeley.cs::diplomacy:0.0.1",
-      mvn"edu.berkeley.cs::rocketchip:0.0.1",
+      mvn"edu.berkeley.cs::cde:${packageVersion("cde")}",
+      mvn"edu.berkeley.cs::diplomacy:${packageVersion("diplomacy")}",
+      mvn"edu.berkeley.cs::rocketchip:${packageVersion("rocketchip")}",
     )
     def scalacPluginMvnDeps = Seq(
       mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
     )
+  }
+
+  object latestRelease extends ChipModule {
+    override def packageVersion(artifact: String) = latestReleaseVersions(artifact)
+
+    def moduleDeps = Seq(shuttle, saturn)
+    def mvnDeps = Seq(
+      mvn"org.chipsalliance::chisel:${chiselVersion}",
+      mvn"edu.berkeley.cs::cde:${packageVersion("cde")}",
+      mvn"edu.berkeley.cs::diplomacy:${packageVersion("diplomacy")}",
+      mvn"edu.berkeley.cs::testchipip:${packageVersion("testchipip")}",
+      mvn"edu.berkeley.cs::rocketchip-blocks:${packageVersion("rocketchip-blocks")}",
+      mvn"edu.berkeley.cs::rocketchip-inclusive-cache:${packageVersion("rocketchip-inclusive-cache")}",
+      mvn"edu.berkeley.cs::rocketchip:${packageVersion("rocketchip")}",
+      mvn"edu.berkeley.cs::chippy:${packageVersion("chippy")}",
+      mvn"edu.berkeley.cs::constellation:${packageVersion("constellation")}",
+    )
+    def scalacPluginMvnDeps = Seq(
+      mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
+    )
+
+    object test extends ScalaTests, TestModule.ScalaTest {
+      def sources = latestRelease.sources()
+      def mvnDeps = Seq(
+        mvn"org.scalatest::scalatest:3.2.19",
+        mvn"edu.berkeley.cs::testchipip:${packageVersion("testchipip")}",
+      )
+      def testArgsDefault = Task {
+        super.testArgsDefault() ++ Seq("-l", DigitalChipIgnoredTestTag.name)
+      }
+    }
+
+    object ignored extends ScalaTests, TestModule.ScalaTest {
+      def sources = test.sources()
+      def mvnDeps = test.mvnDeps()
+      def testArgsDefault = Task {
+        super.testArgsDefault() ++ Seq("-n", DigitalChipIgnoredTestTag.name)
+      }
+    }
+
+    object shuttle extends ChipModule {
+      override def packageVersion(artifact: String) = latestReleaseVersions(artifact)
+
+      def mvnDeps = Seq(
+        mvn"org.chipsalliance::chisel:${chiselVersion}",
+        mvn"edu.berkeley.cs::cde:${packageVersion("cde")}",
+        mvn"edu.berkeley.cs::diplomacy:${packageVersion("diplomacy")}",
+        mvn"edu.berkeley.cs::rocketchip:${packageVersion("rocketchip")}",
+      )
+      def scalacPluginMvnDeps = Seq(
+        mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
+      )
+    }
+
+    object saturn extends ChipModule {
+      override def packageVersion(artifact: String) = latestReleaseVersions(artifact)
+
+      def moduleDir = super.moduleDir / os.up / "saturn-vectors"
+      def moduleDeps = Seq(shuttle)
+      def mvnDeps = Seq(
+        mvn"org.chipsalliance::chisel:${chiselVersion}",
+        mvn"edu.berkeley.cs::cde:${packageVersion("cde")}",
+        mvn"edu.berkeley.cs::diplomacy:${packageVersion("diplomacy")}",
+        mvn"edu.berkeley.cs::rocketchip:${packageVersion("rocketchip")}",
+      )
+      def scalacPluginMvnDeps = Seq(
+        mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
+      )
+    }
   }
 }

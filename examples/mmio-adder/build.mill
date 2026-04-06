@@ -4,24 +4,53 @@ package build
 
 import mill._
 import scalalib._
+import mill.api.BuildCtx
 
-object `package` extends ScalaModule {
+def findRepoRoot(from: os.Path): os.Path = {
+  if (os.exists(from / "versions" / "workspace" / "chippy.txt")) from
+  else {
+    val parent = from / os.up
+    if (parent == from) sys.error(s"could not find repo root from ${from}")
+    else findRepoRoot(parent)
+  }
+}
+
+def readVersion(dir: os.Path, artifact: String) = os.read(dir / s"$artifact.txt").trim
+def readVersions(dir: os.Path) =
+  os.list(dir).map(path => path.baseName -> os.read(path).trim).toMap
+
+val repoRoot = BuildCtx.watchValue(findRepoRoot(BuildCtx.workspaceRoot))
+val workspaceVersions = BuildCtx.watchValue(readVersions(repoRoot / "versions" / "workspace"))
+val latestReleaseVersions = BuildCtx.watchValue(readVersions(repoRoot / "versions" / "latest-release"))
+
+trait MmioAdderExampleModule extends ScalaModule {
   def scalaVersion = "2.13.18"
   def chiselVersion = "7.8.0"
+  def packageVersion(artifact: String) = workspaceVersions(artifact)
 
   def mvnDeps = Seq(
     mvn"org.chipsalliance::chisel:${chiselVersion}",
-    mvn"edu.berkeley.cs::diplomacy:0.0.1",
-    mvn"edu.berkeley.cs::rocketchip:0.0.1",
-    mvn"edu.berkeley.cs::chippy:0.0.1",
+    mvn"edu.berkeley.cs::diplomacy:${packageVersion("diplomacy")}",
+    mvn"edu.berkeley.cs::rocketchip:${packageVersion("rocketchip")}",
+    mvn"edu.berkeley.cs::chippy:${packageVersion("chippy")}",
   )
   def scalacPluginMvnDeps = Seq(
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
+  )
+  def scalacOptions = Seq(
+    "-deprecation",
+    "-Werror",
   )
 
   object test extends ScalaTests, TestModule.ScalaTest {
     def mvnDeps = Seq(
       mvn"org.scalatest::scalatest:3.2.19",
     )
+  }
+}
+
+object `package` extends MmioAdderExampleModule {
+  object latestRelease extends MmioAdderExampleModule {
+    override def packageVersion(artifact: String) = latestReleaseVersions(artifact)
   }
 }

@@ -11,11 +11,11 @@ object `package` extends build.`digital-chip`.ChipModule {
 
   def mvnDeps = Seq(
     mvn"org.chipsalliance::chisel:${chiselVersion}",
-    mvn"edu.berkeley.cs::cde:0.0.1",
-    mvn"edu.berkeley.cs::diplomacy:0.0.1",
-    mvn"edu.berkeley.cs::rocketchip:0.0.1",
-    mvn"edu.berkeley.cs::chippy:0.0.1",
-    mvn"edu.berkeley.cs::constellation:0.0.1",
+    mvn"edu.berkeley.cs::cde:${packageVersion("cde")}",
+    mvn"edu.berkeley.cs::diplomacy:${packageVersion("diplomacy")}",
+    mvn"edu.berkeley.cs::rocketchip:${packageVersion("rocketchip")}",
+    mvn"edu.berkeley.cs::chippy:${packageVersion("chippy")}",
+    mvn"edu.berkeley.cs::constellation:${packageVersion("constellation")}",
   )
   def scalacPluginMvnDeps = Seq(
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",

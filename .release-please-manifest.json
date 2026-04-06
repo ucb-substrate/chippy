@@ -1,0 +1,13 @@
+{
+  ".": "0.0.1",
+  "chipyard": "0.0.1",
+  "constellation": "0.0.1",
+  "rocket-chip": "0.0.1",
+  "rocket-chip/macros": "0.0.1",
+  "rocket-chip/dependencies/cde": "0.0.1",
+  "rocket-chip/dependencies/diplomacy": "0.0.1",
+  "rocket-chip/dependencies/hardfloat": "0.0.1",
+  "rocket-chip-blocks": "0.0.1",
+  "rocket-chip-inclusive-cache": "0.0.1",
+  "testchipip": "0.0.1"
+}

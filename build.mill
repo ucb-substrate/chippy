@@ -8,13 +8,40 @@ import publish._
 import os.SubPath
 import mill.api.Task.Simple
 import os.RelPath
+import mill.api.BuildCtx
+
+def findRepoRoot(from: os.Path): os.Path = {
+  if (os.exists(from / "versions" / "workspace" / "chippy.txt")) from
+  else {
+    val parent = from / os.up
+    if (parent == from) sys.error(s"could not find repo root from ${from}")
+    else findRepoRoot(parent)
+  }
+}
+
+def readVersion(dir: os.Path, artifact: String) = os.read(dir / s"$artifact.txt").trim
+def readVersions(dir: os.Path) =
+  os.list(dir).map(path => path.baseName -> os.read(path).trim).toMap
+
+val repoRoot = BuildCtx.watchValue(findRepoRoot(BuildCtx.workspaceRoot))
+val workspaceVersions = BuildCtx.watchValue(readVersions(repoRoot / "versions" / "workspace"))
+val latestReleaseVersions = BuildCtx.watchValue(readVersions(repoRoot / "versions" / "latest-release"))
 
 trait ChippyModule extends ScalaModule {
   def scalaVersion = "2.13.16"
   def chiselVersion = "7.8.0"
+  def workspaceVersion(artifact: String) = workspaceVersions(artifact)
+  def latestReleaseVersion(artifact: String) = latestReleaseVersions(artifact)
 
+  // The local Chippy modules currently consume several deprecated upstream
+  // Rocket-Chip / Chisel APIs. Silence that known churn so CI can enforce a
+  // clean compile log for warnings we actually own.
   def scalacOptions = Seq(
-    "-deprecation"
+    "-Wconf:cat=deprecation:s",
+    "-Wconf:cat=feature:s",
+    "-Wconf:cat=unchecked:s",
+    "-Wconf:cat=other-match-analysis:s",
+    "-Wconf:msg=legacy-binding:s",
   )
 }
 
@@ -32,7 +59,7 @@ trait ChippyPublishModule extends ChippyModule, PublishModule {
 }
 
 object rocketchip extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = workspaceVersion("rocketchip")
 
   def moduleDir = super.moduleDir / os.up / "rocket-chip"
   def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
@@ -52,7 +79,7 @@ object rocketchip extends ChippyPublishModule {
   def pomSettings = makePomSettings("Hardware floating-point units written in Chisel.")
 
   object macros extends ChippyPublishModule {
-    def publishVersion = "0.0.1"
+    def publishVersion = workspaceVersion("rocketchip-macros")
 
     def mvnDeps = Seq(
       mvn"org.scala-lang:scala-reflect:${scalaVersion}",
@@ -63,7 +90,7 @@ object rocketchip extends ChippyPublishModule {
 
   object dependencies extends Module {
     object cde extends ChippyPublishModule {
-      def publishVersion = "0.0.1"
+      def publishVersion = workspaceVersion("cde")
       def artifactName = "cde"
 
       def sources = Task.Sources(this.moduleDir / "cde" / "src")
@@ -80,7 +107,7 @@ object rocketchip extends ChippyPublishModule {
     }
 
     object diplomacy extends ChippyPublishModule {
-      def publishVersion = "0.0.1"
+      def publishVersion = workspaceVersion("diplomacy")
       def artifactName = "diplomacy"
 
       def sources = Task.Sources(this.moduleDir / "diplomacy" / "src")
@@ -99,7 +126,7 @@ object rocketchip extends ChippyPublishModule {
     }
 
     object hardfloat extends ChippyPublishModule {
-      def publishVersion = "0.0.1"
+      def publishVersion = workspaceVersion("hardfloat")
       def artifactName = "hardfloat"
 
       def sources = Task.Sources(this.moduleDir / "hardfloat" / "src")
@@ -127,7 +154,7 @@ object rocketchip extends ChippyPublishModule {
 }
 
 object `rocketchip-blocks` extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = workspaceVersion("rocketchip-blocks")
 
   def moduleDir = super.moduleDir / os.up / "rocket-chip-blocks"
 
@@ -144,7 +171,7 @@ object `rocketchip-blocks` extends ChippyPublishModule {
 }
 
 object `rocketchip-inclusive-cache` extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = workspaceVersion("rocketchip-inclusive-cache")
 
   def moduleDir = super.moduleDir / os.up / "rocket-chip-inclusive-cache"
   def sources = Task.Sources(moduleDir / "design" / "craft" / "inclusivecache")
@@ -162,7 +189,7 @@ object `rocketchip-inclusive-cache` extends ChippyPublishModule {
 }
 
 object testchipip extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = workspaceVersion("testchipip")
 
   def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
 
@@ -179,7 +206,7 @@ object testchipip extends ChippyPublishModule {
 }
 
 object constellation extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = workspaceVersion("constellation")
 
   def sources = Task.Sources(this.moduleDir / "src" / "main")
 
@@ -198,13 +225,12 @@ object constellation extends ChippyPublishModule {
     def sources = Task.Sources(this.moduleDir / os.up / "src" / "test")
     def mvnDeps = Seq(
       mvn"org.scalatest::scalatest:3.2.19",
-      mvn"edu.berkeley.cs::chiseltest:0.5.4",
       )
   }
 }
 
 object chippy extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = workspaceVersion("chippy")
 
   def moduleDeps = Seq(rocketchip.dependencies.cde, rocketchip.dependencies.diplomacy, rocketchip)
 
@@ -219,7 +245,7 @@ object chippy extends ChippyPublishModule {
 }
 
 object chipyard extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = workspaceVersion("chipyard")
 
   def sources = Task.Sources(this.moduleDir / "src" / "main")
   def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
