@@ -11,8 +11,8 @@ In the future, Chippy releases will be accessible from a public Maven repository
 
 ```
 git clone https://github.com/ucb-substrate/chippy.git
-git submodule update --init --recursive
 cd chippy
+git submodule update --init --recursive
 ./mill __.publishLocal
 ```
 
