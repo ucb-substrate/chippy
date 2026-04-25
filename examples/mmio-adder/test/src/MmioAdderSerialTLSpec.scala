@@ -5,18 +5,11 @@ import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 
 import org.scalatest.funspec.AnyFunSpec
-import edu.berkeley.cs.chippy.ChippyStage
 import freechips.rocketchip.diplomacy._
 
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.prci._
-import edu.berkeley.cs.chippy.TLTesterParams
-import edu.berkeley.cs.chippy.TLTester
-import edu.berkeley.cs.chippy.TLTesterIO
-import edu.berkeley.cs.chippy.TLTesterReq
-import edu.berkeley.cs.chippy.TLTesterResp
-import edu.berkeley.cs.chippy.SerialTLTester
-import edu.berkeley.cs.chippy.SerialTLTesterIO
+import edu.berkeley.cs.chippy._
 import chisel3.simulator.ChiselSim
 import chisel3.simulator.HasSimulator.simulators.verilator
 import svsim.verilator.Backend.CompilationSettings
@@ -37,7 +30,7 @@ import testchipip.util._
 import testchipip.tsi._
 import testchipip.ctc._
 
-class SerialTestHarness(implicit p: Parameters) extends LazyModule {
+class SerialTLTestHarness(implicit p: Parameters) extends LazyModule {
   val idBits = 2
   val tltParams = TLTesterParams()
   val beatBytes = 8
@@ -65,7 +58,7 @@ class SerialTestHarness(implicit p: Parameters) extends LazyModule {
     clientPortParams = Some(TLMasterPortParameters.v1(
       clients = Seq(TLMasterParameters.v1(
         name = "tl-desser",
-        sourceId = IdRange(0, 1 << idBits)
+        sourceId = IdRange(0, tltParams.maxInflight)
       ))
     ))
   ))
@@ -93,11 +86,11 @@ class SerialTestHarness(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class SerialMmioAdderSpec extends AnyFunSpec with ChiselSim {
+class MmioAdderSerialTLSpec extends AnyFunSpec with ChiselSim {
   describe("MmioAdder") {
-    it("should add numbers written to input registers") {
+    it("should add numbers written to input registers over SerialTL") {
       implicit val p = Parameters.empty
-      val dut = new SerialTestHarness()
+      val dut = new SerialTLTestHarness()
       implicit val simulator = verilator(verilatorSettings =
         CompilationSettings.default
           .withDisableFatalExitOnWarnings(true)

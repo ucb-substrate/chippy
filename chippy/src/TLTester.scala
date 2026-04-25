@@ -135,3 +135,63 @@ class TLTester(params: TLTesterParams, beatBytes: Int)(implicit p: Parameters)
     io.resp.bits.id := out.d.bits.source
   }
 }
+
+class SerialTLTesterIO(params: TLTesterParams) extends Bundle {
+  import chisel3.simulator.PeekPokeAPI._
+  val req = Flipped(new DecoupledIO(new TLTesterReq(params)))
+  val resp = new DecoupledIO(new TLTesterResp(params))
+
+  final def write(
+      clock: Clock,
+      addr: UInt,
+      data: UInt,
+      timeout: Int = 1000
+  )(implicit sourceInfo: SourceInfo): Unit = {
+    op(clock, addr, data, true.B, timeout = timeout)
+    clock.step()
+  }
+
+  final def read(
+      clock: Clock,
+      addr: UInt,
+      timeout: Int = 1000
+  )(implicit sourceInfo: SourceInfo): UInt = {
+    op(clock, addr, 0.U, false.B, timeout = timeout)
+    val out = resp.bits.data.peek()
+    clock.step()
+    out
+  }
+
+  final def expect(
+      clock: Clock,
+      addr: UInt,
+      expected: UInt,
+      timeout: Int = 1000,
+      message: String = ""
+  )(implicit sourceInfo: SourceInfo): Unit = {
+    op(clock, addr, 0.U, false.B, timeout = timeout)
+    resp.bits.data.expect(expected, message)
+    clock.step()
+  }
+
+  final def op(
+      clock: Clock,
+      addr: UInt,
+      data: UInt,
+      is_write: Bool,
+      timeout: Int = 1000
+  )(implicit sourceInfo: SourceInfo): Unit = {
+    resp.ready.poke(true.B)
+    clock.stepUntil(req.ready, 1, timeout)
+    req.ready.expect(true.B, "timeout waiting for request to be ready")
+    req.valid.poke(true.B)
+    req.bits.addr.poke(addr)
+    req.bits.data.poke(data)
+    req.bits.is_write.poke(is_write)
+    clock.step(1)
+    // do not allow any requests to go out before we get a response for this one 
+    req.valid.poke(false.B) 
+    clock.stepUntil(resp.valid, 1, timeout)
+    resp.valid.expect(true.B, "timeout waiting for response")
+  }
+}
