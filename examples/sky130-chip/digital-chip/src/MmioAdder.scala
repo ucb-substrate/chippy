@@ -11,23 +11,11 @@ import freechips.rocketchip.diplomacy.{SimpleDevice, AddressSet}
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import sys.process._
-
-import chisel3.experimental.{IntParam, BaseModule}
-import freechips.rocketchip.amba.axi4._
-import freechips.rocketchip.subsystem.{BaseSubsystem, PBUS}
-import freechips.rocketchip.regmapper.{HasRegMap, RegField}
-import freechips.rocketchip.util._
-
 // TODO: Integrate with full system.
 
 case class MmioAdderParams(
-  address: BigInt = 0x4000,
-  externallyClocked: Boolean = false
-) {
-}
-
-case object AdderKey extends Field[Option[MmioAdderParams]](None)
+    address: BigInt = 0x4000
+)
 
 class MmioAdder(params: MmioAdderParams, beatBytes: Int)(implicit
     p: Parameters
@@ -73,52 +61,3 @@ class MmioAdder(params: MmioAdderParams, beatBytes: Int)(implicit
     }
   }
 }
-
-/** CanHavePeripheryAddder and WithAdder adapted from Chipyard documentation's MMIO Peripherals example
-  * https://chipyard.readthedocs.io/en/latest/Customization/MMIO-Peripherals.html#mmio-accelerators
-  */
-
-trait CanHavePeripheryAdder { this: BaseSubsystem =>
-  private val portName = "adder"
-
-  private val pbus = locateTLBusWrapper(PBUS)
-
-  val (adder_clock) = p(AdderKey) match {
-    case Some(params) => {
-
-      val adder_clock = Option.when(params.externallyClocked) {
-        InModuleBody { IO(Input(Clock())).suggestName("adder_clock_in") }
-      }
-      val adderClockNode = if (params.externallyClocked) {
-        val adderSourceClockNode = ClockSourceNode(Seq(ClockSourceParameters()))
-        InModuleBody {
-          adderSourceClockNode.out(0)._1.clock := adder_clock.get
-          adderSourceClockNode.out(0)._1.reset := ResetCatchAndSync(adder_clock.get, pbus.module.reset.asBool)
-        }
-        adderSourceClockNode
-      } else {
-        pbus.fixedClockNode
-      }
-      val adderCrossing = if (params.externallyClocked) {
-        AsynchronousCrossing()
-      } else {
-        SynchronousCrossing()
-      }
-
-     val adder = LazyModule(new MmioAdder(params, pbus.beatBytes)(p))
-        adder.clockNode := adderClockNode
-        pbus.coupleTo(portName) {
-          TLInwardClockCrossingHelper("adder_crossing", adder, adder.node)(adderCrossing) :=
-          TLFragmenter(pbus.beatBytes, pbus.blockBytes) := _
-        }
-      (adder_clock)
-    }
-    case None => (None)
-  }
-}
-
-class WithAdder(address: BigInt = 0x4000, externallyClocked: Boolean = false) extends Config((site, here, up) => {
-  case AdderKey => {
-    Some(MmioAdderParams(address = address, externallyClocked = externallyClocked))
-  }
-})

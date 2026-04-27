@@ -57,13 +57,13 @@ class DigitalChipWithAdderTestHarness(implicit p: Parameters) extends LazyModule
   ))
 
   serdes.managerNode.get := TLBuffer() := tlt.node
-
+  
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new SerialTLTesterIO(tltParams))
     io <> tlt.module.io
 
-    val chiptop = Module(LazyModule(new DigitalChipTop).module)
+    val chiptop = Module(LazyModule(new DigitalChipTopWithAdder).module)
     chiptop.io.clock := clock
     chiptop.io.reset := reset.asAsyncReset
     
@@ -74,37 +74,34 @@ class DigitalChipWithAdderTestHarness(implicit p: Parameters) extends LazyModule
     chiptop.jtag.TDI := false.B
     chiptop.chip_id  := 0.U
     chiptop.serial_tl.clock_in := clock
-    
-    /** arbitrate 5 flit streams single phit stream with headers */
-    val outArb = Module(new PhitArbiter(phitWidth, flitWidth, channels))
 
-    /** convert 5 flit streams (one for each TL channel) to phit streams */
-    serdes.module.io.ser.zipWithIndex.foreach { case (serChannel, i) =>
-      outArb.io.in(i) <> FlitToPhit(serChannel.out, phitWidth)
-    }
+    val phyParams = DecoupledInternalSyncSerialPhyParams(
+      phitWidth = phitWidth,
+      flitWidth = flitWidth,
+      flitBufferSz = 8 
+    )
 
-    chiptop.serial_tl.in.valid      := outArb.io.out.valid
-    outArb.io.out.ready             := chiptop.serial_tl.in.ready
-    chiptop.serial_tl.in.bits.phit  := outArb.io.out.bits.phit
+    /** set up PHY for arbiting serdes streams to chiptop */
+    val serialPhy = Module(new DecoupledSerialPhy(channels, phyParams))
 
-    /** demux phit stream back into 5 phit streams based on headers */
-    val inDemux = Module(new PhitDemux(phitWidth, flitWidth, channels))
+    /** set PHY clocks + resets */
+    serialPhy.io.outer_clock := clock
+    serialPhy.io.outer_reset := reset
+    serialPhy.io.inner_clock := clock
+    serialPhy.io.inner_reset := reset
 
-    inDemux.io.in.valid         := chiptop.serial_tl.out.valid
-    chiptop.serial_tl.out.ready  := inDemux.io.in.ready
-    inDemux.io.in.bits.phit     := chiptop.serial_tl.out.bits.phit
+    /** hook up serdes and chiptop to PHY */
+    serialPhy.io.inner_ser <> serdes.module.io.ser
 
-    /** convert 5 phit streams back into flit streams */
-    serdes.module.io.ser.zipWithIndex.foreach { case (serChannel, i) =>
-      serChannel.in <> PhitToFlit(inDemux.io.out(i), flitWidth)
-    }
+    chiptop.serial_tl.in <> serialPhy.io.outer_ser.out
+    serialPhy.io.outer_ser.in <> chiptop.serial_tl.out
   }
 }
 
 class DigitalChipWithAdderSpec extends AnyFunSpec with ChiselSim {
   describe("DigitalChipWithAdder") {
     it("should add numbers written to input registers of on-chip MMIO adder through DigitalChipTop's SerialTL port") {
-      implicit val p = new DigitalChipWithAdderConfig(sim = true)
+      implicit val p = new DigitalChipConfig(sim = true)
 
       val dut = new DigitalChipWithAdderTestHarness()
 

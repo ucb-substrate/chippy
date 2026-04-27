@@ -32,6 +32,7 @@ import freechips.rocketchip.devices.tilelink.BootROMLocated
 import freechips.rocketchip.util._
 import sifive.blocks.inclusivecache.{InclusiveCachePortParameters}
 import examples.mmioadder._
+import freechips.rocketchip.tilelink._
 
 // Rocketchip's JTAGIO exposes the oe signal, which doesn't go off-chip
 class JTAGChipIO(hasReset: Boolean) extends Bundle {
@@ -51,7 +52,6 @@ class DigitalSystem(implicit p: Parameters)
     with sifive.blocks.devices.uart.HasPeripheryUART
     with edu.berkeley.cs.chippy.clocking.HasChippyPRCI
     with constellation.soc.CanHaveGlobalNoC
-    with examples.mmioadder.CanHavePeripheryAdder
 
 class DigitalChipTop(implicit p: Parameters)
     extends LazyModule
@@ -79,10 +79,6 @@ class DigitalChipTop(implicit p: Parameters)
         b.clock := io.clock
         b.reset := io.reset
       }
-    }
-
-    system.adder_clock.foreach { external_clk_port =>
-      external_clk_port := io.clock
     }
 
     // Connect debug pins
@@ -265,7 +261,7 @@ class DigitalChipConfig(sim: Boolean = false)
                 )
               ),
               // Allow an external manager to probe this chip
-              client = Some(testchipip.serdes.SerialTLClientParams()),
+              client = Some(testchipip.serdes.SerialTLClientParams(totalIdBits = 4)),
               // 4-bit bidir interface, synced to an external clock
               phyParams = {
                 val (phitWidth, flitWidth) = if (sim) {
@@ -406,9 +402,17 @@ class DigitalChipConfig(sim: Boolean = false)
         new freechips.rocketchip.system.BaseConfig
     )
 
-class DigitalChipWithAdderConfig(sim: Boolean = false) extends Config(
-  new examples.mmioadder.WithAdder(address = 0x10040000, externallyClocked = true) ++
-  /** DigitalChipWithAdderSpec seems to not work with monitors enabled */
-  new freechips.rocketchip.subsystem.WithoutTLMonitors ++ 
-  new DigitalChipConfig(sim)
-)
+class DigitalChipTopWithAdder(implicit p: Parameters) extends DigitalChipTop {
+  private val pbus = system.locateTLBusWrapper(PBUS)
+
+  private val mmioAdder =
+    LazyModule(new MmioAdder(MmioAdderParams(address = 0x10040000), pbus.beatBytes))
+
+  mmioAdder.clockNode := pbus.fixedClockNode
+  pbus.coupleTo("mmio_addr") {
+    mmioAdder.node :=
+      TLFragmenter(pbus.beatBytes, pbus.blockBytes) :=
+      TLWidthWidget(pbus.beatBytes) :=
+      _
+  }
+}
