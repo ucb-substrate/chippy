@@ -135,3 +135,80 @@ class TLTester(params: TLTesterParams, beatBytes: Int)(implicit p: Parameters)
     io.resp.bits.id := out.d.bits.source
   }
 }
+
+case class TLRequestDescriptor(
+  address: BigInt,
+  isWrite: Boolean,
+  data: BigInt = 0,
+  size: Int = 3 // log2(8) = 3 => 8 bytes by default
+)
+
+class TLDriver(reqs: Seq[TLRequestDescriptor])(implicit p: Parameters) extends LazyModule {
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
+    name = "offchip_router_test_driver", sourceId = IdRange(0, 1))))))
+
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
+    val io = IO(new Bundle {
+      val start = Input(Bool())
+      val finished = Output(Bool())
+    })
+
+    val (tl, edge) = node.out(0)
+    val nReqs = reqs.size
+
+    val reqIdx = RegInit(0.U(log2Ceil(nReqs + 1).W))
+
+    val addresses = VecInit(reqs.map(r => r.address.U(edge.bundle.addressBits.W)))
+    val writes    = VecInit(reqs.map(r => r.isWrite.B))
+    val datas     = VecInit(reqs.map(r => r.data.U(edge.bundle.dataBits.W)))
+    val sizes     = VecInit(reqs.map(r => r.size.U(edge.bundle.sizeBits.W)))
+
+    val (s_idle :: s_req :: s_resp :: s_done :: Nil) = Enum(4)
+    val state = RegInit(s_idle)
+
+    when (state === s_idle && io.start) { state := s_req }
+
+    // A channel: send requests
+    val currAddr  = addresses(reqIdx)
+    val currWrite = writes(reqIdx)
+    val currData  = datas(reqIdx)
+    val currSize  = sizes(reqIdx)
+
+    val putBits = edge.Put(0.U, currAddr, currSize, currData)._2
+    val getBits = edge.Get(0.U, currAddr, currSize)._2
+
+    tl.a.valid := state === s_req
+    tl.a.bits  := Mux(currWrite, putBits, getBits)
+
+    // D channel: accept responses. Held high in s_req as well so a manager
+    // that produces a combinational AccessAck (e.g. TLRegisterNode) can drain
+    // its response on the same cycle as a.fire — otherwise it gates a.ready
+    // on d.ready and we deadlock.
+    tl.d.ready := state === s_req || state === s_resp
+
+    when (tl.a.fire) { state := s_resp }
+    when (tl.d.fire) {
+      // For reads, the descriptor's `data` field is the expected response.
+      when (!currWrite) {
+        assert(tl.d.bits.data === currData,
+          "TLDriver read mismatch: idx=%d addr=0x%x expected=0x%x got=0x%x",
+          reqIdx, currAddr, currData, tl.d.bits.data)
+      }
+      reqIdx := reqIdx + 1.U
+      when (reqIdx === (nReqs - 1).U) {
+        state := s_done
+      }.otherwise {
+        state := s_req
+      }
+    }
+
+    tl.b.ready := false.B
+    tl.c.valid := false.B
+    tl.c.bits  := DontCare
+    tl.e.valid := false.B
+    tl.e.bits  := DontCare
+
+    io.finished := state === s_done
+  }
+}
