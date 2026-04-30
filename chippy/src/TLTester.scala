@@ -143,9 +143,12 @@ case class TLRequestDescriptor(
   size: Int = 3 // log2(8) = 3 => 8 bytes by default
 )
 
-class TLDriver(reqs: Seq[TLRequestDescriptor])(implicit p: Parameters) extends LazyModule {
+class TLDriver(
+    reqs: Seq[TLRequestDescriptor],
+    maxInflight: Int = 1
+)(implicit p: Parameters) extends LazyModule {
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
-    name = "offchip_router_test_driver", sourceId = IdRange(0, 1))))))
+    name = "offchip_router_test_driver", sourceId = IdRange(0, maxInflight))))))
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -157,50 +160,70 @@ class TLDriver(reqs: Seq[TLRequestDescriptor])(implicit p: Parameters) extends L
     val (tl, edge) = node.out(0)
     val nReqs = reqs.size
 
-    val reqIdx = RegInit(0.U(log2Ceil(nReqs + 1).W))
-
     val addresses = VecInit(reqs.map(r => r.address.U(edge.bundle.addressBits.W)))
     val writes    = VecInit(reqs.map(r => r.isWrite.B))
     val datas     = VecInit(reqs.map(r => r.data.U(edge.bundle.dataBits.W)))
     val sizes     = VecInit(reqs.map(r => r.size.U(edge.bundle.sizeBits.W)))
 
-    val (s_idle :: s_req :: s_resp :: s_done :: Nil) = Enum(4)
-    val state = RegInit(s_idle)
+    val started        = RegInit(false.B)
+    val issueIdx       = RegInit(0.U(log2Ceil(nReqs + 1).W))
+    val completedCount = RegInit(0.U(log2Ceil(nReqs + 1).W))
 
-    when (state === s_idle && io.start) { state := s_req }
+    when (io.start) { started := true.B }
 
-    // A channel: send requests
-    val currAddr  = addresses(reqIdx)
-    val currWrite = writes(reqIdx)
-    val currData  = datas(reqIdx)
-    val currSize  = sizes(reqIdx)
+    // Free pool: bit s = 1 means source ID s is currently free.
+    val freeMask = RegInit(((BigInt(1) << maxInflight) - 1).U(maxInflight.W))
+    // Scoreboard: source ID -> request index currently owning that source.
+    val scoreboard = Reg(Vec(maxInflight, UInt(log2Up(nReqs).W)))
 
-    val putBits = edge.Put(0.U, currAddr, currSize, currData)._2
-    val getBits = edge.Get(0.U, currAddr, currSize)._2
+    val freeBools  = freeMask.asBools
+    val hasFreeSrc = freeBools.reduce(_ || _)
+    val pickedSrc  = PriorityEncoder(freeBools)
 
-    tl.a.valid := state === s_req
+    val canIssue = started && (issueIdx < nReqs.U) && hasFreeSrc
+
+    val currAddr  = addresses(issueIdx)
+    val currWrite = writes(issueIdx)
+    val currData  = datas(issueIdx)
+    val currSize  = sizes(issueIdx)
+
+    val putBits = edge.Put(pickedSrc, currAddr, currSize, currData)._2
+    val getBits = edge.Get(pickedSrc, currAddr, currSize)._2
+
+    tl.a.valid := canIssue
     tl.a.bits  := Mux(currWrite, putBits, getBits)
+    tl.d.ready := true.B
 
-    // D channel: accept responses. Held high in s_req as well so a manager
-    // that produces a combinational AccessAck (e.g. TLRegisterNode) can drain
-    // its response on the same cycle as a.fire — otherwise it gates a.ready
-    // on d.ready and we deadlock.
-    tl.d.ready := state === s_req || state === s_resp
+    // Update freeMask: clear the picked bit on a.fire, set the response bit on
+    // d.fire. Same-cycle a.fire+d.fire on the same source (combinational ack)
+    // results in the bit being set (free), which is correct: the source is
+    // immediately released back to the pool.
+    val allocBit = Mux(tl.a.fire, UIntToOH(pickedSrc, maxInflight), 0.U(maxInflight.W))
+    val freeBit  = Mux(tl.d.fire, UIntToOH(tl.d.bits.source, maxInflight), 0.U(maxInflight.W))
+    freeMask := (freeMask & ~allocBit) | freeBit
 
-    when (tl.a.fire) { state := s_resp }
+    when (tl.a.fire) {
+      scoreboard(pickedSrc) := issueIdx
+      issueIdx := issueIdx + 1.U
+    }
+
     when (tl.d.fire) {
-      // For reads, the descriptor's `data` field is the expected response.
-      when (!currWrite) {
-        assert(tl.d.bits.data === currData,
-          "TLDriver read mismatch: idx=%d addr=0x%x expected=0x%x got=0x%x",
-          reqIdx, currAddr, currData, tl.d.bits.data)
+      // For combinational ack on the source we're issuing this same cycle,
+      // the registered scoreboard entry hasn't been written yet — use the
+      // current issueIdx wire instead.
+      val sameCycleAck = tl.a.fire && (pickedSrc === tl.d.bits.source)
+      val respIdx   = Mux(sameCycleAck, issueIdx, scoreboard(tl.d.bits.source))
+      val respWrite = writes(respIdx)
+      val respData  = datas(respIdx)
+      val respAddr  = addresses(respIdx)
+
+      when (!respWrite) {
+        assert(tl.d.bits.data === respData,
+          "TLDriver read mismatch: idx=%d src=%d addr=0x%x expected=0x%x got=0x%x",
+          respIdx, tl.d.bits.source, respAddr, respData, tl.d.bits.data)
       }
-      reqIdx := reqIdx + 1.U
-      when (reqIdx === (nReqs - 1).U) {
-        state := s_done
-      }.otherwise {
-        state := s_req
-      }
+
+      completedCount := completedCount + 1.U
     }
 
     tl.b.ready := false.B
@@ -209,6 +232,6 @@ class TLDriver(reqs: Seq[TLRequestDescriptor])(implicit p: Parameters) extends L
     tl.e.valid := false.B
     tl.e.bits  := DontCare
 
-    io.finished := state === s_done
+    io.finished := started && (completedCount === nReqs.U)
   }
 }
