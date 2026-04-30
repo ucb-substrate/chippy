@@ -2,9 +2,14 @@ name: Publish Chippy package
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+    inputs:
+      module:
+        description: "Module to publish, e.g. diplomacy, chippy, rocketchip"
+        required: true
+        default: diplomacy
+      version:
+        description: "Version to publish, e.g. 3.0.0"
+        required: true
 
 permissions:
   contents: read
@@ -24,16 +29,21 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Make Mill executable
         run: chmod +x ./mill
 
-      - name: Publish chippy to GitHub Packages
+      - name: Set module and version
+        run: |
+          echo "MODULE=${{ github.event.inputs.module }}" >> $GITHUB_ENV
+          echo "CHIPPY_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+
+      - name: Publish selected module
         env:
           MILL_MAVEN_USERNAME: ${{ github.actor }}
           MILL_MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./mill mill.javalib.MavenPublishModule/ \
+          ./mill $MODULE.publish \
             --releaseUri https://maven.pkg.github.com/rohkud/chippy-forked \
             --snapshotUri https://maven.pkg.github.com/rohkud/chippy-forked
