@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       module:
-        description: "Module to publish, e.g. diplomacy, chippy, rocketchip"
+        description: "Module to publish, e.g. rocketchip.dependencies.diplomacy, chippy, rocketchip. Look at documentation for more details: https://rohkud.github.io/chippy/available-packages/"
         required: true
-        default: diplomacy
+        default: rocketchip.dependencies.diplomacy
       version:
         description: "Version to publish, e.g. 3.0.0"
         required: true
