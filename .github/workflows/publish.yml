@@ -46,5 +46,5 @@ jobs:
         run: |
             ./mill mill.javalib.MavenPublishModule/ \
             --publishArtifacts "$MODULE.publishArtifacts" \
-            --releaseUri https://maven.pkg.github.com/rohkud/chippy-forked \
-            --snapshotUri https://maven.pkg.github.com/rohkud/chippy-forked
+            --releaseUri https://maven.pkg.github.com/ucb-substrate/chippy \
+            --snapshotUri https://maven.pkg.github.com/ucb-substrate/chippy
