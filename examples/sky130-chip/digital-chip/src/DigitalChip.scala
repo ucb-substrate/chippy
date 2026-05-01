@@ -67,6 +67,20 @@ class DigitalChipTop(implicit p: Parameters)
     .fixedClockNode
   def debugClockBundle = debugClockSinkNode.in.head._1
 
+  
+  val pbus = system.locateTLBusWrapper(PBUS)
+
+  val mmioAdder =
+      LazyModule(new MmioAdder(MmioAdderParams(), pbus.beatBytes))
+
+  mmioAdder.clockNode := pbus.fixedClockNode
+  pbus.coupleTo("mmio_addr") {
+    mmioAdder.node :=
+      TLFragmenter(pbus.beatBytes, pbus.blockBytes) :=
+      TLWidthWidget(pbus.beatBytes) :=
+      _
+  }
+
   override lazy val module = new DigitalChipTopImpl
   class DigitalChipTopImpl extends LazyRawModuleImp(this) with DontTouch {
     val io = IO(new Bundle {
@@ -261,6 +275,7 @@ class DigitalChipConfig(sim: Boolean = false)
                 )
               ),
               // Allow an external manager to probe this chip
+              // TODO: Investigate why default totalIdBits (8) causes TLMonitor elaboration issues in digital chip adder test.
               client = Some(testchipip.serdes.SerialTLClientParams(totalIdBits = 4)),
               // 4-bit bidir interface, synced to an external clock
               phyParams = {
@@ -401,18 +416,3 @@ class DigitalChipConfig(sim: Boolean = false)
 
         new freechips.rocketchip.system.BaseConfig
     )
-
-class DigitalChipTopWithAdder(implicit p: Parameters) extends DigitalChipTop {
-  private val pbus = system.locateTLBusWrapper(PBUS)
-
-  private val mmioAdder =
-    LazyModule(new MmioAdder(MmioAdderParams(address = 0x10040000), pbus.beatBytes))
-
-  mmioAdder.clockNode := pbus.fixedClockNode
-  pbus.coupleTo("mmio_addr") {
-    mmioAdder.node :=
-      TLFragmenter(pbus.beatBytes, pbus.blockBytes) :=
-      TLWidthWidget(pbus.beatBytes) :=
-      _
-  }
-}
