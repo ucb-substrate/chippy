@@ -235,3 +235,67 @@ class TLDriver(
     io.finished := started && (completedCount === nReqs.U)
   }
 }
+
+class TLBackpressureTestWidget(
+    cycles: Int,
+    managerStall: Boolean = true,
+    clientStall: Boolean = true
+)(implicit p: Parameters) extends LazyModule {
+  require(cycles >= 0, s"cycles must be non-negative, got $cycles")
+
+  val node = new TLAdapterNode(
+    clientFn = { case c => c },
+    managerFn = { case m => m }
+  ) {
+    override def circuitIdentity = cycles == 0 || (!managerStall && !clientStall)
+  }
+
+  override lazy val desiredName = s"TLBackpressureTestWidget$cycles"
+
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
+    (node.in zip node.out).foreach { case ((in, _), (out, _)) =>
+      out <> in
+
+      if (cycles > 0 && (managerStall || clientStall)) {
+        val counter = RegInit(cycles.U(log2Up(cycles + 1).W))
+        val stalling = counter =/= 0.U
+        when (stalling) { counter := counter - 1.U }
+
+        // Manager-driven readies live on client->manager channels (A, C, E).
+        // Lower the matching valid in lockstep with ready so a beat can't fire
+        // on the manager side while the upstream side is held back.
+        if (managerStall) {
+          when (stalling) {
+            in.a.ready := false.B
+            out.a.valid := false.B
+            in.c.ready := false.B
+            out.c.valid := false.B
+            in.e.ready := false.B
+            out.e.valid := false.B
+          }
+        }
+
+        // Client-driven readies live on manager->client channels (B, D).
+        if (clientStall) {
+          when (stalling) {
+            out.b.ready := false.B
+            in.b.valid := false.B
+            out.d.ready := false.B
+            in.d.valid := false.B
+          }
+        }
+      }
+    }
+  }
+}
+
+object TLBackpressureTestWidget {
+  def apply(
+      cycles: Int,
+      managerStall: Boolean = true,
+      clientStall: Boolean = true
+  )(implicit p: Parameters): TLAdapterNode = {
+    LazyModule(new TLBackpressureTestWidget(cycles, managerStall, clientStall)).node
+  }
+}
