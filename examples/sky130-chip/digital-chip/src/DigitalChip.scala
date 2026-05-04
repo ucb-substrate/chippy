@@ -31,6 +31,8 @@ import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.devices.tilelink.BootROMLocated
 import freechips.rocketchip.util._
 import sifive.blocks.inclusivecache.{InclusiveCachePortParameters}
+import examples.mmioadder._
+import freechips.rocketchip.tilelink._
 
 // Rocketchip's JTAGIO exposes the oe signal, which doesn't go off-chip
 class JTAGChipIO(hasReset: Boolean) extends Bundle {
@@ -64,6 +66,20 @@ class DigitalChipTop(implicit p: Parameters)
     .locateTLBusWrapper(p(ExportDebug).slaveWhere)
     .fixedClockNode
   def debugClockBundle = debugClockSinkNode.in.head._1
+
+  
+  val pbus = system.locateTLBusWrapper(PBUS)
+
+  val mmioAdder =
+      LazyModule(new MmioAdder(MmioAdderParams(), pbus.beatBytes))
+
+  mmioAdder.clockNode := pbus.fixedClockNode
+  pbus.coupleTo("mmio_addr") {
+    mmioAdder.node :=
+      TLFragmenter(pbus.beatBytes, pbus.blockBytes) :=
+      TLWidthWidget(pbus.beatBytes) :=
+      _
+  }
 
   override lazy val module = new DigitalChipTopImpl
   class DigitalChipTopImpl extends LazyRawModuleImp(this) with DontTouch {
@@ -259,7 +275,8 @@ class DigitalChipConfig(sim: Boolean = false)
                 )
               ),
               // Allow an external manager to probe this chip
-              client = Some(testchipip.serdes.SerialTLClientParams()),
+              // TODO: Investigate why default totalIdBits (8) causes TLMonitor elaboration issues in digital chip adder test.
+              client = Some(testchipip.serdes.SerialTLClientParams(totalIdBits = 4)),
               // 4-bit bidir interface, synced to an external clock
               phyParams = {
                 val (phitWidth, flitWidth) = if (sim) {

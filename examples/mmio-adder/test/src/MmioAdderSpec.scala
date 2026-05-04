@@ -5,7 +5,6 @@ import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 
 import org.scalatest.funspec.AnyFunSpec
-import edu.berkeley.cs.chippy.ChippyStage
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.cde.config.Parameters

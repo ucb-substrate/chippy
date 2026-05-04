@@ -38,7 +38,7 @@ class MmioAdder(params: MmioAdderParams, beatBytes: Int)(implicit
   }
   val device = new SimpleDevice("mmio_addr", Seq("examples,mmio_addr"))
   val node = TLRegisterNode(
-    Seq(AddressSet(params.address, 256 - 1)),
+    Seq(AddressSet(params.address, 0xfff)),
     device,
     "reg/control",
     beatBytes = beatBytes
