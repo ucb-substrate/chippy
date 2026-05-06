@@ -28,6 +28,7 @@ class JTAGChipIO(hasReset: Boolean) extends Bundle {
 class RocketSystem(implicit p: Parameters)
     extends edu.berkeley.cs.chippy.ChippySystem
     with testchipip.soc.CanHavePeripheryChipIdPin
+    with testchipip.soc.CanHaveSubsystemInjectors // required for WithBootAddrReg
     with testchipip.serdes.CanHavePeripheryTLSerial
     with sifive.blocks.devices.uart.HasPeripheryUART
     with edu.berkeley.cs.chippy.clocking.HasChippyPRCI
