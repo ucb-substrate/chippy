@@ -195,3 +195,167 @@ class SerialTLTesterIO(params: TLTesterParams) extends Bundle {
     resp.valid.expect(true.B, "timeout waiting for response")
   }
 }
+
+case class TLRequestDescriptor(
+  address: BigInt,
+  isWrite: Boolean,
+  data: BigInt = 0,
+  size: Int = 3 // log2(8) = 3 => 8 bytes by default
+)
+
+class TLDriver(
+    reqs: Seq[TLRequestDescriptor],
+    maxInflight: Int = 1
+)(implicit p: Parameters) extends LazyModule {
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
+    name = "offchip_router_test_driver", sourceId = IdRange(0, maxInflight))))))
+
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
+    val io = IO(new Bundle {
+      val start = Input(Bool())
+      val finished = Output(Bool())
+    })
+
+    val (tl, edge) = node.out(0)
+    val nReqs = reqs.size
+
+    val addresses = VecInit(reqs.map(r => r.address.U(edge.bundle.addressBits.W)))
+    val writes    = VecInit(reqs.map(r => r.isWrite.B))
+    val datas     = VecInit(reqs.map(r => r.data.U(edge.bundle.dataBits.W)))
+    val sizes     = VecInit(reqs.map(r => r.size.U(edge.bundle.sizeBits.W)))
+
+    val started        = RegInit(false.B)
+    val issueIdx       = RegInit(0.U(log2Ceil(nReqs + 1).W))
+    val completedCount = RegInit(0.U(log2Ceil(nReqs + 1).W))
+
+    when (io.start) { started := true.B }
+
+    // Free pool: bit s = 1 means source ID s is currently free.
+    val freeMask = RegInit(((BigInt(1) << maxInflight) - 1).U(maxInflight.W))
+    // Scoreboard: source ID -> request index currently owning that source.
+    val scoreboard = Reg(Vec(maxInflight, UInt(log2Up(nReqs).W)))
+
+    val freeBools  = freeMask.asBools
+    val hasFreeSrc = freeBools.reduce(_ || _)
+    val pickedSrc  = PriorityEncoder(freeBools)
+
+    val canIssue = started && (issueIdx < nReqs.U) && hasFreeSrc
+
+    val currAddr  = addresses(issueIdx)
+    val currWrite = writes(issueIdx)
+    val currData  = datas(issueIdx)
+    val currSize  = sizes(issueIdx)
+
+    val putBits = edge.Put(pickedSrc, currAddr, currSize, currData)._2
+    val getBits = edge.Get(pickedSrc, currAddr, currSize)._2
+
+    tl.a.valid := canIssue
+    tl.a.bits  := Mux(currWrite, putBits, getBits)
+    tl.d.ready := true.B
+
+    // Update freeMask: clear the picked bit on a.fire, set the response bit on
+    // d.fire. Same-cycle a.fire+d.fire on the same source (combinational ack)
+    // results in the bit being set (free), which is correct: the source is
+    // immediately released back to the pool.
+    val allocBit = Mux(tl.a.fire, UIntToOH(pickedSrc, maxInflight), 0.U(maxInflight.W))
+    val freeBit  = Mux(tl.d.fire, UIntToOH(tl.d.bits.source, maxInflight), 0.U(maxInflight.W))
+    freeMask := (freeMask & ~allocBit) | freeBit
+
+    when (tl.a.fire) {
+      scoreboard(pickedSrc) := issueIdx
+      issueIdx := issueIdx + 1.U
+    }
+
+    when (tl.d.fire) {
+      // For combinational ack on the source we're issuing this same cycle,
+      // the registered scoreboard entry hasn't been written yet — use the
+      // current issueIdx wire instead.
+      val sameCycleAck = tl.a.fire && (pickedSrc === tl.d.bits.source)
+      val respIdx   = Mux(sameCycleAck, issueIdx, scoreboard(tl.d.bits.source))
+      val respWrite = writes(respIdx)
+      val respData  = datas(respIdx)
+      val respAddr  = addresses(respIdx)
+
+      when (!respWrite) {
+        assert(tl.d.bits.data === respData,
+          "TLDriver read mismatch: idx=%d src=%d addr=0x%x expected=0x%x got=0x%x",
+          respIdx, tl.d.bits.source, respAddr, respData, tl.d.bits.data)
+      }
+
+      completedCount := completedCount + 1.U
+    }
+
+    tl.b.ready := false.B
+    tl.c.valid := false.B
+    tl.c.bits  := DontCare
+    tl.e.valid := false.B
+    tl.e.bits  := DontCare
+
+    io.finished := started && (completedCount === nReqs.U)
+  }
+}
+
+class TLBackpressureTestWidget(
+    cycles: Int,
+    managerStall: Boolean = true,
+    clientStall: Boolean = true
+)(implicit p: Parameters) extends LazyModule {
+  require(cycles >= 0, s"cycles must be non-negative, got $cycles")
+
+  val node = new TLAdapterNode(
+    clientFn = { case c => c },
+    managerFn = { case m => m }
+  ) {
+    override def circuitIdentity = cycles == 0 || (!managerStall && !clientStall)
+  }
+
+  override lazy val desiredName = s"TLBackpressureTestWidget$cycles"
+
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
+    (node.in zip node.out).foreach { case ((in, _), (out, _)) =>
+      out <> in
+
+      if (cycles > 0 && (managerStall || clientStall)) {
+        val counter = RegInit(cycles.U(log2Up(cycles + 1).W))
+        val stalling = counter =/= 0.U
+        when (stalling) { counter := counter - 1.U }
+
+        // Manager-driven readies live on client->manager channels (A, C, E).
+        // Lower the matching valid in lockstep with ready so a beat can't fire
+        // on the manager side while the upstream side is held back.
+        if (managerStall) {
+          when (stalling) {
+            in.a.ready := false.B
+            out.a.valid := false.B
+            in.c.ready := false.B
+            out.c.valid := false.B
+            in.e.ready := false.B
+            out.e.valid := false.B
+          }
+        }
+
+        // Client-driven readies live on manager->client channels (B, D).
+        if (clientStall) {
+          when (stalling) {
+            out.b.ready := false.B
+            in.b.valid := false.B
+            out.d.ready := false.B
+            in.d.valid := false.B
+          }
+        }
+      }
+    }
+  }
+}
+
+object TLBackpressureTestWidget {
+  def apply(
+      cycles: Int,
+      managerStall: Boolean = true,
+      clientStall: Boolean = true
+  )(implicit p: Parameters): TLAdapterNode = {
+    LazyModule(new TLBackpressureTestWidget(cycles, managerStall, clientStall)).node
+  }
+}
