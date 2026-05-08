@@ -32,7 +32,7 @@ trait ChippyPublishModule extends ChippyModule, PublishModule {
 }
 
 object rocketchip extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
 
   def moduleDir = super.moduleDir / os.up / "rocket-chip"
   def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
@@ -52,7 +52,7 @@ object rocketchip extends ChippyPublishModule {
   def pomSettings = makePomSettings("Hardware floating-point units written in Chisel.")
 
   object macros extends ChippyPublishModule {
-    def publishVersion = "0.0.1"
+    def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
 
     def mvnDeps = Seq(
       mvn"org.scala-lang:scala-reflect:${scalaVersion}",
@@ -63,7 +63,7 @@ object rocketchip extends ChippyPublishModule {
 
   object dependencies extends Module {
     object cde extends ChippyPublishModule {
-      def publishVersion = "0.0.1"
+      def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
       def artifactName = "cde"
 
       def sources = Task.Sources(this.moduleDir / "cde" / "src")
@@ -80,7 +80,7 @@ object rocketchip extends ChippyPublishModule {
     }
 
     object diplomacy extends ChippyPublishModule {
-      def publishVersion = "0.0.1"
+      def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
       def artifactName = "diplomacy"
 
       def sources = Task.Sources(this.moduleDir / "diplomacy" / "src")
@@ -99,7 +99,7 @@ object rocketchip extends ChippyPublishModule {
     }
 
     object hardfloat extends ChippyPublishModule {
-      def publishVersion = "0.0.1"
+      def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
       def artifactName = "hardfloat"
 
       def sources = Task.Sources(this.moduleDir / "hardfloat" / "src")
@@ -127,7 +127,7 @@ object rocketchip extends ChippyPublishModule {
 }
 
 object `rocketchip-blocks` extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
 
   def moduleDir = super.moduleDir / os.up / "rocket-chip-blocks"
 
@@ -144,7 +144,7 @@ object `rocketchip-blocks` extends ChippyPublishModule {
 }
 
 object `rocketchip-inclusive-cache` extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
 
   def moduleDir = super.moduleDir / os.up / "rocket-chip-inclusive-cache"
   def sources = Task.Sources(moduleDir / "design" / "craft" / "inclusivecache")
@@ -162,7 +162,7 @@ object `rocketchip-inclusive-cache` extends ChippyPublishModule {
 }
 
 object testchipip extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
 
   def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
 
@@ -179,7 +179,7 @@ object testchipip extends ChippyPublishModule {
 }
 
 object constellation extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
 
   def sources = Task.Sources(this.moduleDir / "src" / "main")
 
@@ -204,7 +204,7 @@ object constellation extends ChippyPublishModule {
 }
 
 object chippy extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
 
   def moduleDeps = Seq(rocketchip.dependencies.cde, rocketchip.dependencies.diplomacy, rocketchip)
 
@@ -219,7 +219,7 @@ object chippy extends ChippyPublishModule {
 }
 
 object chipyard extends ChippyPublishModule {
-  def publishVersion = "0.0.1"
+  def publishVersion = sys.env.getOrElse("CHIPPY_VERSION", "LOCAL-SNAPSHOT")
 
   def sources = Task.Sources(this.moduleDir / "src" / "main")
   def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }

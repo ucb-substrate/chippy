@@ -1,0 +1,50 @@
+name: Publish Chippy package
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "Module to publish, e.g. rocketchip.dependencies.diplomacy, chippy, rocketchip. Look at documentation for more details: https://rohkud.github.io/chippy/available-packages/"
+        required: true
+        default: rocketchip.dependencies.diplomacy
+      version:
+        description: "Version to publish, e.g. 3.0.0"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Make Mill executable
+        run: chmod +x ./mill
+
+      - name: Set module and version
+        run: |
+          echo "MODULE=${{ github.event.inputs.module }}" >> $GITHUB_ENV
+          echo "CHIPPY_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+
+      - name: Publish selected module
+        env:
+          MILL_MAVEN_USERNAME: ${{ github.actor }}
+          MILL_MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+            ./mill mill.javalib.MavenPublishModule/ \
+            --publishArtifacts "$MODULE.publishArtifacts" \
+            --releaseUri https://maven.pkg.github.com/ucb-substrate/chippy \
+            --snapshotUri https://maven.pkg.github.com/ucb-substrate/chippy
