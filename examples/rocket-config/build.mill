@@ -4,10 +4,14 @@ package build
 
 import mill._
 import scalalib._
+import publish._
 
-object `package` extends ScalaModule {
+object `package` extends ScalaModule, PublishModule {
   def scalaVersion = "2.13.18"
   def chiselVersion = "7.8.0"
+
+  def publishVersion = "0.0.1"
+  def artifactName = "rocket-config"
 
   def mvnDeps = Seq(
     mvn"org.chipsalliance::chisel:${chiselVersion}",
@@ -21,6 +25,17 @@ object `package` extends ScalaModule {
   )
   def scalacPluginMvnDeps = Seq(
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
+  )
+
+  def pomSettings = PomSettings(
+    description = "Reusable Rocket-flavored Chippy chip top (system, scaffolding trait, wiring helpers, config).",
+    organization = "edu.berkeley.cs",
+    url = "https://github.com/ucb-substrate/chippy",
+    licenses = Seq(License.MIT),
+    versionControl = VersionControl.github("ucb-substrate", "chippy"),
+    developers = Seq(
+      Developer("rohanku", "Rohan Kumar", "https://github.com/rohanku")
+    )
   )
 
   object test extends ScalaTests, TestModule.ScalaTest {

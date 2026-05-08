@@ -33,10 +33,15 @@ class RocketSystem(implicit p: Parameters)
     with sifive.blocks.devices.uart.HasPeripheryUART
     with edu.berkeley.cs.chippy.clocking.HasChippyPRCI
 
-class RocketChipTop(implicit p: Parameters)
-    extends LazyModule
-    with BindingScope {
-  val system = LazyModule(new RocketSystem)
+/** Diplomatic scaffolding shared by every Rocket-flavored chip top: the system,
+  * the chiptop clock group source, and the debug clock sink. Subclasses
+  * override `makeSystem` to plug in a different system (e.g. one with extra
+  * D2D ports).
+  */
+trait HasRocketChipTopDiplomaticConnections { this: LazyModule =>
+  protected def makeSystem(): RocketSystem
+
+  val system = LazyModule(makeSystem())
   val clockGroupsSourceNode = ClockGroupSourceNode(
     Seq(ClockGroupSourceParameters())
   )
@@ -46,22 +51,34 @@ class RocketChipTop(implicit p: Parameters)
     .locateTLBusWrapper(p(ExportDebug).slaveWhere)
     .fixedClockNode
   def debugClockBundle = debugClockSinkNode.in.head._1
+}
 
-  override lazy val module = new RocketChipTopImpl
-  class RocketChipTopImpl extends LazyRawModuleImp(this) with DontTouch {
-    val io = IO(new Bundle {
-      val clock = Input(Clock())
-      val reset = Input(AsyncReset())
-    })
-
-    clockGroupsSourceNode.out.foreach { case (bundle, edge) =>
+/** Module-level wiring helpers reusable across chip tops that share the
+  * Rocket peripheral surface. Each helper is called from inside a
+  * `LazyRawModuleImp` body, creates the relevant top-level `IO(...)`s, wires
+  * them to the system, and returns the IO bundle.
+  */
+object RocketChipTopWiring {
+  def driveClocks(
+      node: ClockGroupSourceNode,
+      clock: Clock,
+      reset: AsyncReset
+  ): Unit = {
+    node.out.foreach { case (bundle, _) =>
       bundle.member.data.foreach { b =>
-        b.clock := io.clock
-        b.reset := io.reset
+        b.clock := clock
+        b.reset := reset
       }
     }
+  }
 
-    // Connect debug pins
+  /** Tie off PSD/extTrigger/disableDebug, drive the JTAG idcode CSRs, expose a
+    * top-level JTAG IO, and connect it to the system's debug module.
+    */
+  def connectDebugAndJtag(
+      system: RocketSystem,
+      debugClockBundle: ClockBundle
+  )(implicit p: Parameters): JTAGChipIO = {
     val debug_io = system.debug.get
     Debug.connectDebugClockAndReset(Some(debug_io), debugClockBundle.clock)
 
@@ -72,9 +89,8 @@ class RocketChipTop(implicit p: Parameters)
     }
     debug_io.extTrigger.foreach { t =>
       { t.in.req := false.B; t.out.ack := t.out.req; }
-    } // Tie off extTrigger
-    debug_io.disableDebug.foreach { d => d := false.B } // Tie off disableDebug
-    // Drive JTAG on-chip IOs
+    }
+    debug_io.disableDebug.foreach { d => d := false.B }
     debug_io.systemjtag.map { j =>
       j.reset := ResetCatchAndSync(j.jtag.TCK, debugClockBundle.reset.asBool)
       j.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
@@ -87,20 +103,53 @@ class RocketChipTop(implicit p: Parameters)
     debug_io.systemjtag.get.jtag.TMS := jtag.TMS
     debug_io.systemjtag.get.jtag.TDI := jtag.TDI
     jtag.TDO := debug_io.systemjtag.get.jtag.TDO.data
+    jtag
+  }
 
-    // Tie off interrupts and chip ID
-    system.module.interrupts := DontCare
-
+  def connectSerialTl(
+      system: RocketSystem
+  )(implicit p: Parameters): DecoupledExternalSyncPhitIO = {
     val serial_tl = IO(
       new DecoupledExternalSyncPhitIO(p(SerialTLKey)(0).phyParams.phitWidth)
     )
     serial_tl <> system.serial_tls(0)
+    serial_tl
+  }
+
+  def connectUart(system: RocketSystem): UARTPortIO = {
     val uart = IO(chiselTypeOf(system.uart(0)))
     uart <> system.uart(0)
+    uart
+  }
 
+  def connectChipId(system: RocketSystem)(implicit p: Parameters): UInt = {
     val chip_id_pin = system.chip_id_pin.get
     val chip_id = IO(Input(UInt(p(ChipIdPinKey).get.width.W)))
     chip_id_pin := chip_id
+    chip_id
+  }
+}
+
+class RocketChipTop(implicit p: Parameters)
+    extends LazyModule
+    with BindingScope
+    with HasRocketChipTopDiplomaticConnections {
+
+  protected def makeSystem(): RocketSystem = new RocketSystem
+
+  override lazy val module = new RocketChipTopImpl
+  class RocketChipTopImpl extends LazyRawModuleImp(this) with DontTouch {
+    val io = IO(new Bundle {
+      val clock = Input(Clock())
+      val reset = Input(AsyncReset())
+    })
+
+    RocketChipTopWiring.driveClocks(clockGroupsSourceNode, io.clock, io.reset)
+    val jtag = RocketChipTopWiring.connectDebugAndJtag(system, debugClockBundle)
+    system.module.interrupts := DontCare
+    val serial_tl = RocketChipTopWiring.connectSerialTl(system)
+    val uart = RocketChipTopWiring.connectUart(system)
+    val chip_id = RocketChipTopWiring.connectChipId(system)
   }
 }
 
