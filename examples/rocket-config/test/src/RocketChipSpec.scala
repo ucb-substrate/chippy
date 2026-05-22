@@ -77,7 +77,7 @@ class RocketChipSpec extends AnyFunSpec with ChiselSim {
 
       Utils.simulateTopWithBinary(
         workDir,
-        Utils.root / "software/hello.riscv"
+        Utils.softwareDir / "hello.riscv"
       )
     }
 
@@ -88,7 +88,7 @@ class RocketChipSpec extends AnyFunSpec with ChiselSim {
 
       Utils.simulateTopWithBinary(
         workDir,
-        Utils.root / "software/hello.riscv",
+        Utils.softwareDir / "hello.riscv",
         debug = true,
       )
     }

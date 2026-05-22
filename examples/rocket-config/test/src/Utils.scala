@@ -10,6 +10,7 @@ object Utils {
     Paths.get(sys.env("MILL_TEST_RESOURCE_DIR")).toAbsolutePath
   ) / os.up / os.up
   val buildRoot = root / "build"
+  val softwareDir = root / os.up / "software"
 
   def writeSourceFilesList(path: Path, sourceFiles: Seq[Path]) = {
     os.makeDir.all(path / os.up)
@@ -81,7 +82,7 @@ script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.t
   )(implicit p: Parameters) = {
     assert(
       os.exists(binaryPath),
-      s"The provided binary $binaryPath does not exist. You may have to run `make` in the `software/` directory to make the binary first"
+      s"The provided binary $binaryPath does not exist. You may have to run `make` in the `examples/software/` directory to make the binary first"
     )
     os.remove.all(workDir)
     os.makeDir.all(workDir)

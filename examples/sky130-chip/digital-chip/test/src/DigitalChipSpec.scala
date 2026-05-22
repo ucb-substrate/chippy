@@ -275,8 +275,8 @@ class DigitalChipSpec extends AnyFunSpec with ChiselSim {
       // TODO: Figure out why this passes even when simulation errors.
       Utils.simulateTopWithBinaries(
         workDir,
-        Utils.root / "software/hello0.riscv",
-        Utils.root / "software/hello1.riscv"
+        Utils.softwareDir / "hello0.riscv",
+        Utils.softwareDir / "hello1.riscv"
       )
     }
 
@@ -286,8 +286,8 @@ class DigitalChipSpec extends AnyFunSpec with ChiselSim {
 
       Utils.simulateTopWithBinaries(
         workDir,
-        Utils.root / "software/hello.riscv",
-        Utils.root / "software/hello.riscv",
+        Utils.softwareDir / "hello.riscv",
+        Utils.softwareDir / "hello.riscv",
         fast = true
       )
     }

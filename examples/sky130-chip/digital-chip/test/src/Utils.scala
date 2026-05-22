@@ -11,6 +11,7 @@ object Utils {
     Paths.get(sys.env("MILL_TEST_RESOURCE_DIR")).toAbsolutePath
   ) / os.up / os.up
   val buildRoot = root / "build"
+  val softwareDir = root / os.up / os.up / "software"
 
   def writeSourceFilesList(path: Path, sourceFiles: Seq[Path]) = {
     os.makeDir.all(path / os.up)
@@ -117,11 +118,11 @@ script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.t
   )(implicit p: Parameters) = {
     assert(
       os.exists(chip0BinaryPath),
-      "The provided chip0 binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
+      "The provided chip0 binary does not exit. You may have to run `make` in the `examples/software/` directory to make the binary first"
     )
     assert(
       os.exists(chip1BinaryPath),
-      "The provided chip1 binary does not exit. You may have to run `make` in the `software/` directory to make the binary first"
+      "The provided chip1 binary does not exit. You may have to run `make` in the `examples/software/` directory to make the binary first"
     )
     assert(
       !fast || chip0BinaryPath == chip1BinaryPath,
