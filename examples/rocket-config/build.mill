@@ -28,7 +28,7 @@ object `package` extends ScalaModule, PublishModule {
   )
 
   def pomSettings = PomSettings(
-    description = "Reusable Rocket-flavored Chippy chip top (system, scaffolding trait, wiring helpers, config).",
+    description = "Rocket-based Chippy chip top (system, connection helpers, config).",
     organization = "edu.berkeley.cs",
     url = "https://github.com/ucb-substrate/chippy",
     licenses = Seq(License.MIT),

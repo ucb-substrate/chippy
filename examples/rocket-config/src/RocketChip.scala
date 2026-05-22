@@ -33,32 +33,12 @@ class RocketSystem(implicit p: Parameters)
     with sifive.blocks.devices.uart.HasPeripheryUART
     with edu.berkeley.cs.chippy.clocking.HasChippyPRCI
 
-/** Diplomatic scaffolding shared by every Rocket-flavored chip top: the system,
-  * the chiptop clock group source, and the debug clock sink. Subclasses
-  * override `makeSystem` to plug in a different system (e.g. one with extra
-  * D2D ports).
-  */
-trait HasRocketChipTopDiplomaticConnections { this: LazyModule =>
-  protected def makeSystem(): RocketSystem
-
-  val system = LazyModule(makeSystem())
-  val clockGroupsSourceNode = ClockGroupSourceNode(
-    Seq(ClockGroupSourceParameters())
-  )
-  system.chiptopClockGroupsNode := clockGroupsSourceNode
-  val debugClockSinkNode = ClockSinkNode(Seq(ClockSinkParameters()))
-  debugClockSinkNode := system
-    .locateTLBusWrapper(p(ExportDebug).slaveWhere)
-    .fixedClockNode
-  def debugClockBundle = debugClockSinkNode.in.head._1
-}
-
 /** Module-level wiring helpers reusable across chip tops that share the
   * Rocket peripheral surface. Each helper is called from inside a
   * `LazyRawModuleImp` body, creates the relevant top-level `IO(...)`s, wires
   * them to the system, and returns the IO bundle.
   */
-object RocketChipTopWiring {
+object RocketChipTopConnections {
   def driveClocks(
       node: ClockGroupSourceNode,
       clock: Clock,
@@ -132,10 +112,18 @@ object RocketChipTopWiring {
 
 class RocketChipTop(implicit p: Parameters)
     extends LazyModule
-    with BindingScope
-    with HasRocketChipTopDiplomaticConnections {
+    with BindingScope {
 
-  protected def makeSystem(): RocketSystem = new RocketSystem
+  val system = LazyModule(new RocketSystem)
+  val clockGroupsSourceNode = ClockGroupSourceNode(
+    Seq(ClockGroupSourceParameters())
+  )
+  system.chiptopClockGroupsNode := clockGroupsSourceNode
+  val debugClockSinkNode = ClockSinkNode(Seq(ClockSinkParameters()))
+  debugClockSinkNode := system
+    .locateTLBusWrapper(p(ExportDebug).slaveWhere)
+    .fixedClockNode
+  def debugClockBundle = debugClockSinkNode.in.head._1
 
   override lazy val module = new RocketChipTopImpl
   class RocketChipTopImpl extends LazyRawModuleImp(this) with DontTouch {
@@ -144,12 +132,12 @@ class RocketChipTop(implicit p: Parameters)
       val reset = Input(AsyncReset())
     })
 
-    RocketChipTopWiring.driveClocks(clockGroupsSourceNode, io.clock, io.reset)
-    val jtag = RocketChipTopWiring.connectDebugAndJtag(system, debugClockBundle)
+    RocketChipTopConnections.driveClocks(clockGroupsSourceNode, io.clock, io.reset)
+    val jtag = RocketChipTopConnections.connectDebugAndJtag(system, debugClockBundle)
     system.module.interrupts := DontCare
-    val serial_tl = RocketChipTopWiring.connectSerialTl(system)
-    val uart = RocketChipTopWiring.connectUart(system)
-    val chip_id = RocketChipTopWiring.connectChipId(system)
+    val serial_tl = RocketChipTopConnections.connectSerialTl(system)
+    val uart = RocketChipTopConnections.connectUart(system)
+    val chip_id = RocketChipTopConnections.connectChipId(system)
   }
 }
 
