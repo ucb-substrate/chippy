@@ -1,9 +1,8 @@
-package examples.sky130chip.digitalchip
+package examples.rocketconfig
 
 import os.Path
 import circt.stage.ChiselStage
 import java.nio.file.Paths
-import testchipip.dram.SimDRAM
 import org.chipsalliance.cde.config.Parameters
 
 object Utils {
@@ -11,52 +10,11 @@ object Utils {
     Paths.get(sys.env("MILL_TEST_RESOURCE_DIR")).toAbsolutePath
   ) / os.up / os.up
   val buildRoot = root / "build"
-  val softwareDir = root / os.up / os.up / "software"
+  val softwareDir = root / os.up / "software"
 
   def writeSourceFilesList(path: Path, sourceFiles: Seq[Path]) = {
     os.makeDir.all(path / os.up)
     os.write.over(path, sourceFiles.map(_.toString).mkString("\n"))
-  }
-
-  def writeVerilatorSimScript(
-      path: Path,
-      topModule: String,
-      sourceFilesList: Path,
-      incDirs: Seq[Path] = Seq.empty,
-      optLevel: Option[String] = None
-  ) = {
-    os.makeDir.all(path / os.up)
-    os.write.over(
-      path,
-      s"""#!/bin/bash
-set -ex -o pipefail
-verilator \\
-  --cc \\
-  --exe \\
-  --build \\
-  --main \\
-  -o ../simulation \\
-  --top-module ${topModule} \\
-  --Mdir verilated-sources \\
-  --assert \\
-  --timing \\
-  --max-num-width 1048576 \\${optLevel match {
-          case Some(v) => s"\n  $v \\"
-          case None    => ""
-        }}${incDirs.map(dir => s"\n  +incdir+$dir \\").mkString("")}
-  --vpi \\
-  +define+layer$$Verification$$Assert$$Temporal \\
-  +define+layer$$Verification$$Assume$$Temporal \\
-  +define+layer$$Verification$$Cover$$Temporal \\
-  +define+VERILATOR \\
-  -Wno-fatal \\
-  -CFLAGS "$$CXXFLAGS -O3 -std=c++17 -DVERILATOR -I$$RISCV/include" \\
-  -LDFLAGS "$$LDFLAGS -L$$RISCV/lib -Wl,-rpath,$$RISCV/lib -lriscv -lfesvr" \\
-  -F ${sourceFilesList.toString}
-script -f -c "./simulation </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
-"""
-    )
-    path.toIO.setExecutable(true)
   }
 
   def writeVcsSimScript(
@@ -64,11 +22,18 @@ script -f -c "./simulation </dev/null 2> >(spike-dasm > simulation.out)" simulat
       topModule: String,
       sourceFilesList: Path,
       incDirs: Seq[Path] = Seq.empty,
-      loadmem: Option[Path] = None
+      loadmem: Option[Path] = None,
+      debug: Boolean = false
   ) = {
-    // val dramsim_ini =
-    //   getClass.getResource("/dramsim2_ini").getPath
     val dramsim_ini = root / os.up / os.up / os.up / "testchipip" / "src" / "main" / "resources" / "dramsim2_ini"
+    // When debug is on, build with FSDB recording instrumentation and pass
+    // +fsdbfile=... at runtime so TestDriver opens the dump file. `+define+FSDB`
+    // is already in the base CFLAGS so the existing `ifdef FSDB` blocks compile
+    // either way; `+define+DEBUG` is what gates the actual fsdbDump calls.
+    val debugCompileFlags =
+      if (debug) " +define+DEBUG -debug_access+all -kdb -lca" else ""
+    val debugRuntimeFlag =
+      if (debug) " +fsdbfile=waveform.fsdb" else ""
     os.makeDir.all(path / os.up)
     os.write.over(
       path,
@@ -87,9 +52,9 @@ vcs \\
   +define+layer$$Verification$$Assert$$Temporal \\
   +define+layer$$Verification$$Assume$$Temporal \\
   +define+layer$$Verification$$Cover$$Temporal \\
-  +define+VCS +define+FSDB +define+RANDOMIZE_MEM_INIT +define+RANDOMIZE_REG_INIT +define+RANDOMIZE_GARBAGE_ASSIGN +define+RANDOMIZE_INVALID_ASSIGN \\
+  +define+VCS +define+FSDB +define+RANDOMIZE_MEM_INIT +define+RANDOMIZE_REG_INIT +define+RANDOMIZE_GARBAGE_ASSIGN +define+RANDOMIZE_INVALID_ASSIGN$debugCompileFlags \\
   -o simulation -Mdir=vcs-sources
-script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.toString}${loadmem.map(p => s" +loadmem=${p.toString}").getOrElse("")} +permissive-off placeholder-binary </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
+script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.toString}${loadmem.map(p => s" +loadmem=${p.toString}").getOrElse("")}$debugRuntimeFlag +permissive-off placeholder-binary </dev/null 2> >(spike-dasm > simulation.out)" simulation.log
 """
     )
     path.toIO.setExecutable(true)
@@ -108,32 +73,23 @@ script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.t
       .filter(path => fileExtensions.exists(ext => path.last.endsWith(ext)))
   }
 
-  def simulateTopWithBinaries(
+  def simulateTopWithBinary(
       workDir: Path,
-      chip0BinaryPath: Path,
-      chip1BinaryPath: Path,
-      chip0PlusArgs: Seq[String] = Seq.empty,
-      chip1PlusArgs: Seq[String] = Seq.empty,
-      fast: Boolean = false
+      binaryPath: Path,
+      plusArgs: Seq[String] = Seq.empty,
+      fast: Boolean = false,
+      debug: Boolean = false
   )(implicit p: Parameters) = {
     assert(
-      os.exists(chip0BinaryPath),
-      "The provided chip0 binary does not exit. You may have to run `make` in the `examples/software/` directory to make the binary first"
-    )
-    assert(
-      os.exists(chip1BinaryPath),
-      "The provided chip1 binary does not exit. You may have to run `make` in the `examples/software/` directory to make the binary first"
-    )
-    assert(
-      !fast || chip0BinaryPath == chip1BinaryPath,
-      "FastRAM uses +loadmem which loads a single binary into all SimDRAM instances. Both chips must use the same binary when fast is enabled."
+      os.exists(binaryPath),
+      s"The provided binary $binaryPath does not exist. You may have to run `make` in the `examples/software/` directory to make the binary first"
     )
     os.remove.all(workDir)
     os.makeDir.all(workDir)
     val sourceDir = workDir / "src"
     val simDir = workDir / "sim"
     ChiselStage.emitSystemVerilogFile(
-      new SimTop(chip0BinaryPath, chip1BinaryPath, chip0PlusArgs, chip1PlusArgs, fast),
+      new SimTop(binaryPath, plusArgs, fast),
       args = Array(
         "--target-dir",
         sourceDir.toString
@@ -151,7 +107,8 @@ script -f -c "./simulation +permissive +dramsim +dramsim_ini_dir=${dramsim_ini.t
       "SimTop",
       sourceFilesList,
       incDirs = os.walk(sourceDir).filter(os.isDir) ++ Seq(sourceDir),
-      loadmem = if (fast) Some(chip0BinaryPath) else None
+      loadmem = if (fast) Some(binaryPath) else None,
+      debug = debug,
     )
 
     os.proc(
