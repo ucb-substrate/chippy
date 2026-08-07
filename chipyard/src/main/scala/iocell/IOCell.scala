@@ -168,6 +168,12 @@ trait IOCellTypeParams {
   def gpio():   DigitalGPIOCell
   def input():  DigitalInIOCell
   def output(): DigitalOutIOCell
+
+  // Named variants to allow instantiating different types of IO cells per signal
+  def analog(name: Option[String]): AnalogIOCell     = analog()
+  def gpio(name:   Option[String]): DigitalGPIOCell  = gpio()
+  def input(name:  Option[String]): DigitalInIOCell  = input()
+  def output(name: Option[String]): DigitalOutIOCell = output()
 }
 
 case class GenericIOCellParams() extends IOCellTypeParams {
@@ -223,7 +229,7 @@ object IOCell {
     ): Seq[IOCell] = {
       DataMirror.directionOf(coreSignal) match {
         case ActualDirection.Input => {
-          val iocell = typeParams.input()
+          val iocell = typeParams.input(name)
           name.foreach(n => {
             iocell.suggestName(n)
           })
@@ -233,7 +239,7 @@ object IOCell {
           Seq(iocell)
         }
         case ActualDirection.Output => {
-          val iocell = typeParams.output()
+          val iocell = typeParams.output(name)
           name.foreach(n => {
             iocell.suggestName(n)
           })
@@ -258,7 +264,7 @@ object IOCell {
             coreSignal.getWidth == 1,
             "Analogs wider than 1 bit are not supported because we can't bit-select Analogs (https://github.com/freechipsproject/chisel3/issues/536)"
           )
-          val iocell = typeParams.analog()
+          val iocell = typeParams.analog(name)
           name.foreach(n => iocell.suggestName(n))
           iocell.io.core <> coreSignal
           padSignal <> iocell.io.pad
@@ -280,7 +286,8 @@ object IOCell {
           DataMirror.directionOf(coreSignal) match {
             case ActualDirection.Input => {
               val iocells = padSignal.asBools.zipWithIndex.map { case (sig, i) =>
-                val iocell = typeParams.input()
+                val bitName = name.map(n => if (i == 0) n else s"${n}_$i")
+                val iocell = typeParams.input(bitName)
                 // Note that we are relying on chisel deterministically naming this in the index order (which it does)
                 // This has the side-effect of naming index 0 with no _0 suffix, which is how chisel names other signals
                 // An alternative solution would be to suggestName(n + "_" + i)
@@ -297,7 +304,8 @@ object IOCell {
             }
             case ActualDirection.Output => {
               val iocells = coreSignal.asBools.zipWithIndex.map { case (sig, i) =>
-                val iocell = typeParams.output()
+                val bitName = name.map(n => if (i == 0) n else s"${n}_$i")
+                val iocell = typeParams.output(bitName)
                 // Note that we are relying on chisel deterministically naming this in the index order (which it does)
                 // This has the side-effect of naming index 0 with no _0 suffix, which is how chisel names other signals
                 // An alternative solution would be to suggestName(n + "_" + i)
