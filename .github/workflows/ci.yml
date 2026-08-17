@@ -16,8 +16,16 @@ concurrency:
 jobs:
   # A release is tagged by release-please the moment its PR merges, so a publish failure
   # afterwards leaves a tagged version that was never published. This job runs the same
-  # command the release job does, on every pull request and push, so that never happens.
+  # command the release job does, ahead of every merge, so that never happens.
+  #
+  # The one push it skips is the merge of a release PR: release.yml publishes that exact
+  # commit for real moments later, and the release PR itself has already run this check.
+  # Spelled out per event rather than relying on `head_commit` being empty off a push —
+  # this silently skipping everywhere would cost exactly the protection it exists for.
   publish:
+    if: >-
+      github.event_name != 'push' ||
+      !startsWith(github.event.head_commit.message, 'chore(main): release')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -46,31 +54,15 @@ jobs:
       - name: Publish every package
         run: ./mill __.publishM2Local --m2RepoPath "$PWD/m2"
 
-      # Only ever consumed by the examples job below, and only for a version that is not
-      # published yet. See the comment there.
-      - name: Upload the Maven repository
-        uses: actions/upload-artifact@v7
-        with:
-          name: maven-repo
-          path: m2
-          retention-days: 1
-
   # The examples are external consumers of the released artifacts (see the README), so
-  # they check that what a user of Chippy actually gets is usable.
+  # they resolve from <https://ucb-substrate.github.io/chippy> like any other project
+  # and check that what a user of Chippy actually gets is usable. Nothing here depends
+  # on the job above; the two run in parallel.
   examples:
-    needs: [publish]
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
-      # Mill resolves the repositories a build lists — for the examples, the released
-      # repository on GitHub Pages — before any repository configured here, so the
-      # released artifacts are what gets tested. The repository built by the publish job
-      # is only reached for a version GitHub Pages does not have, which is exactly the
-      # case on a release PR: it bumps the examples to the version it is about to
-      # publish. `central` has to be spelled out because this replaces coursier's
-      # default repositories rather than adding to them.
-      COURSIER_REPOSITORIES: ivy2Local|central|file://${{ github.workspace }}/m2
       # A runner defaults to a quarter of its 16 GB for the heap, which is not much for
       # elaborating a chip top. The publish job deliberately gets no such override: it is
       # meant to fail wherever the release job would.
@@ -93,11 +85,28 @@ jobs:
           key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
           restore-keys: mill-${{ runner.os }}-
 
-      - name: Download the Maven repository
-        uses: actions/download-artifact@v8
-        with:
-          name: maven-repo
-          path: m2
+      # The one case where the released artifacts cannot be used: a release bumps the
+      # examples to the version it is about to publish, so that version is not on GitHub
+      # Pages yet. Build it from source instead — on release-please's own PR, which it
+      # always opens from this branch, and on the commit that lands when that PR is
+      # merged, which is titled `chore(main): release X.Y.Z`. Its `autorelease:` label is
+      # not used for this: it is attached after the PR is created and flips to
+      # `autorelease: tagged` once the release exists.
+      #
+      # Deliberately conditional rather than a repository that is always available as a
+      # fallback: a package missing from GitHub Pages has to fail here, not be quietly
+      # supplied by this build.
+      - name: Build Chippy from source for a release
+        if: >-
+          github.head_ref == 'release-please--branches--main' ||
+          startsWith(github.event.head_commit.message, 'chore(main): release')
+        run: |
+          ./mill __.publishM2Local --m2RepoPath "$PWD/m2"
+          # `central` has to be spelled out because this replaces coursier's default
+          # repositories rather than adding to them. The examples list GitHub Pages
+          # themselves, and Mill resolves a build's own repositories first, so the
+          # released artifacts still win for anything already published.
+          echo "COURSIER_REPOSITORIES=ivy2Local|central|file://$PWD/m2" >> "$GITHUB_ENV"
 
       - name: Compile every example
         run: ./mill examples.__.compile

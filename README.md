@@ -31,46 +31,16 @@ libraryDependencies += "edu.berkeley.cs" %% "diplomacy" % "0.1.1"
 ```
 <!-- x-release-please-end -->
 
-Alternatively, you can build against unreleased changes by publishing Chippy into a directory of
-your own:
+Alternatively, you can build against unreleased changes by publishing to your local Ivy repository:
 
 ```
 git clone https://github.com/ucb-substrate/chippy.git
 cd chippy
 git submodule update --init --recursive
-./mill __.publishM2Local --m2RepoPath /path/to/chippy-repo
+./mill __.publishLocal
 ```
-
-and resolving from that directory instead of the released repository:
-
-```scala
-def repositories = Seq("file:///path/to/chippy-repo")
-```
-
-`./mill __.publishLocal` publishes to your local Ivy repository, which Mill also resolves, but only
-after the repositories a build lists explicitly — so a version that has already been released still
-comes from GitHub Pages, and listing your own repository is what makes local changes take effect.
 
 Usage examples can be found in the `examples/` folder.
-
-## Continuous integration
-
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
-
-- **publish** runs `./mill __.publishM2Local`, the command the release job uses. Merging a release PR
-  tags the release before anything is published, so a break in publishing has to be caught before it
-  lands on `main` rather than after a version has already been tagged.
-- **examples** compiles every module under `examples/` and elaborates the two chip tops. The rest of
-  the examples' tests need VCS, or Verilator plus the RISC-V binaries built by
-  `examples/software/Makefile`, so those only run locally.
-
-The examples are checked against the *released* artifacts, since that is what a user of Chippy gets.
-A release PR is the exception: it bumps the examples to the version it is about to publish, which
-does not exist yet. So the examples job also puts the repository the publish job produced *behind*
-the released one, using `COURSIER_REPOSITORIES`. Mill resolves the repositories a build lists before
-any repository configured that way, so the released artifacts win whenever they exist, and the ones
-built from source are reached only for a version that has not been published — a release PR, or a
-push to `main` before the release job has finished deploying.
 
 ## Releasing
 
@@ -111,5 +81,4 @@ in prose — an unmatched opening marker turns the rest of the file into a repla
 
 Because the release PR bumps the examples to the version it is about to publish, the examples briefly
 reference a version that does not exist yet — from the moment the release PR is opened until the
-publish job finishes after it is merged. CI covers that window by falling back to the repository it
-builds itself; see [Continuous integration](#continuous-integration).
+publish job finishes after it is merged.
