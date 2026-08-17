@@ -21,4 +21,7 @@
 	url = https://github.com/ucb-bar/constellation.git
 [submodule "DRAMSim2"]
 	path = DRAMSim2
-	url = git@github.com:firesim/DRAMSim2.git
+	url = https://github.com/firesim/DRAMSim2.git
+[submodule "chipyard"]
+	path = chipyard
+	url = https://github.com/ucb-substrate/chippyard.git

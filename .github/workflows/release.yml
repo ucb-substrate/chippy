@@ -1,0 +1,121 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+  # Escape hatch: re-publish the version currently in version.txt
+  # (useful if the publish job failed after the release was already tagged).
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # Maintains the release PR ("chore(main): release X.Y.Z") on every push to main.
+  # Merging that PR is what produces a tag + GitHub release, which gates the publish job below.
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Adds this release's artifacts to the Maven repository served from GitHub Pages.
+  #
+  # The repository is cumulative, but a Pages deployment replaces the whole site, so the
+  # accumulated state has to live somewhere durable between runs. It is kept as a tarball
+  # attached to the `maven-repo` release, which is a fixed, non-"Latest" release that exists
+  # solely as an artifact store. Actions artifacts are not usable here: the Pages artifact
+  # expires after a day by default and can be retained no longer than 90 days on a public repo.
+  publish:
+    needs: [release-please]
+    if: >-
+      !cancelled() &&
+      (needs.release-please.outputs.release_created == 'true' ||
+       github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # rocket-chip and friends are submodules, and rocket-chip has its own
+          # nested submodules (cde, diplomacy, hardfloat) that the build compiles.
+          submodules: recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.cache/mill
+          key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
+          restore-keys: mill-${{ runner.os }}-
+
+      - name: Restore the previously published repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p site
+          if gh release download maven-repo --pattern repo.tar.gz --output repo.tar.gz; then
+            tar xzf repo.tar.gz -C site
+            echo "Restored $(find site -name '*.pom' | wc -l) previously published artifacts."
+          else
+            echo "No existing repo.tar.gz; starting a fresh repository."
+          fi
+
+      - name: Add this release to the repository
+        run: ./mill __.publishM2Local --m2RepoPath "$PWD/site"
+
+      # Mill's M2 publisher does not emit checksums. Coursier tolerates their absence, but
+      # Maven and Gradle warn, so generate any that are missing.
+      - name: Generate checksums
+        run: |
+          find site -type f \( -name '*.jar' -o -name '*.pom' \) -print0 |
+            while IFS= read -r -d '' f; do
+              [ -f "$f.md5" ]  || md5sum  "$f" | cut -d' ' -f1 > "$f.md5"
+              [ -f "$f.sha1" ] || sha1sum "$f" | cut -d' ' -f1 > "$f.sha1"
+            done
+
+      - name: Save the updated repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tar czf repo.tar.gz -C site .
+          gh release view maven-repo >/dev/null 2>&1 || gh release create maven-repo \
+            --title "Maven repository store" \
+            --notes "Rolling tarball of the Maven repository served at the GitHub Pages site. Managed by .github/workflows/release.yml — do not delete." \
+            --latest=false
+          gh release upload maven-repo repo.tar.gz --clobber
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v5
+        id: deployment
