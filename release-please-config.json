@@ -6,6 +6,11 @@
   "include-v-in-tag": true,
   "include-component-in-tag": false,
   "packages": {
-    ".": {}
+    ".": {
+      "extra-files": [
+        "README.md",
+        { "type": "generic", "path": "examples/**/*.mill" }
+      ]
+    }
   }
 }

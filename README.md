@@ -12,20 +12,24 @@ at <https://ucb-substrate.github.io/chippy>. No credentials are required to reso
 To include a package in a new project, add the repository and the dependency. If you are using Mill
 1.1.2, for example, add the following to your `build.mill` to use the `diplomacy` package:
 
+<!-- x-release-please-start-version -->
 ```scala
 def repositories = Seq("https://ucb-substrate.github.io/chippy")
 
 def mvnDeps = Seq(
-    mvn"edu.berkeley.cs::diplomacy:0.0.1",
+    mvn"edu.berkeley.cs::diplomacy:0.1.0",
 )
 ```
+<!-- x-release-please-end -->
 
 The equivalent for sbt:
 
+<!-- x-release-please-start-version -->
 ```scala
 resolvers += "chippy" at "https://ucb-substrate.github.io/chippy"
-libraryDependencies += "edu.berkeley.cs" %% "diplomacy" % "0.0.1"
+libraryDependencies += "edu.berkeley.cs" %% "diplomacy" % "0.1.0"
 ```
+<!-- x-release-please-end -->
 
 Alternatively, you can build against unreleased changes by publishing to your local Ivy repository:
 
@@ -56,3 +60,25 @@ The flow is:
 
 `.github/workflows/release.yml` runs every step with the built-in `GITHUB_TOKEN`, so no additional
 secrets are required.
+
+### Examples
+
+The projects under `examples/` are consumers, not published packages. Each is its own nested build
+that depends on Chippy the way an external project would — by released coordinate, resolved from the
+public repository — rather than via `moduleDeps`. None of them extends `PublishModule`, which is what
+keeps them out of the `__.publishM2Local` wildcard the release job uses. **Do not make an example a
+`PublishModule`**: it would be picked up by the release, and because its dependencies are the
+artifacts that same job is producing, the build would fail to resolve them on a clean checkout.
+
+Their pinned versions are bumped automatically. Every `edu.berkeley.cs` dependency line carries an
+`x-release-please-version` comment, and the snippets in this README are wrapped in the block form of
+the same annotation, so the release PR updates them alongside `version.txt`. The build files use the
+per-line form rather than the block form on purpose: a block rewrites every semver-looking literal it
+spans, which would also catch neighbouring lines such as the ScalaTest dependency.
+
+Note that release-please scans this file too, so avoid writing the literal block-annotation markers
+in prose — an unmatched opening marker turns the rest of the file into a replacement zone.
+
+Because the release PR bumps the examples to the version it is about to publish, the examples briefly
+reference a version that does not exist yet — from the moment the release PR is opened until the
+publish job finishes after it is merged.
