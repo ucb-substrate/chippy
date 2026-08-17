@@ -56,17 +56,3 @@ The flow is:
 
 `.github/workflows/release.yml` runs every step with the built-in `GITHUB_TOKEN`, so no additional
 secrets are required.
-
-### How the repository is hosted
-
-The Maven repository is a static file tree served by GitHub Pages. Because a Pages deployment
-replaces the entire site, but a Maven repository is cumulative, the accumulated state is kept as a
-`repo.tar.gz` asset on the `maven-repo` release. Each publish downloads that tarball, adds the new
-version to it, re-uploads it, and deploys the result to Pages.
-
-The `maven-repo` release is infrastructure, not a real release — it is deliberately not marked
-"Latest" and **must not be deleted**, since it is the only copy of previously published versions.
-Deleting a published version is a matter of removing its directory from the tarball.
-
-This requires the repository's Pages source to be set to **GitHub Actions** under
-Settings → Pages.
