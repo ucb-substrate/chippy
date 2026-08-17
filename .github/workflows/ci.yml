@@ -1,0 +1,118 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Superseded pull request pushes are not worth finishing; every commit that lands on
+  # main is, since a release can be cut from any of them.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # A release is tagged by release-please the moment its PR merges, so a publish failure
+  # afterwards leaves a tagged version that was never published. This job runs the same
+  # command the release job does, on every pull request and push, so that never happens.
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # rocket-chip and friends are submodules, and rocket-chip has its own
+          # nested submodules (cde, diplomacy, hardfloat) that the build compiles.
+          submodules: recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.cache/mill
+          key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
+          restore-keys: mill-${{ runner.os }}-
+
+      # Also generates the POM, the source jar and the Scaladoc jar, which is most of
+      # what publishing can break.
+      - name: Publish every package
+        run: ./mill __.publishM2Local --m2RepoPath "$PWD/m2"
+
+      # Only ever consumed by the examples job below, and only for a version that is not
+      # published yet. See the comment there.
+      - name: Upload the Maven repository
+        uses: actions/upload-artifact@v7
+        with:
+          name: maven-repo
+          path: m2
+          retention-days: 1
+
+  # The examples are external consumers of the released artifacts (see the README), so
+  # they check that what a user of Chippy actually gets is usable.
+  examples:
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Mill resolves the repositories a build lists — for the examples, the released
+      # repository on GitHub Pages — before any repository configured here, so the
+      # released artifacts are what gets tested. The repository built by the publish job
+      # is only reached for a version GitHub Pages does not have, which is exactly the
+      # case on a release PR: it bumps the examples to the version it is about to
+      # publish. `central` has to be spelled out because this replaces coursier's
+      # default repositories rather than adding to them.
+      COURSIER_REPOSITORIES: ivy2Local|central|file://${{ github.workspace }}/m2
+      # A runner defaults to a quarter of its 16 GB for the heap, which is not much for
+      # elaborating a chip top. The publish job deliberately gets no such override: it is
+      # meant to fail wherever the release job would.
+      JAVA_TOOL_OPTIONS: -Xmx6g -Xss8m
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.cache/mill
+          key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
+          restore-keys: mill-${{ runner.os }}-
+
+      - name: Download the Maven repository
+        uses: actions/download-artifact@v8
+        with:
+          name: maven-repo
+          path: m2
+
+      - name: Compile every example
+        run: ./mill examples.__.compile
+
+      # Everything else the examples' tests do needs EDA tools that are not available
+      # here — VCS, or a Verilator build plus RISC-V binaries from examples/software.
+      # Elaborating the two chip tops needs neither and still exercises the artifacts at
+      # run time, which is where diplomacy and CDE errors surface.
+      #
+      # A `-z` filter that matches nothing still exits 0, so the summary is checked as
+      # well; otherwise renaming a test would leave this step passing having run nothing.
+      - name: Elaborate the chip tops
+        run: |
+          set -euo pipefail
+          for module in examples.rocket-config examples.sky130-chip.digital-chip; do
+            ./mill "$module.test" -z "should generate valid System Verilog" | tee elaborate.log
+            grep -q "Tests: succeeded 1, failed 0" elaborate.log
+          done
