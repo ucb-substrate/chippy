@@ -17,7 +17,7 @@ To include a package in a new project, add the repository and the dependency. If
 def repositories = Seq("https://ucb-substrate.github.io/chippy")
 
 def mvnDeps = Seq(
-    mvn"edu.berkeley.cs::diplomacy:0.1.1",
+    mvn"edu.berkeley.cs::diplomacy:0.1.2",
 )
 ```
 <!-- x-release-please-end -->
@@ -27,7 +27,7 @@ The equivalent for sbt:
 <!-- x-release-please-start-version -->
 ```scala
 resolvers += "chippy" at "https://ucb-substrate.github.io/chippy"
-libraryDependencies += "edu.berkeley.cs" %% "diplomacy" % "0.1.1"
+libraryDependencies += "edu.berkeley.cs" %% "diplomacy" % "0.1.2"
 ```
 <!-- x-release-please-end -->
 
