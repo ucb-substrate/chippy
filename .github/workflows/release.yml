@@ -2,17 +2,16 @@ name: release
 
 on:
   # Runs once ci has finished for a commit on main, rather than on the push itself, so
-  # nothing is ever tagged or published on top of a failing build. This event also fires
-  # for ci runs on pull requests — including a fork branch that happens to be named
-  # `main` — so the release-please job below checks that the run it is reacting to was a
-  # push. Being a `workflow_run` trigger, the copy of this file on the default branch is
-  # the one that runs.
+  # nothing is ever published on top of a failing build. This event also fires for ci runs
+  # on pull requests — including a fork branch that happens to be named `main` — so every
+  # job below checks that the run it is reacting to was a push. Being a `workflow_run`
+  # trigger, the copy of this file on the default branch is the one that runs.
   workflow_run:
     workflows: [ci]
     types: [completed]
     branches: [main]
-  # Escape hatch: re-publish the version currently in version.txt
-  # (useful if the publish job failed after the release was already tagged).
+  # Escape hatch: re-publish the version currently in version.txt and finish tagging it.
+  # Useful if a release run failed partway; both halves are idempotent.
   workflow_dispatch:
 
 permissions: {}
@@ -21,27 +20,17 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+# The order of these jobs is the point of this workflow: publish, deploy, and only then
+# tag. release-please is split into its two halves — maintaining the release PR, and
+# creating the tag and GitHub release — so that nothing is tagged until the artifacts it
+# refers to are live. A publish failure therefore leaves no tag to clean up, and re-running
+# finishes the release rather than duplicating it.
+#
+#   publish -> deploy -> tag -> release-pr
+#
+# The file lists them in that order too; `release-pr` runs last because tagging first is
+# what stops it from re-proposing a release that is already on its way out.
 jobs:
-  # Maintains the release PR ("chore(main): release X.Y.Z") for every push to main that
-  # passes ci. Merging that PR is what produces a tag + GitHub release, which gates the
-  # publish job below.
-  release-please:
-    if: >-
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-    steps:
-      - uses: googleapis/release-please-action@v5
-        id: release
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   # Adds this release's artifacts to the Maven repository served from GitHub Pages.
   #
   # The repository is cumulative, but a Pages deployment replaces the whole site, so the
@@ -49,12 +38,16 @@ jobs:
   # attached to the `maven-repo` release, which is a fixed, non-"Latest" release that exists
   # solely as an artifact store. Actions artifacts are not usable here: the Pages artifact
   # expires after a day by default and can be retained no longer than 90 days on a public repo.
+  #
+  # Nothing has been tagged at this point, so the release is identified by the commit
+  # release-please's PR lands: "chore(main): release X.Y.Z". `release_created` is not
+  # available yet by design — it comes from the tagging half, which now runs last.
   publish:
-    needs: [release-please]
     if: >-
-      !cancelled() &&
-      (needs.release-please.outputs.release_created == 'true' ||
-       github.event_name == 'workflow_dispatch')
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_commit.message, 'chore(main): release')) ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -62,10 +55,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           # A workflow_run event does not check out the commit that triggered ci, so pin
-          # this to the tag release-please just created — the artifacts published then
-          # match the release exactly, even if main has moved on since. The dispatch path
-          # has no tag and re-publishes whatever main currently holds.
-          ref: ${{ needs.release-please.outputs.tag_name || github.ref }}
+          # this to that commit — what gets published is then exactly what ci passed on,
+          # even if main has moved since. The dispatch path re-publishes main's head.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
           # rocket-chip and friends are submodules, and rocket-chip has its own
           # nested submodules (cde, diplomacy, hardfloat) that the build compiles.
           submodules: recursive
@@ -135,3 +127,43 @@ jobs:
     steps:
       - uses: actions/deploy-pages@v5
         id: deployment
+
+  # Tags the release and creates the GitHub release, now that the artifacts it points at
+  # are actually resolvable. This keys off the merged release PR's `autorelease: pending`
+  # label rather than off anything in this run, so re-running after a partial failure
+  # finishes the release instead of creating a second one. On an ordinary push it is
+  # skipped along with the publish and deploy jobs it depends on.
+  tag:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # The tagging half only; the release PR is maintained by the job below.
+          skip-github-pull-request: true
+
+  # Maintains the release PR ("chore(main): release X.Y.Z") for every push to main that
+  # passes ci. On a release push it waits for the tag: release-please decides what to
+  # propose from the commits since the last tag, so running it while a release is still
+  # untagged would have it propose that same release again. If tagging fails it does not
+  # run at all, for the same reason.
+  release-pr:
+    needs: [tag]
+    if: >-
+      !cancelled() &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      (needs.tag.result == 'success' || needs.tag.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          skip-github-release: true
