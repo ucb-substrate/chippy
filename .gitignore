@@ -83,11 +83,15 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/scala,macos,linux,windows
+### Tooling ###
+# Metals / BSP
 .metals/
 .bsp/
+.bloop/
+# IntelliJ
+.idea/
+# Build output
+out/
 build/
 target/
-project/metals.sbt
-project/project/
-out/
 .scala-build/

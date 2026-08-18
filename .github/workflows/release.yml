@@ -1,7 +1,15 @@
 name: release
 
 on:
-  push:
+  # Runs once ci has finished for a commit on main, rather than on the push itself, so
+  # nothing is ever tagged or published on top of a failing build. This event also fires
+  # for ci runs on pull requests — including a fork branch that happens to be named
+  # `main` — so the release-please job below checks that the run it is reacting to was a
+  # push. Being a `workflow_run` trigger, the copy of this file on the default branch is
+  # the one that runs.
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [main]
   # Escape hatch: re-publish the version currently in version.txt
   # (useful if the publish job failed after the release was already tagged).
@@ -14,10 +22,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Maintains the release PR ("chore(main): release X.Y.Z") on every push to main.
-  # Merging that PR is what produces a tag + GitHub release, which gates the publish job below.
+  # Maintains the release PR ("chore(main): release X.Y.Z") for every push to main that
+  # passes ci. Merging that PR is what produces a tag + GitHub release, which gates the
+  # publish job below.
   release-please:
-    if: github.event_name == 'push'
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -50,6 +61,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # A workflow_run event does not check out the commit that triggered ci, so pin
+          # this to the tag release-please just created — the artifacts published then
+          # match the release exactly, even if main has moved on since. The dispatch path
+          # has no tag and re-publishes whatever main currently holds.
+          ref: ${{ needs.release-please.outputs.tag_name || github.ref }}
           # rocket-chip and friends are submodules, and rocket-chip has its own
           # nested submodules (cde, diplomacy, hardfloat) that the build compiles.
           submodules: recursive

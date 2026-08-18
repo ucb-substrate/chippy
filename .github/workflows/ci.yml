@@ -1,0 +1,214 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Superseded pull request pushes are not worth finishing; every commit that lands on
+  # main is, since a release can be cut from any of them.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # A release is tagged by release-please the moment its PR merges, so a publish failure
+  # afterwards leaves a tagged version that was never published. This job runs the same
+  # command the release job does, ahead of every merge, so that never happens.
+  #
+  # The one push it skips is the merge of a release PR: release.yml publishes that exact
+  # commit for real moments later, and the release PR itself has already run this check.
+  # Spelled out per event rather than relying on `head_commit` being empty off a push —
+  # this silently skipping everywhere would cost exactly the protection it exists for.
+  publish:
+    if: >-
+      github.event_name != 'push' ||
+      !startsWith(github.event.head_commit.message, 'chore(main): release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # rocket-chip and friends are submodules, and rocket-chip has its own
+          # nested submodules (cde, diplomacy, hardfloat) that the build compiles.
+          submodules: recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.cache/mill
+          key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
+          restore-keys: mill-${{ runner.os }}-
+
+      # Mill's build output, so a run only recompiles what changed rather than all of
+      # rocket-chip, chipyard and constellation from cold. The submodules are pinned by
+      # commit and rarely move, so most of this survives from run to run. Safe to reuse:
+      # Mill decides what to re-run by hashing task inputs, so stale entries are ignored
+      # rather than trusted. The key is rolled per commit and matched by prefix, which
+      # makes every run save a fresh entry and restore the most recent one.
+      #
+      # Deliberately not done in release.yml: what that job publishes should come from a
+      # cold build of the tag, not from whatever a previous run left behind.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            out
+            !out/mill-daemon
+            !out/mill-out-lock
+          key: mill-out-publish-${{ runner.os }}-${{ github.sha }}
+          restore-keys: mill-out-publish-${{ runner.os }}-
+
+      # Also generates the POM, the source jar and the Scaladoc jar, which is most of
+      # what publishing can break.
+      - name: Publish every package
+        run: ./mill __.publishM2Local --m2RepoPath "$PWD/m2"
+
+  # The examples are external consumers of the released artifacts (see the README), so
+  # they resolve from <https://ucb-substrate.github.io/chippy> like any other project
+  # and check that what a user of Chippy actually gets is usable. Nothing here depends
+  # on the job above; the two run in parallel.
+  examples:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # A runner defaults to a quarter of its 16 GB for the heap, which is not much for
+      # elaborating a chip top. The publish job deliberately gets no such override: it is
+      # meant to fail wherever the release job would.
+      JAVA_TOOL_OPTIONS: -Xmx6g -Xss8m
+    steps:
+      - uses: actions/checkout@v7
+
+      # Only the two submodules the examples actually compile. rocket-chip, chipyard,
+      # constellation and DRAMSim2 are not in their dependency graph — the examples
+      # resolve Chippy from the published repository — and fetching them all is most of
+      # this job's checkout. A release run does need them, and initialises them itself.
+      - name: Check out the submodules the examples build
+        run: |
+          git submodule update --init --depth 1 \
+            examples/sky130-chip/digital-chip/shuttle \
+            examples/sky130-chip/digital-chip/saturn-vectors
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.cache/mill
+          key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
+          restore-keys: mill-${{ runner.os }}-
+
+      # Same rolling scheme as the publish job, under its own key: the two jobs build
+      # different modules into `out`, and a shared key would leave one of them restoring
+      # the other's tree and saving nothing.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            out
+            !out/mill-daemon
+            !out/mill-out-lock
+          key: mill-out-examples-${{ runner.os }}-${{ github.sha }}
+          restore-keys: mill-out-examples-${{ runner.os }}-
+
+      # The one case where the released artifacts cannot be used: a release bumps the
+      # examples to the version it is about to publish, so that version is not on GitHub
+      # Pages yet. Build it from source instead — on release-please's own PR, which it
+      # always opens from this branch, and on the commit that lands when that PR is
+      # merged, which is titled `chore(main): release X.Y.Z`. Its `autorelease:` label is
+      # not used for this: it is attached after the PR is created and flips to
+      # `autorelease: tagged` once the release exists.
+      #
+      # Deliberately conditional rather than a repository that is always available as a
+      # fallback: a package missing from GitHub Pages has to fail here, not be quietly
+      # supplied by this build.
+      - name: Build Chippy from source for a release
+        if: >-
+          github.head_ref == 'release-please--branches--main' ||
+          startsWith(github.event.head_commit.message, 'chore(main): release')
+        run: |
+          git submodule update --init --recursive --depth 1
+          ./mill __.publishM2Local --m2RepoPath "$PWD/m2"
+          # `central` has to be spelled out because this replaces coursier's default
+          # repositories rather than adding to them. The examples list GitHub Pages
+          # themselves, and Mill resolves a build's own repositories first, so the
+          # released artifacts still win for anything already published.
+          echo "COURSIER_REPOSITORIES=ivy2Local|central|file://$PWD/m2" >> "$GITHUB_ENV"
+
+      - name: Compile every example
+        run: ./mill examples.__.compile
+
+      # Everything else the examples' tests do needs EDA tools that are not available
+      # here — VCS, or a Verilator build plus RISC-V binaries from examples/software.
+      # Elaborating the two chip tops needs neither and still exercises the artifacts at
+      # run time, which is where diplomacy and CDE errors surface.
+      #
+      # A `-z` filter that matches nothing still exits 0, so the summary is checked as
+      # well; otherwise renaming a test would leave this step passing having run nothing.
+      #
+      # Elaborating a subsystem shells out to the device tree compiler, which rocket-chip
+      # runs to build the DTB the boot ROM embeds. It is not on the runner image.
+      # dtc is a 223 KB package, but installing it through apt costs an `apt-get update`
+      # first, which refreshes every source the runner image carries — tens of MB of
+      # indexes, and minutes of it when a mirror is slow. Fetch the package and its two
+      # dependencies straight from the archive pool instead. Pinned by version and
+      # checksum, which is also what makes the plain-HTTP fetch safe; apt verifies its
+      # downloads the same way. If the pool ever drops these versions the curl 404s and
+      # the apt path takes over.
+      - name: Install the device tree compiler
+        run: |
+          set -euo pipefail
+          pool=http://archive.ubuntu.com/ubuntu/pool/main
+          cd "$(mktemp -d)"
+          if curl -fsSLO "$pool/d/device-tree-compiler/device-tree-compiler_1.7.0-2build1_amd64.deb" \
+             && curl -fsSLO "$pool/d/device-tree-compiler/libfdt1_1.7.0-2build1_amd64.deb" \
+             && curl -fsSLO "$pool/liby/libyaml/libyaml-0-2_0.2.5-1build1_amd64.deb"; then
+            sha256sum --check <<'SUMS'
+          b2c1e8c86f18b6bda26408f92bfb9ec1a1e40bfdc41f1034600ccd68e82d2ed7  device-tree-compiler_1.7.0-2build1_amd64.deb
+          274d20dfab9d6b216b5de85446a93f6ce5b2cd82c847b8dfdc508577f76eb96a  libfdt1_1.7.0-2build1_amd64.deb
+          f5271b120d936dcc7ddf17b9e718df41d55386a6075555d0c634925eaef0b2ac  libyaml-0-2_0.2.5-1build1_amd64.deb
+          SUMS
+            sudo dpkg -i ./*.deb
+          else
+            echo "Archive pool no longer serves the pinned versions; falling back to apt."
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends device-tree-compiler
+          fi
+          dtc --version
+
+      # Saturn's instruction decoder goes through Chisel's default minimizer, which uses
+      # espresso when it is on the PATH and otherwise falls back to Quine-McCluskey with
+      # nothing but a logged error — exponential, on a vector ISA's decode table, so the
+      # job would crawl or hang rather than fail. rocket-chip pins QMCMinimizer itself,
+      # so only the sky130 example needs this.
+      - name: Install espresso
+        env:
+          ESPRESSO_SHA256: 7683c4315e1c9cec293c194eb6a1ed716d22a9952a96bd88bff62ecf57df6e2f
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/espresso" \
+            https://github.com/chipsalliance/espresso/releases/download/v2.4/x86_64-linux-gnu-espresso
+          echo "$ESPRESSO_SHA256  $HOME/.local/bin/espresso" | sha256sum --check
+          chmod +x "$HOME/.local/bin/espresso"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Elaborate the chip tops
+        run: |
+          set -euo pipefail
+          for module in examples.rocket-config examples.sky130-chip.digital-chip; do
+            ./mill "$module.test" -z "should generate valid System Verilog" | tee elaborate.log
+            grep -q "Tests: succeeded 1, failed 0" elaborate.log
+          done
