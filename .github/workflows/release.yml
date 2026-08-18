@@ -10,8 +10,10 @@ on:
     workflows: [ci]
     types: [completed]
     branches: [main]
-  # Escape hatch: re-publish the version currently in version.txt and finish tagging it.
-  # Useful if a release run failed partway; both halves are idempotent.
+  # Escape hatch: publish the version currently in version.txt and finish tagging it.
+  # Unlike the GitHub Pages repository this replaced, Maven Central refuses a version it
+  # already holds, so this recovers a run that failed before Central accepted the bundle.
+  # A run that failed after that point is finished by re-running the tag job alone.
   workflow_dispatch:
 
 permissions: {}
@@ -20,24 +22,18 @@ concurrency:
   group: release
   cancel-in-progress: false
 
-# The order of these jobs is the point of this workflow: publish, deploy, and only then
-# tag. release-please is split into its two halves — maintaining the release PR, and
-# creating the tag and GitHub release — so that nothing is tagged until the artifacts it
-# refers to are live. A publish failure therefore leaves no tag to clean up, and re-running
-# finishes the release rather than duplicating it.
+# The order of these jobs is the point of this workflow: publish, and only then tag.
+# release-please is split into its two halves — maintaining the release PR, and creating
+# the tag and GitHub release — so that nothing is tagged until the artifacts it refers to
+# are live. A publish failure therefore leaves no tag to clean up, and re-running finishes
+# the release rather than duplicating it.
 #
-#   publish -> deploy -> tag -> release-pr
+#   publish -> tag -> release-pr
 #
 # The file lists them in that order too; `release-pr` runs last because tagging first is
 # what stops it from re-proposing a release that is already on its way out.
 jobs:
-  # Adds this release's artifacts to the Maven repository served from GitHub Pages.
-  #
-  # The repository is cumulative, but a Pages deployment replaces the whole site, so the
-  # accumulated state has to live somewhere durable between runs. It is kept as a tarball
-  # attached to the `maven-repo` release, which is a fixed, non-"Latest" release that exists
-  # solely as an artifact store. Actions artifacts are not usable here: the Pages artifact
-  # expires after a day by default and can be retained no longer than 90 days on a public repo.
+  # Uploads this release's packages to Maven Central through the Sonatype Central Portal.
   #
   # Nothing has been tagged at this point, so the release is identified by the commit
   # release-please's PR lands: "chore(main): release X.Y.Z". `release_created` is not
@@ -50,7 +46,7 @@ jobs:
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -75,66 +71,43 @@ jobs:
           key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
           restore-keys: mill-${{ runner.os }}-
 
-      - name: Restore the previously published repository
+      # `publishAll` with no `--publishArtifacts` resolves every PublishModule in the
+      # build, which is exactly the eleven packages and none of the examples — the same
+      # wildcard property the README asks you not to break by making an example a
+      # PublishModule.
+      #
+      # Naming a bundle sends all of them to Central as one deployment, so it validates
+      # and releases them together or not at all. A half-published version is not a state
+      # this repository can be in — every package shares `version.txt` — and one
+      # deployment is also one release event against Central's publishing limits rather
+      # than eleven.
+      #
+      # Signing uses Mill's built-in PGP worker rather than a gpg binary, so
+      # MILL_PGP_SECRET_BASE64 is all the runner needs. `shouldRelease` defaults to true,
+      # which publishes the bundle as soon as Central has validated it instead of leaving
+      # it sitting in the portal for someone to release by hand.
+      #
+      # The await timeout defaults to two minutes, which validating an eleven-package
+      # bundle can outrun; twenty costs nothing when things go well, since the call
+      # returns as soon as Central reports a terminal state.
+      - name: Publish to Maven Central
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MILL_SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          MILL_SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          MILL_PGP_SECRET_BASE64: ${{ secrets.PGP_SECRET_BASE64 }}
+          MILL_PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
         run: |
-          mkdir -p site
-          if gh release download maven-repo --pattern repo.tar.gz --output repo.tar.gz; then
-            tar xzf repo.tar.gz -C site
-            echo "Restored $(find site -name '*.pom' | wc -l) previously published artifacts."
-          else
-            echo "No existing repo.tar.gz; starting a fresh repository."
-          fi
-
-      - name: Add this release to the repository
-        run: ./mill __.publishM2Local --m2RepoPath "$PWD/site"
-
-      # Mill's M2 publisher does not emit checksums. Coursier tolerates their absence, but
-      # Maven and Gradle warn, so generate any that are missing.
-      - name: Generate checksums
-        run: |
-          find site -type f \( -name '*.jar' -o -name '*.pom' \) -print0 |
-            while IFS= read -r -d '' f; do
-              [ -f "$f.md5" ]  || md5sum  "$f" | cut -d' ' -f1 > "$f.md5"
-              [ -f "$f.sha1" ] || sha1sum "$f" | cut -d' ' -f1 > "$f.sha1"
-            done
-
-      - name: Save the updated repository
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tar czf repo.tar.gz -C site .
-          gh release view maven-repo >/dev/null 2>&1 || gh release create maven-repo \
-            --title "Maven repository store" \
-            --notes "Rolling tarball of the Maven repository served at the GitHub Pages site. Managed by .github/workflows/release.yml — do not delete." \
-            --latest=false
-          gh release upload maven-repo repo.tar.gz --clobber
-
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-  deploy:
-    needs: [publish]
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/deploy-pages@v5
-        id: deployment
+          ./mill mill.javalib.SonatypeCentralPublishModule/publishAll \
+            --bundleName "chippy-$(cat version.txt)" \
+            --awaitTimeout 1200000
 
   # Tags the release and creates the GitHub release, now that the artifacts it points at
   # are actually resolvable. This keys off the merged release PR's `autorelease: pending`
   # label rather than off anything in this run, so re-running after a partial failure
   # finishes the release instead of creating a second one. On an ordinary push it is
-  # skipped along with the publish and deploy jobs it depends on.
+  # skipped along with the publish job it depends on.
   tag:
-    needs: [deploy]
+    needs: [publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
