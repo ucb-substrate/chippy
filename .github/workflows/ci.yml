@@ -49,6 +49,24 @@ jobs:
           key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
           restore-keys: mill-${{ runner.os }}-
 
+      # Mill's build output, so a run only recompiles what changed rather than all of
+      # rocket-chip, chipyard and constellation from cold. The submodules are pinned by
+      # commit and rarely move, so most of this survives from run to run. Safe to reuse:
+      # Mill decides what to re-run by hashing task inputs, so stale entries are ignored
+      # rather than trusted. The key is rolled per commit and matched by prefix, which
+      # makes every run save a fresh entry and restore the most recent one.
+      #
+      # Deliberately not done in release.yml: what that job publishes should come from a
+      # cold build of the tag, not from whatever a previous run left behind.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            out
+            !out/mill-daemon
+            !out/mill-out-lock
+          key: mill-out-publish-${{ runner.os }}-${{ github.sha }}
+          restore-keys: mill-out-publish-${{ runner.os }}-
+
       # Also generates the POM, the source jar and the Scaladoc jar, which is most of
       # what publishing can break.
       - name: Publish every package
