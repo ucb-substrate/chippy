@@ -160,12 +160,32 @@ jobs:
       #
       # Elaborating a subsystem shells out to the device tree compiler, which rocket-chip
       # runs to build the DTB the boot ROM embeds. It is not on the runner image.
+      # dtc is a 223 KB package, but installing it through apt costs an `apt-get update`
+      # first, which refreshes every source the runner image carries — tens of MB of
+      # indexes, and minutes of it when a mirror is slow. Fetch the package and its two
+      # dependencies straight from the archive pool instead. Pinned by version and
+      # checksum, which is also what makes the plain-HTTP fetch safe; apt verifies its
+      # downloads the same way. If the pool ever drops these versions the curl 404s and
+      # the apt path takes over.
       - name: Install the device tree compiler
         run: |
-          # The runner image ships no package lists, so the index refresh is not
-          # skippable — it is most of this step, and its cost is mostly network variance.
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends device-tree-compiler
+          set -euo pipefail
+          pool=http://archive.ubuntu.com/ubuntu/pool/main
+          cd "$(mktemp -d)"
+          if curl -fsSLO "$pool/d/device-tree-compiler/device-tree-compiler_1.7.0-2build1_amd64.deb" \
+             && curl -fsSLO "$pool/d/device-tree-compiler/libfdt1_1.7.0-2build1_amd64.deb" \
+             && curl -fsSLO "$pool/liby/libyaml/libyaml-0-2_0.2.5-1build1_amd64.deb"; then
+            sha256sum --check <<'SUMS'
+          b2c1e8c86f18b6bda26408f92bfb9ec1a1e40bfdc41f1034600ccd68e82d2ed7  device-tree-compiler_1.7.0-2build1_amd64.deb
+          274d20dfab9d6b216b5de85446a93f6ce5b2cd82c847b8dfdc508577f76eb96a  libfdt1_1.7.0-2build1_amd64.deb
+          f5271b120d936dcc7ddf17b9e718df41d55386a6075555d0c634925eaef0b2ac  libyaml-0-2_0.2.5-1build1_amd64.deb
+          SUMS
+            sudo dpkg -i ./*.deb
+          else
+            echo "Archive pool no longer serves the pinned versions; falling back to apt."
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends device-tree-compiler
+          fi
           dtc --version
 
       # Saturn's instruction decoder goes through Chisel's default minimizer, which uses
