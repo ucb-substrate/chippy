@@ -118,6 +118,32 @@ jobs:
       #
       # A `-z` filter that matches nothing still exits 0, so the summary is checked as
       # well; otherwise renaming a test would leave this step passing having run nothing.
+      #
+      # Elaborating a subsystem shells out to the device tree compiler, which rocket-chip
+      # runs to build the DTB the boot ROM embeds. It is not on the runner image.
+      - name: Install the device tree compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y device-tree-compiler
+          dtc --version
+
+      # Saturn's instruction decoder goes through Chisel's default minimizer, which uses
+      # espresso when it is on the PATH and otherwise falls back to Quine-McCluskey with
+      # nothing but a logged error — exponential, on a vector ISA's decode table, so the
+      # job would crawl or hang rather than fail. rocket-chip pins QMCMinimizer itself,
+      # so only the sky130 example needs this.
+      - name: Install espresso
+        env:
+          ESPRESSO_SHA256: 7683c4315e1c9cec293c194eb6a1ed716d22a9952a96bd88bff62ecf57df6e2f
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/espresso" \
+            https://github.com/chipsalliance/espresso/releases/download/v2.4/x86_64-linux-gnu-espresso
+          echo "$ESPRESSO_SHA256  $HOME/.local/bin/espresso" | sha256sum --check
+          chmod +x "$HOME/.local/bin/espresso"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Elaborate the chip tops
         run: |
           set -euo pipefail
