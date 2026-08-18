@@ -87,8 +87,16 @@ jobs:
       JAVA_TOOL_OPTIONS: -Xmx6g -Xss8m
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
+
+      # Only the two submodules the examples actually compile. rocket-chip, chipyard,
+      # constellation and DRAMSim2 are not in their dependency graph — the examples
+      # resolve Chippy from the published repository — and fetching them all is most of
+      # this job's checkout. A release run does need them, and initialises them itself.
+      - name: Check out the submodules the examples build
+        run: |
+          git submodule update --init --depth 1 \
+            examples/sky130-chip/digital-chip/shuttle \
+            examples/sky130-chip/digital-chip/saturn-vectors
 
       - uses: actions/setup-java@v5
         with:
@@ -102,6 +110,18 @@ jobs:
             ~/.cache/mill
           key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
           restore-keys: mill-${{ runner.os }}-
+
+      # Same rolling scheme as the publish job, under its own key: the two jobs build
+      # different modules into `out`, and a shared key would leave one of them restoring
+      # the other's tree and saving nothing.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            out
+            !out/mill-daemon
+            !out/mill-out-lock
+          key: mill-out-examples-${{ runner.os }}-${{ github.sha }}
+          restore-keys: mill-out-examples-${{ runner.os }}-
 
       # The one case where the released artifacts cannot be used: a release bumps the
       # examples to the version it is about to publish, so that version is not on GitHub
@@ -119,6 +139,7 @@ jobs:
           github.head_ref == 'release-please--branches--main' ||
           startsWith(github.event.head_commit.message, 'chore(main): release')
         run: |
+          git submodule update --init --recursive --depth 1
           ./mill __.publishM2Local --m2RepoPath "$PWD/m2"
           # `central` has to be spelled out because this replaces coursier's default
           # repositories rather than adding to them. The examples list GitHub Pages
@@ -141,8 +162,10 @@ jobs:
       # runs to build the DTB the boot ROM embeds. It is not on the runner image.
       - name: Install the device tree compiler
         run: |
+          # The runner image ships no package lists, so the index refresh is not
+          # skippable — it is most of this step, and its cost is mostly network variance.
           sudo apt-get update
-          sudo apt-get install -y device-tree-compiler
+          sudo apt-get install -y --no-install-recommends device-tree-compiler
           dtc --version
 
       # Saturn's instruction decoder goes through Chisel's default minimizer, which uses
