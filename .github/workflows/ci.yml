@@ -15,8 +15,10 @@ concurrency:
 
 jobs:
   # A release is tagged by release-please the moment its PR merges, so a publish failure
-  # afterwards leaves a tagged version that was never published. This job runs the same
-  # command the release job does, ahead of every merge, so that never happens.
+  # afterwards leaves a tagged version that was never published. This job builds every
+  # artifact the release job uploads, ahead of every merge, so that never happens. It
+  # stops at a local repository rather than reaching Maven Central: the upload itself
+  # cannot be rehearsed, since Central refuses a version it already holds.
   #
   # The one push it skips is the merge of a release PR: release.yml publishes that exact
   # commit for real moments later, and the release PR itself has already run this check.
@@ -67,15 +69,15 @@ jobs:
           key: mill-out-publish-${{ runner.os }}-${{ github.sha }}
           restore-keys: mill-out-publish-${{ runner.os }}-
 
-      # Also generates the POM, the source jar and the Scaladoc jar, which is most of
-      # what publishing can break.
+      # Also generates the POM, the source jar and the Scaladoc jar — Maven Central
+      # requires all three, and they are most of what publishing can break.
       - name: Publish every package
         run: ./mill __.publishM2Local --m2RepoPath "$PWD/m2"
 
   # The examples are external consumers of the released artifacts (see the README), so
-  # they resolve from <https://ucb-substrate.github.io/chippy> like any other project
-  # and check that what a user of Chippy actually gets is usable. Nothing here depends
-  # on the job above; the two run in parallel.
+  # they resolve from Maven Central like any other project and check that what a user of
+  # Chippy actually gets is usable. Nothing here depends on the job above; the two run in
+  # parallel.
   examples:
     runs-on: ubuntu-latest
     permissions:
@@ -124,15 +126,15 @@ jobs:
           restore-keys: mill-out-examples-${{ runner.os }}-
 
       # The one case where the released artifacts cannot be used: a release bumps the
-      # examples to the version it is about to publish, so that version is not on GitHub
-      # Pages yet. Build it from source instead — on release-please's own PR, which it
+      # examples to the version it is about to publish, so that version is not on Maven
+      # Central yet. Build it from source instead — on release-please's own PR, which it
       # always opens from this branch, and on the commit that lands when that PR is
       # merged, which is titled `chore(main): release X.Y.Z`. Its `autorelease:` label is
       # not used for this: it is attached after the PR is created and flips to
       # `autorelease: tagged` once the release exists.
       #
       # Deliberately conditional rather than a repository that is always available as a
-      # fallback: a package missing from GitHub Pages has to fail here, not be quietly
+      # fallback: a package missing from Maven Central has to fail here, not be quietly
       # supplied by this build.
       - name: Build Chippy from source for a release
         if: >-
@@ -142,9 +144,9 @@ jobs:
           git submodule update --init --recursive --depth 1
           ./mill __.publishM2Local --m2RepoPath "$PWD/m2"
           # `central` has to be spelled out because this replaces coursier's default
-          # repositories rather than adding to them. The examples list GitHub Pages
-          # themselves, and Mill resolves a build's own repositories first, so the
-          # released artifacts still win for anything already published.
+          # repositories rather than adding to them, and it comes first so that anything
+          # already released still resolves from Maven Central; the local repository is
+          # only there to supply the one version that is not on Central yet.
           echo "COURSIER_REPOSITORIES=ivy2Local|central|file://$PWD/m2" >> "$GITHUB_ENV"
 
       - name: Compile every example
