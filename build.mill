@@ -21,10 +21,18 @@ trait ChippyModule extends ScalaModule {
 }
 
 trait ChippyPublishModule extends ChippyModule, PublishModule {
-  // Single source of truth for the version of every published Chippy artifact.
-  // Bumped automatically by release-please; see .github/workflows/release.yml.
-  def versionFile = Task.Source(BuildCtx.workspaceRoot / "version.txt")
-  def publishVersion = Task { os.read(versionFile().path).trim }
+  // The release-please package this artifact's version comes from. Packages are one per
+  // submodule rather than one per artifact, because release-please attributes commits by
+  // path and a submodule bump touches exactly one: the five artifacts built out of
+  // `rocket-chip` therefore share a version, which is also how they actually change.
+  def versionLine: String
+
+  // Versions live only in the release-please manifest, keyed by that same path. Nothing
+  // duplicates them — release-please's `simple` strategy does write a `version.txt` under
+  // each package path, but with createIfMissing: false, and these paths are submodules
+  // where no such file exists, so the manifest is the sole source of truth.
+  def versionManifest = Task.Source(BuildCtx.workspaceRoot / ".release-please-manifest.json")
+  def publishVersion = Task { ujson.read(os.read(versionManifest().path))(versionLine).str }
 
   def makePomSettings(description: String) = PomSettings(
     description = description,
@@ -39,6 +47,7 @@ trait ChippyPublishModule extends ChippyModule, PublishModule {
 }
 
 object rocketchip extends ChippyPublishModule {
+  def versionLine = "rocket-chip"
   def moduleDir = super.moduleDir / os.up / "rocket-chip"
   def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
 
@@ -54,18 +63,20 @@ object rocketchip extends ChippyPublishModule {
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
   )
 
-  def pomSettings = makePomSettings("Hardware floating-point units written in Chisel.")
+  def pomSettings = makePomSettings("The Rocket Chip generator.")
 
   object macros extends ChippyPublishModule {
+    def versionLine = "rocket-chip"
     def mvnDeps = Seq(
       mvn"org.scala-lang:scala-reflect:${scalaVersion}",
       )
 
-    def pomSettings = makePomSettings("Hardware floating-point units written in Chisel.")
+    def pomSettings = makePomSettings("Scala macros used by the Rocket Chip generator.")
   }
 
   object dependencies extends Module {
     object cde extends ChippyPublishModule {
+      def versionLine = "rocket-chip"
       def artifactName = "cde"
 
       def sources = Task.Sources(this.moduleDir / "cde" / "src")
@@ -82,6 +93,7 @@ object rocketchip extends ChippyPublishModule {
     }
 
     object diplomacy extends ChippyPublishModule {
+      def versionLine = "rocket-chip"
       def artifactName = "diplomacy"
 
       def sources = Task.Sources(this.moduleDir / "diplomacy" / "src")
@@ -100,6 +112,7 @@ object rocketchip extends ChippyPublishModule {
     }
 
     object hardfloat extends ChippyPublishModule {
+      def versionLine = "rocket-chip"
       def artifactName = "hardfloat"
 
       def sources = Task.Sources(this.moduleDir / "hardfloat" / "src")
@@ -127,6 +140,7 @@ object rocketchip extends ChippyPublishModule {
 }
 
 object `rocketchip-blocks` extends ChippyPublishModule {
+  def versionLine = "rocket-chip-blocks"
   def moduleDir = super.moduleDir / os.up / "rocket-chip-blocks"
 
   def moduleDeps = Seq(rocketchip)
@@ -138,10 +152,11 @@ object `rocketchip-blocks` extends ChippyPublishModule {
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
   )
 
-  def pomSettings = makePomSettings("RTL generators designed to be compatible with Rocket Chip.")
+  def pomSettings = makePomSettings("RTL blocks compatible with the Rocket Chip generator.")
 }
 
 object `rocketchip-inclusive-cache` extends ChippyPublishModule {
+  def versionLine = "rocket-chip-inclusive-cache"
   def moduleDir = super.moduleDir / os.up / "rocket-chip-inclusive-cache"
   def sources = Task.Sources(moduleDir / "design" / "craft" / "inclusivecache")
 
@@ -158,6 +173,7 @@ object `rocketchip-inclusive-cache` extends ChippyPublishModule {
 }
 
 object testchipip extends ChippyPublishModule {
+  def versionLine = "testchipip"
   def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
 
   def moduleDeps = Seq(rocketchip.dependencies.cde, rocketchip, `rocketchip-blocks`)
@@ -173,6 +189,7 @@ object testchipip extends ChippyPublishModule {
 }
 
 object constellation extends ChippyPublishModule {
+  def versionLine = "constellation"
   def sources = Task.Sources(this.moduleDir / "src" / "main")
 
   def moduleDeps = Seq(rocketchip.dependencies.cde, rocketchip, rocketchip.macros)
@@ -196,6 +213,7 @@ object constellation extends ChippyPublishModule {
 }
 
 object chippy extends ChippyPublishModule {
+  def versionLine = "chippy"
   def moduleDeps = Seq(rocketchip.dependencies.cde, rocketchip.dependencies.diplomacy, rocketchip)
 
   def mvnDeps = Seq(
@@ -205,10 +223,11 @@ object chippy extends ChippyPublishModule {
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
   )
 
-  def pomSettings = makePomSettings("An SoC design framework for integrating cores, accelerators, and other peripherals. ")
+  def pomSettings = makePomSettings("An SoC design framework for integrating cores, accelerators, and other peripherals.")
 }
 
 object chipyard extends ChippyPublishModule {
+  def versionLine = "chipyard"
   def sources = Task.Sources(this.moduleDir / "src" / "main")
   def resources = Task.Sources { moduleDir / "src" / "main" / "resources" }
 
@@ -222,7 +241,7 @@ object chipyard extends ChippyPublishModule {
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
   )
 
-  def pomSettings = makePomSettings("An SoC design framework for integrating cores, accelerators, and other peripherals. ")
+  def pomSettings = makePomSettings("Prebuilt config fragments and full chip configs for Chippy.")
 
   object test extends ScalaTests, TestModule.ScalaTest {
     def sources = Task.Sources(this.moduleDir / os.up / "src" / "test")

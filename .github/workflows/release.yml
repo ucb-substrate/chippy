@@ -10,10 +10,10 @@ on:
     workflows: [ci]
     types: [completed]
     branches: [main]
-  # Escape hatch: publish the version currently in version.txt and finish tagging it.
-  # Unlike the GitHub Pages repository this replaced, Maven Central refuses a version it
-  # already holds, so this recovers a run that failed before Central accepted the bundle.
-  # A run that failed after that point is finished by re-running the tag job alone.
+  # Escape hatch: publish whatever the manifest names that Central does not have yet, and
+  # finish tagging it. Maven Central refuses a version it already holds, but the publish
+  # job selects on exactly that, so this is safe to re-run — it uploads only what is still
+  # missing and does nothing at all once everything has landed.
   workflow_dispatch:
 
 permissions: {}
@@ -28,7 +28,7 @@ concurrency:
 # are live. A publish failure therefore leaves no tag to clean up, and re-running finishes
 # the release rather than duplicating it.
 #
-#   publish -> tag -> release-pr
+#   publish -> tag -> release-pr -> sync-examples
 #
 # The file lists them in that order too; `release-pr` runs last because tagging first is
 # what stops it from re-proposing a release that is already on its way out.
@@ -36,7 +36,9 @@ jobs:
   # Uploads this release's packages to Maven Central through the Sonatype Central Portal.
   #
   # Nothing has been tagged at this point, so the release is identified by the commit
-  # release-please's PR lands: "chore(main): release X.Y.Z". `release_created` is not
+  # release-please's PR lands: "chore(main): release". The title carries no version — the
+  # merged manifest PR takes its component and version from a root ("." path) package, and
+  # this repository has none, so both are empty. `release_created` is not
   # available yet by design — it comes from the tagging half, which now runs last.
   publish:
     if: >-
@@ -71,26 +73,35 @@ jobs:
           key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
           restore-keys: mill-${{ runner.os }}-
 
-      # `publishAll` with no `--publishArtifacts` resolves every PublishModule in the
-      # build, which is exactly the eleven packages and none of the examples — the same
-      # wildcard property the README asks you not to break by making an example a
-      # PublishModule.
+      # Packages version independently, so a release publishes only the ones whose version
+      # is not on Central yet — which is most of the point: rocket-chip is nearly half the
+      # bytes of a full release and only moves when its submodule pointer does.
       #
-      # Naming a bundle sends all of them to Central as one deployment, so it validates
-      # and releases them together or not at all. A half-published version is not a state
-      # this repository can be in — every package shares `version.txt` — and one
-      # deployment is also one release event against Central's publishing limits rather
-      # than eleven.
+      # The set is derived by asking Central rather than by reading release-please's
+      # outputs, which do not exist yet at this point: the tagging half runs after this
+      # job, deliberately. Deriving it from Central also makes the job idempotent, which is
+      # what the workflow_dispatch escape hatch relies on — a re-run uploads exactly what
+      # is still missing rather than failing on what already landed.
+      - name: Work out which packages need publishing
+        id: select
+        run: |
+          ./mill show '__.artifactMetadata' 2>/dev/null > metadata.json
+          python3 .github/scripts/select-unpublished.py < metadata.json >> "$GITHUB_OUTPUT"
+
+      # Whatever is selected goes up as one bundle, so Central validates and releases it
+      # atomically, and the release costs one deployment against Central's publishing
+      # limits rather than one per package.
       #
       # Signing uses Mill's built-in PGP worker rather than a gpg binary, so
       # MILL_PGP_SECRET_BASE64 is all the runner needs. `shouldRelease` defaults to true,
       # which publishes the bundle as soon as Central has validated it instead of leaving
       # it sitting in the portal for someone to release by hand.
       #
-      # The await timeout defaults to two minutes, which validating an eleven-package
-      # bundle can outrun; twenty costs nothing when things go well, since the call
-      # returns as soon as Central reports a terminal state.
+      # The await timeout defaults to two minutes, which validating a large bundle can
+      # outrun; twenty costs nothing when things go well, since the call returns as soon
+      # as Central reports a terminal state.
       - name: Publish to Maven Central
+        if: steps.select.outputs.count != '0'
         env:
           MILL_SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
           MILL_SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
@@ -98,14 +109,29 @@ jobs:
           MILL_PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
         run: |
           ./mill mill.javalib.SonatypeCentralPublishModule/publishAll \
-            --bundleName "chippy-$(cat version.txt)" \
+            --publishArtifacts '${{ steps.select.outputs.selector }}.publishArtifacts' \
+            --bundleName "chippy-$(git rev-parse --short HEAD)" \
             --awaitTimeout 1200000
 
-  # Tags the release and creates the GitHub release, now that the artifacts it points at
-  # are actually resolvable. This keys off the merged release PR's `autorelease: pending`
-  # label rather than off anything in this run, so re-running after a partial failure
-  # finishes the release instead of creating a second one. On an ordinary push it is
-  # skipped along with the publish job it depends on.
+      # Not a failure: an ordinary release only moves some packages, and a re-run after a
+      # successful publish legitimately has nothing left to do.
+      - name: Nothing to publish
+        if: steps.select.outputs.count == '0'
+        run: echo "Every package's current version is already on Maven Central."
+
+  # Tags each released package and creates its GitHub release, now that the artifacts they
+  # point at are actually resolvable. With per-package versions this is one tag and one
+  # release per package the run actually bumped, not one per package in the repository.
+  #
+  # Both halves of this are release-please's own: it has no tag-only mode, because creating
+  # the tag is a side effect of creating the release. That is also what clears the merged
+  # release PR's `autorelease: pending` label — release-please refuses to propose anything
+  # new while a merged release PR still carries it, so the `release-pr` job below depends
+  # on this one having run.
+  #
+  # Keys off that label rather than off anything in this run, so re-running after a partial
+  # failure finishes the release instead of creating a second one. On an ordinary push it
+  # is skipped along with the publish job it depends on.
   tag:
     needs: [publish]
     runs-on: ubuntu-latest
@@ -119,7 +145,7 @@ jobs:
           # The tagging half only; the release PR is maintained by the job below.
           skip-github-pull-request: true
 
-  # Maintains the release PR ("chore(main): release X.Y.Z") for every push to main that
+  # Maintains the release PR ("chore(main): release") for every push to main that
   # passes ci. On a release push it waits for the tag: release-please decides what to
   # propose from the commits since the last tag, so running it while a release is still
   # untagged would have it propose that same release again. If tagging fails it does not
@@ -140,3 +166,75 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           skip-github-release: true
+
+  # Adds the example version bumps to the release PR release-please just opened, so a
+  # release is one pull request rather than a release followed by a cleanup.
+  #
+  # release-please cannot do this itself: its component-scoped updaters only handle
+  # json/toml/yaml/xml, and every example build file mixes packages from several version
+  # lines, so the annotation-based generic updater would rewrite each file's coordinates
+  # with a single package's version.
+  #
+  # The versions being pinned are not on Maven Central yet — they are the ones this PR
+  # proposes to publish. That is exactly the window the ci workflow's "Build Chippy from
+  # source for a release" step covers, keyed off this branch name and off the
+  # `chore(main): release` commit that lands when the PR merges.
+  #
+  # release-please force-pushes its branch whenever it regenerates the PR, dropping this
+  # commit; this job runs after it on every push to main, so it is simply re-applied.
+  sync-examples:
+    needs: [release-pr]
+    if: ${{ !cancelled() && needs.release-pr.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # There is only a branch to update when a release is actually pending.
+      - name: Look for a pending release PR
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api "repos/${{ github.repository }}/branches/release-please--branches--main" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "no release pending; nothing to sync"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.check.outputs.exists == 'true'
+        with:
+          ref: release-please--branches--main
+          submodules: recursive
+
+      - uses: actions/setup-java@v5
+        if: steps.check.outputs.exists == 'true'
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/cache@v6
+        if: steps.check.outputs.exists == 'true'
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.cache/mill
+          key: mill-${{ runner.os }}-${{ hashFiles('build.mill', 'mill') }}
+          restore-keys: mill-${{ runner.os }}-
+
+      - name: Pin the examples to the pending release
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          set -euo pipefail
+          ./mill show '__.artifactMetadata' 2>/dev/null > metadata.json
+          python3 .github/scripts/sync-example-versions.py < metadata.json
+          rm -f metadata.json
+          if git diff --quiet; then
+            echo "examples already pin the pending release"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(examples): pin to the pending release"
+          git push origin HEAD:release-please--branches--main
