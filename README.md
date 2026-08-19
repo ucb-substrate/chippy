@@ -12,7 +12,7 @@ add the following to your `build.mill` to use the `diplomacy` package:
 <!-- x-release-please-start-version -->
 ```scala
 def mvnDeps = Seq(
-    mvn"io.github.ucb-substrate::diplomacy:0.1.1",
+    mvn"io.github.ucb-substrate::diplomacy:0.1.2",
 )
 ```
 <!-- x-release-please-end -->
@@ -21,7 +21,7 @@ The equivalent for sbt:
 
 <!-- x-release-please-start-version -->
 ```scala
-libraryDependencies += "io.github.ucb-substrate" %% "diplomacy" % "0.1.1"
+libraryDependencies += "io.github.ucb-substrate" %% "diplomacy" % "0.1.2"
 ```
 <!-- x-release-please-end -->
 
