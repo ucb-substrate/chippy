@@ -4,32 +4,13 @@
   "skip-changelog": true,
   "bump-minor-pre-major": true,
   "include-v-in-tag": true,
-  "include-component-in-tag": true,
-  "separate-pull-requests": false,
+  "include-component-in-tag": false,
   "packages": {
-    "rocket-chip": {
-      "component": "rocketchip",
+    ".": {
       "extra-files": [
-        "README.md"
+        "README.md",
+        { "type": "generic", "path": "examples/**/*.mill", "glob": true }
       ]
-    },
-    "rocket-chip-blocks": {
-      "component": "rocketchip-blocks"
-    },
-    "rocket-chip-inclusive-cache": {
-      "component": "rocketchip-inclusive-cache"
-    },
-    "testchipip": {
-      "component": "testchipip"
-    },
-    "constellation": {
-      "component": "constellation"
-    },
-    "chipyard": {
-      "component": "chipyard"
-    },
-    "chippy": {
-      "component": "chippy"
     }
   }
 }
