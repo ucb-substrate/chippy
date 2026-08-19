@@ -11,13 +11,13 @@ object `package` extends ScalaModule {
 
   def mvnDeps = Seq(
     mvn"org.chipsalliance::chisel:${chiselVersion}",
-    mvn"io.github.ucb-substrate::cde:0.1.1",
-    mvn"io.github.ucb-substrate::diplomacy:0.1.1",
-    mvn"io.github.ucb-substrate::rocketchip:0.1.1",
-    mvn"io.github.ucb-substrate::rocketchip-blocks:0.1.1",
-    mvn"io.github.ucb-substrate::rocketchip-inclusive-cache:0.1.1",
-    mvn"io.github.ucb-substrate::testchipip:0.1.1",
-    mvn"io.github.ucb-substrate::chippy:0.1.1",
+    mvn"io.github.ucb-substrate::cde:0.1.1", // x-release-please-version
+    mvn"io.github.ucb-substrate::diplomacy:0.1.1", // x-release-please-version
+    mvn"io.github.ucb-substrate::rocketchip:0.1.1", // x-release-please-version
+    mvn"io.github.ucb-substrate::rocketchip-blocks:0.1.1", // x-release-please-version
+    mvn"io.github.ucb-substrate::rocketchip-inclusive-cache:0.1.1", // x-release-please-version
+    mvn"io.github.ucb-substrate::testchipip:0.1.1", // x-release-please-version
+    mvn"io.github.ucb-substrate::chippy:0.1.1", // x-release-please-version
   )
   def scalacPluginMvnDeps = Seq(
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
@@ -26,7 +26,7 @@ object `package` extends ScalaModule {
   object test extends ScalaTests, TestModule.ScalaTest {
     def mvnDeps = Seq(
       mvn"org.scalatest::scalatest:3.2.19",
-      mvn"io.github.ucb-substrate::testchipip:0.1.1",
+      mvn"io.github.ucb-substrate::testchipip:0.1.1", // x-release-please-version
     )
   }
 }

@@ -1,9 +1,3 @@
 {
-  "rocket-chip": "0.1.1",
-  "rocket-chip-blocks": "0.1.1",
-  "rocket-chip-inclusive-cache": "0.1.1",
-  "testchipip": "0.1.1",
-  "constellation": "0.1.1",
-  "chipyard": "0.1.1",
-  "chippy": "0.1.1"
+  ".": "0.1.1"
 }
