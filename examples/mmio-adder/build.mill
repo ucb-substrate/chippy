@@ -11,10 +11,10 @@ object `package` extends ScalaModule {
 
   def mvnDeps = Seq(
     mvn"org.chipsalliance::chisel:${chiselVersion}",
-    mvn"io.github.ucb-substrate::diplomacy:0.1.1", // x-release-please-version
-    mvn"io.github.ucb-substrate::rocketchip:0.1.1", // x-release-please-version
-    mvn"io.github.ucb-substrate::chippy:0.1.1", // x-release-please-version
-    mvn"io.github.ucb-substrate::testchipip:0.1.1" // x-release-please-version
+    mvn"io.github.ucb-substrate::diplomacy:0.1.2", // x-release-please-version
+    mvn"io.github.ucb-substrate::rocketchip:0.1.2", // x-release-please-version
+    mvn"io.github.ucb-substrate::chippy:0.1.2", // x-release-please-version
+    mvn"io.github.ucb-substrate::testchipip:0.1.2" // x-release-please-version
   )
   def scalacPluginMvnDeps = Seq(
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}",
